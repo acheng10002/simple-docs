@@ -1,0 +1,129 @@
+/**
+ * *** SCHEMA.PRISMA DEFINES THE DB MODEL THAT THE WHOLE FLOW RELIES ON
+ * ** DEFINES MODELS
+ * data model * enums
+ * - defines tables for templates, fields, jobs, and users
+ */
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+/**
+ * ENUM for OutputType, JobStatus, UserRole
+ * - fixed list of allowed values for a field
+ */
+enum OutputType {
+    docx
+    html
+    pdf
+}
+
+enum JobStatus {
+    queued
+    processing
+    succeeded
+    failed
+}
+
+enum UserRole {
+    USER
+    ADMIN
+}
+
+/**
+ * User model - required for JWT authentication, owner of templates/jobs
+ * with roles, standard fields
+ */
+model User {
+    id       String   @id @default(cuid())
+    email    String   @unique
+    username String?  @unique
+    password String // store hashed passwords only
+    role     UserRole @default(USER)
+    isActive Boolean  @default(true)
+
+    firstName String?
+    lastName  String?
+
+    // audit timestamps
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
+    lastLogin DateTime?
+
+    // relations - to track which user created templates/jobs
+    createdTemplates Template[] @relation("UserTemplates")
+    mergeJobs        MergeJob[] @relation("UserMergeJobs")
+
+    @@index([email])
+    @@index([isActive])
+}
+
+/**
+ * Template model - file metadata (name) + relation to Field[] and MergeJob
+ */
+model Template {
+    // cuid() - Prisma function that generates a collision-resistant unique identifier
+    //          it is globally unique, sortable by time, safe to generate
+    id       String  @id @default(cuid())
+    mimeType String?
+    name     String
+
+    // tracks which user uploaded the template
+    uploadedById String?
+    uploadedBy   User?   @relation("UserTemplates", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+    fields    Field[]
+    jobs      MergeJob[]
+    createdAt DateTime   @default(now())
+    updatedAt DateTime   @updatedAt
+
+    @@index([uploadedById])
+}
+
+/**
+ * Field model - each placeholder name per template (unique per template)
+ */
+model Field {
+    id         String   @id @default(cuid())
+    name       String
+    templateId String
+    template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+    @@unique([templateId, name]) // ensures name is unique per template
+}
+
+/**
+ * MergeJob model - audit trail of merges (data, outputType, status, filePath, userId, relations)
+ */
+model MergeJob {
+    id         Int      @id @default(autoincrement())
+    templateId String
+    template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+    // tracks which user initiated the merge (for JWT routes only)
+    userId String?
+    user   User?   @relation("UserMergeJobs", fields: [userId], references: [id], onDelete: SetNull)
+
+    data       Json
+    outputType OutputType
+    status     JobStatus  @default(queued)
+    filePath   String
+    // stores error text if a job fails
+    error      String?
+
+    // audit fields
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // @@index - creates db index on one or more fields to make lookups faster
+    @@index([templateId]) // db has a sorted data structure on templateId
+    @@index([status, createdAt]) // optimizes queries that filter by status first and then sort or filter by createdAt
+    @@index([userId])
+}
+
+// KEY LIBS: @PRISMA/CLIENT, PRISMA CLI, PATH

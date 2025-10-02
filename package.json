@@ -1,0 +1,46 @@
+{
+  "name": "simple-docs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "App.js",
+  "scripts": {
+    "test": "jest --runInBand"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/acheng10002/simple-docs.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/acheng10002/simple-docs/issues"
+  },
+  "homepage": "https://github.com/acheng10002/simple-docs#readme",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.899.0",
+    "@prisma/client": "^6.16.2",
+    "bcryptjs": "^3.0.2",
+    "csv-parse": "^5.6.0",
+    "docxtemplater": "^3.46.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "file-type": "^16.5.4",
+    "jsdom": "^26.1.0",
+    "libreoffice-convert": "^1.6.1",
+    "mammoth": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "mustache": "^4.2.0",
+    "parse5": "^6.0.1",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pizzip": "^3.1.7",
+    "puppeteer": "^24.16.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jsonwebtoken": "^9.0.2",
+    "prisma": "^6.16.2"
+  }
+}
