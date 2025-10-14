@@ -1,12 +1,10 @@
-/* mocks docxtemplater to control render behavior
-- replaces the real docxtemplater module with a manual mock from __mocks__/docxtemplater.js 
-- Jest hoists jest.mock() so the mock is actibe before any require()s run */
+/* replaces the real docxtemplater module with a manual mock from __mocks__/docxtemplater.js 
+- Jest hoists jest.mock() so the mock is active before any require()s run */
 jest.mock("docxtemplater");
 // loads the mocked module
 const Raw = require("docxtemplater");
-/* if the mock set module.exports.default = DocxMock (ESM-style) use Raw.default 
-if the mock is exported directly, module.exports = DocxMock, use Raw 
-- Docxtemplater becomes the constructor my code under test expects to new */
+/* if the mock is set module.exports.default = DocxMock (ESM-style), use Raw.default 
+if the mock is exported directly, module.exports = DocxMock, use Raw */
 const Docxtemplater = Raw.default || Raw;
 
 /* replaces pizzip with my manual mock in __mocks__/pizzip.js so new PizZip(...) won't touch 
@@ -24,8 +22,8 @@ const {
 
 beforeEach(() => {
   /* pre-test cleanup using a helper I attached to the mock 
-  - resets internal flags like shouldThrow/throw Shape so each test starts from a clean, 
-    predictable baseline */
+  - resets internal flags like shouldThrow/throw Shape so each test starts from a clean, predictable 
+    baseline */
   Docxtemplater._reset();
 });
 
@@ -35,7 +33,7 @@ test("lintDocxBuffer returns [] when render succeeds", () => {
   // calls lintDocxBuffer with a fake "docx" buffer
   const out = lintDocxBuffer(buf);
   /* shouldThrow is false, so mock .render() does nothing -> linter treats it as a valid template
-    and returns [] */
+  and returns [] */
   expect(out).toEqual([]);
 });
 
@@ -78,7 +76,7 @@ test("lintDocxBuffer maps Docxtemplater error details", () => {
 });
 
 /* renderDocxBufferOrThrow tests ensures my render path throws TemplateParseError for template 
-  issues and rethrows non-template errors untouched */
+issues and rethrows non-template errors untouched */
 test("renderDocxBufferOrThrow surfaces non-docxtemplater errors", () => {
   // simulates an error that doesn't look like a Docxtemplater parse error
   Docxtemplater._setBehavior(true, new Error("random-io-error"));
@@ -101,7 +99,7 @@ test("TemplateParseError is thrown for templating issues", () => {
     throw new Error("should have thrown");
   } catch (e) {
     /* should throw my TemplateParseError with the canonical message 
-      - test verifies the error type and message */
+    - test verifies the error type and message */
     expect(e).toBeInstanceOf(TemplateParseError);
     expect(e.message).toBe("TEMPLATE_PARSE_ERROR");
   }
