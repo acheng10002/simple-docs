@@ -1,9 +1,4 @@
-/* parse5 - HTML parser that turns HTML into a traversable abstract syntax tree (AST) 
-AST - tree-shaped, in-memory representation of source data (code, HTML, etc.) where each 
-      node describes a construct  (FunctionDeclaration, IfStatement, Element, Attribute, etc.) 
-      structured, visitable model of my text that makes safe, deterministic analysis and 
-      rewrites possible
-- linters, formatters, bundler, compiles, and code mods all walk the AST */
+// parse5 - HTML parser that turns HTML into a traversable abstract syntax tree (AST) */
 const parse5 = require("parse5");
 // tags I want to block entirely
 const BAD_TAGS = new Set(["script", "iframe", "object", "embed"]);
@@ -27,40 +22,17 @@ function walk(node, issues, allowRemote) {
 
     // iterates over element attributes
     for (const a of node.attrs || []) {
-      /* any on* attribute -> error 
+      /* any on* attribute -> error... 
       - stops cross-site scripting/code execution
-      -- the attribute itself can be executable code e.g. <img src=x onerror=...>
-      - protects headless renderer, Puppeteer that does filled HTML -> PDF conversion (Mustache
-        is templating engine for HTML -> filled HTML)
-      -- any inline JS can run in Puppeteer - make network calls, loop forever, fingerprint
-         the environment, or attempt server-side request forgery to internal services 
-      --- fingerprint the environment - collecting unique or semi-unique characteristics of 
-                                        a user's runtime or system to id, profile, or track it
-      - keeps templates "presentation-only" 
-      -- ensures event logic doesn't go in mergeable content 
-      - avoids weird layout side-effects - page-load/onerror handlers can mutate the DOM or
-        styles at render time, producing nondeterministic PDFs */
+      - protects headless renderer, Puppeteer that does filled HTML -> PDF conversion and Mustache
+        that is templating engine for HTML -> filled HTML) */
       if (ON_ATTR.test(a.name))
         issues.errors.push(`Disallowed attr "${a.name}" on <${tag}>`);
       /* href="javascript:..." -> error 
-      - javascript:links execute code when followed
-      - if any merged value can land in an href, an attack could turn a harmless link into 
-        inline JS execution by injecting attacker-controlled data 
-      -- then when the user or my header browser clicks that link, attacker JS gets executed 
-         instead of navigating 
-      - with Puppeteer, href="javascript:links" can still fire via synthetic clicks or scripts
-        causing XSS, data exfiltration, infinite loops, or SSRF attempts 
-      -- data exfilration - someone or something leaks my data to somewhere it shouldn't go */
+      - javascript:links execute code when followed */
       if (a.name === "href" && JS_URL.test(a.value))
         issues.errors.push(`javascript: URL on <${tag}>`);
-      /* if allowRemote is false and attribute value looks remote (http(s)://) -> warning 
-      - determinimsm & uptime - remote assets make renders non-reproducible and fragile
-      - latency & timeouts - network fetches slow down or break rendering pipelines
-      - data leakage - requests include IP< user-agent, referrer; can leak PII in query strings 
-      - policy/compliance - many orgs disallow outbound calls from renderers; mimed content is 
-        even riskier
-      - supply-chain risk - third-party content can be swapped or compromised 
-      - warn, allow a whitelist, and prefer inlining critical assets or vendoring them locally */
+      // if allowRemote is false and attribute value looks remote (http(s)://) -> warning
       if (!allowRemote && REMOTE.test(a.value))
         issues.warnings.push(`Remote ref: ${a.name}="${a.value}"`);
     }
