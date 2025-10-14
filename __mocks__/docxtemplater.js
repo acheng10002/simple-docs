@@ -10,7 +10,7 @@ class DocxMock {
   render() {
     if (state.shouldThrow) {
       // if test flips state.shouldThrow, render() throws either the provided shape or a default
-      throw state.throwShape || new Error("bam");
+      throw state.throwShape || new Error("boom");
     }
   }
   // simulates exporting a final DOCX buffer
