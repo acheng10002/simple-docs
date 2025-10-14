@@ -14,7 +14,7 @@ const passport = require("passport");
 random bytes, and key derivation */
 const crypto = require("crypto");
 // for createReadStream
-const fs = require("fs");
+// const fs = require("fs");
 // central Multer config shared across routes
 const { uploadCsv } = require("./upload.middleware");
 // CSV body parser
@@ -121,7 +121,9 @@ router.get(
       if (!info) return res.status(404).json({ error: "Template not found" });
       // if the db record exists but the file is gone on disk, also 404 with a clear message
       if (info.missing)
-        return res.status(404).json({ error: "Template file missing on disk" });
+        return res
+          .status(404)
+          .json({ error: "Template file missing in storage" });
 
       /* tells the client the MIME type to help the browser/client handle the file correctly 
       - MIME type - external label used in HTTP headers and metadata  */

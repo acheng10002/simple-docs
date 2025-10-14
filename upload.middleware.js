@@ -72,7 +72,10 @@ const uploadTemplate = makeUpload({
     // allows .docx and .html MIME types
     const ok = [
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+      "application/zip",
       "text/html",
+      "application/xhtml+xml",
       // checks if the uploaded file's mimeType is in the allow-list; sets ok to true if allowed
     ].includes(file.mimetype);
     /* calls Multer's callback to accept or reject the file 
@@ -88,7 +91,15 @@ const uploadCsv = makeUpload({
   fileFilter: (req, file, cb) => {
     /* accepts text/csv and common CSV mimetypes 
     - checks if the uploaded file's mimeType is in the allow-list ; sets ok to true if allowed */
-    const ok = ["text/csv", "application/vnd.ms-excel"].includes(file.mimetype);
+    const ok = [
+      "text/csv",
+      "application/vnd.ms-excel",
+      "application/csv",
+      "text/x-csv",
+      "application/x-csv",
+      "text/plain",
+      "application/octet-stream",
+    ].includes(file.mimetype);
     /* calls Multer's callback to accept or reject the file 
     - cb(error, acceptBoolean) 
     - if ok is true, cb(null, true); if ok is false, cb ( new Error(), false) */

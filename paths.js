@@ -9,8 +9,8 @@ const path = require("path");
 const PROJECT_ROOT = path.resolve(__dirname);
 
 // centralized absolute path for uploads directory
-const UPLOADS_DIR = path.join(PROJECT_ROOT, "uploads");
+// const UPLOADS_DIR = path.join(PROJECT_ROOT, "uploads");
 // centralized absolute path for outputs directory
-const OUTPUTS_DIR = path.join(PROJECT_ROOT, "outputs");
+// const OUTPUTS_DIR = path.join(PROJECT_ROOT, "outputs");
 
-module.exports = { PROJECT_ROOT, UPLOADS_DIR, OUTPUTS_DIR };
+module.exports = { PROJECT_ROOT };

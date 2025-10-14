@@ -4,16 +4,31 @@ jest.mock("../prisma", () => require("../__mocks__/prisma"));
 // imports the mocked Prism client, because of the jest.mock above
 const prisma = require("../prisma");
 
+/* 
 // Node's promises fs API
 const fs = require("fs/promises");
 /* tells Jest to auto-mock it 
-- functions like fs.stat are Jest mock functions, I can do mockResolvedValue / mockRejectedValue */
+- functions like fs.stat are Jest mock functions, I can do mockResolvedValue / mockRejectedValue 
 jest.mock("fs/promises");
 
 // absolute path for uploads directory
 const { UPLOADS_DIR } = require("../paths");
 // Node's path utilities (e.g. path.join)
 const path = require("path");
+*/
+
+// mock S3 client
+jest.mock("../s3", () => {
+  return {
+    s3: { send: jest.fn() },
+    PutObjectCommand: class PutObjectCommand {},
+    GetObjectCommand: class GetObjectCommand {},
+    HeadObjectCommand: class HeadObjectCommand {},
+    withPrefix: (k) => k,
+  };
+});
+
+const { s3 } = require("../s3");
 
 // functions under tests from my service module
 const {
@@ -57,23 +72,31 @@ describe("template.service", () => {
     expect(text).toContain("hi there");
   });
 
-  test("resolveTemplateFile returns metadata when file exists", async () => {
+  // test("resolveTemplateFile returns metadata when file exists", async () => {
+  test("resolveTemplateFile returns S3 metadata when file exists", async () => {
     // mocks the db call to return a template record
     const tpl = { id: "t1", name: "1712345678901-sample.html" };
     prisma.template.findUnique.mockResolvedValue(tpl);
-    const abs = path.join(UPLOADS_DIR, tpl.name);
+    // const abs = path.join(UPLOADS_DIR, tpl.name);
     // mocks fs.stat to pretend the file exists and has size 123
-    fs.stat.mockResolvedValue({ size: 123 });
+    // fs.stat.mockResolvedValue({ size: 123 });
+    // HeadObject success with size
+    s3.send.mockResolvedValueOnce({ ContentLength: 123 });
     // calls resolveTemplateFile and asserts the returned bundle has...
     const info = await resolveTemplateFile("t1");
     // correct absolute path
-    expect(info.absPath).toBe(abs);
-    // file stats
+    // expect(info.absPath).toBe(abs);
+    // s3Key is uploads/<name>
+    expect(info.s3Key).toBe(`uploads/${tpl.name}`);
+    // file stats, size is from HeadObject
     expect(info.stat.size).toBe(123);
     // timestamp-stripped download name (i.e. sample.html)
     expect(info.downloadName).toBe("sample.html");
-    // content type inferred from extension
+    // content type inferred from extension, mime from name
     expect(info.contentType).toBe("text/html");
+    // no absPath on S3 flow
+    expect(info.absPath).toBeUndefined();
+    expect(info.missing).toBeUndefined();
   });
 
   test("resolveTemplateFile marks missing when file not on disk", async () => {
@@ -81,7 +104,11 @@ describe("template.service", () => {
     const tpl = { id: "t2", name: "1700000000000-sample.docx" };
     prisma.template.findUnique.mockResolvedValue(tpl);
     // but fs.stat rejects (file not found)
-    fs.stat.mockRejectedValue(Object.assign(new Error("nope")));
+    // fs.stat.mockRejectedValue(Object.assign(new Error("nope")));
+    // HeadObject fails -> treated as missing
+    const err = new Error("NotFound");
+    err.$metadata = { httpStatusCode: 404 };
+    s3.send.mockRejectedValueOnce(err);
 
     const info = await resolveTemplateFile("t2");
     /* asserts the function returns a sentinel { tpl, missing: true } so callers can 

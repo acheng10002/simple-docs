@@ -14,9 +14,9 @@ const prisma = require("./prisma");
 // path string utilities
 const path = require("path");
 // promise-based fileststem I/O
-const fs = require("fs/promises");
+// const fs = require("fs/promises");
 // absolute path for all uploads
-const { UPLOADS_DIR } = require("./paths");
+// const { UPLOADS_DIR } = require("./paths");
 // s3 instance
 const { s3, HeadObjectCommand, withPrefix } = require("./s3");
 

@@ -12,11 +12,11 @@ const express = require("express");
 - file signature - first few bytes of the binary content of a file, i.e. magic number or magic bytes */
 const FileType = require("file-type");
 // promise-based version of Node.js's file system module that lets me perform file I/O operations cleanly
-const fs = require("fs/promises");
+// const fs = require("fs/promises");
 // module that provides utilities for working with file and directory paths safely
 const path = require("path");
 // absolute path for uploads directory
-const { UPLOADS_DIR } = require("./paths");
+// const { UPLOADS_DIR } = require("./paths");
 // middleware specific to template upload route
 const { uploadTemplate } = require("./upload.middleware");
 // service functions that produce the db records merge.service.js will read

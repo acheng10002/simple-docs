@@ -20,7 +20,7 @@
   "homepage": "https://github.com/acheng10002/simple-docs#readme",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.899.0",
-    "@prisma/client": "^6.16.2",
+    "@prisma/client": "^6.16.3",
     "bcryptjs": "^3.0.2",
     "csv-parse": "^5.6.0",
     "docxtemplater": "^3.46.0",
@@ -36,11 +36,12 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pizzip": "^3.1.7",
-    "puppeteer": "^24.16.2"
+    "puppeteer": "^24.16.2",
+    "soffice": "^1.1.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
     "jsonwebtoken": "^9.0.2",
-    "prisma": "^6.16.2"
+    "prisma": "^6.16.3"
   }
 }

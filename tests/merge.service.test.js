@@ -7,9 +7,48 @@ const prisma = require("../prisma");
 
 /* *** MOCK: FS/PROMISES FUNCTIONS
  mocks fs' promises to read/write files 
-- that way, I can control readFile, writeFile, etc. */
+- that way, I can control readFile, writeFile, etc. 
 const fs = require("fs/promises");
 jest.mock("fs/promises");
+*/
+// mocks S3 client so I can inspect calls and provide canned responses
+jest.mock("../s3", () => {
+  return {
+    s3: { send: jest.fn() },
+    /* PutObjectCommand - uploads bytes to a key, creates or overwrites an object at s3:/<Bucket>/<Key> 
+    - uploads outputs */
+    PutObjectCommand: class PutObjectCommand {
+      constructor(input) {
+        this.input = input;
+      }
+    },
+    /* GetObjectCommand - reads/streams an object, fetches the object bytes (the body) 
+    - in Node, the body is a Readable stream 
+    - reads template bytes to merge */
+    GetObjectCommand: class GetObjectCommand {
+      constructor(input) {
+        this.input = input;
+      }
+    },
+    /* HeadObjectCommand - checks existence & gets metadata (no body)
+    - lighweight way to probe if an object exits and fetches metadata without downloading it 
+    - verifies original templates exist */
+    HeadObjectCommand: class HeadObjectCommand {
+      constructor(input) {
+        this.input = input;
+      }
+    },
+    withPrefix: (k) => k,
+  };
+});
+
+const {
+  s3,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+} = require("../s3");
+const { Readable } = require("stream");
 
 /* *** MOCK: LIBREOFFICE-CONVERT - RETURNS A CANNED PDF BUFFER
 fakes LO conversion */
@@ -41,17 +80,17 @@ jest.mock("../docx-templating.js", () => ({
   },
 }));
 
-// paths and systems under test
+/* paths and systems under test
 const path = require("path");
-const { OUTPUTS_DIR, UPLOADS_DIR } = require("../paths");
+const { OUTPUTS_DIR, UPLOADS_DIR } = require("../paths"); */
 const { mergeTemplate } = require("../merge.service");
 
 /* helper: fake upload buffer with a small HTML file that includes intentionally 
 unsafe content 
-- <script>, href="javascript..." link, a remote img URL */
+- <script>, href="javascript..." link, a remote img URL 
+- small HTML template with intentionally unsafe content, used to test sanitization */
 const HTML_TEMPLATE = Buffer.from(
-  `
-<!DOCTYPE html>
+  `<!DOCTYPE html>
 <html><head><title>T</title></head>
 <body>
   <script>evil()</script>
@@ -60,20 +99,21 @@ const HTML_TEMPLATE = Buffer.from(
   <img src="https://cdn.example.com/x.png">
 </body></html>
 `,
+  // helper: fake upload buffer with a small HTML file that includes intentionally unsafe content
   "utf8"
 );
 
+// fixture: pretend DOCX bytes
 const DOCX_TEMPLATE = Buffer.from("FAKE_DOCX_CONTENT");
 
-describe("merge.service mergeTemplate", () => {
-  // resets all mock state before every test
-  beforeEach(() => {
+// resets all mock state before every test
+beforeEach(() => {
     jest.clearAllMocks();
 
     // fs.mkdir OK; pretends directory creation always works
-    fs.mkdir.mockResolvedValue();
+    // fs.mkdir.mockResolvedValue();
 
-    // fs.readFile returns template buffer depending on extension
+    /* // fs.readFile returns template buffer depending on extension
     fs.readFile.mockImplementation((fpath) => {
       // returns HTML template for .html paths
       if (fpath.endsWith(".html")) return Promise.resolve(HTML_TEMPLATE);
@@ -86,41 +126,66 @@ describe("merge.service mergeTemplate", () => {
     });
 
     /* fs.writeFile just resolves, but I capture what was written to assert sanitization 
-    - pretend writes always succeed */
-    fs.writeFile.mockResolvedValue();
+    - pretend writes always succeed 
+    fs.writeFile.mockResolvedValue(); */
+    process.env.S3_BUCKET = "unit-test-bucket";
+    // default: S3 GetObject returns a stream of the right template bytes based on key
+    s3.send.mockImplementation((cmd) => {
+      if (cmd instanceof GetObjectCommand) {
+        const key = cmd.input && cmd.input.Key
+      }
+      const name = (cmd && ) || "";
+      // serve template bodies for GetObject
+      if (/^uploads\/.+\.html$/.test(name)) {
+        return Promise.resolve({ Body: Readable.from([HTML_TEMPLATE]) });
+      }
+      if (/^uploads\/.+\.docx$/.test(name)) {
+        return Promise.resolve({ Body: Readable.from([DOCX_TEMPLATE]) });
+      }
+      // PutObject/HeadObject: return minimal ok
+      return Promise.resolve({});
+    });
   });
 
   // *** VERIFIES HTML -> HTML WITH SANITZATION (FROM WEBHOOK: TRUE)
   test("HTML merge -> HTML output (webhook path sanitizes)", async () => {
     // regex-escape helper
-    const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // defines the stored file name of the template record the merge will load
     const templateName = "9999-sample.html";
     /* db template metadata + fields 
-    - Prisma returns an HTML template record and a merge job id */
+    - mocks Prisma to returns an HTML template row for id tpl-html-1 */
     prisma.template.findUnique.mockResolvedValue({
       id: "tpl-html-1",
       name: templateName,
+      /* template declares one required placeholder field, title 
+      - this is what mergeTemplate will fetch before reading merge data bytes from S3 */
       fields: [{ name: "title" }],
     });
+    /* mocks the db insert for the resulting MergeJob so the function can return {jobId: 101, ... } 
+    without touching a real db */
     prisma.mergeJob.create.mockResolvedValue({ id: 101 });
 
-    // triggers sanitization
+    /* triggers sanitization 
+    - calls the system under test */
     const result = await mergeTemplate({
       templateId: "tpl-html-1",
+      // data provides the value for the required {{title}} placeholder
       data: { title: "Hello" },
+      // want filled HTML back
       outputType: "html",
       userId: null,
-      // triggers sanitizeHtmlBuffer
+      // triggers sanitizeHtmlBuffer (remove <script>, javascript: URLs, etc.)
       fromWebhook: true,
     });
 
     /* mirrors how the system under test builds the base (strips only the final extension) 
     - takes just the file name from a full path 
-    - removes only the final extension */
+    - removes only the final extension 
     const stem = path.basename(templateName).replace(/\.[^.]+$/, "");
     /* builds a directory prefix by appending the platform specific separator 
     - wraps it in escRe(...), helper that escape regex metacharacters so the directory path
-      is safe to embed in a RegExp */
+      is safe to embed in a RegExp 
     const outputsDirEsc = escRe(OUTPUTS_DIR + path.sep);
 
     // asserts result shape
@@ -139,6 +204,29 @@ describe("merge.service mergeTemplate", () => {
     const written = writtenBuf.toString("utf8");
     /* actual bytes written (captured from fs.writeFile) no longer contain <script> or
     javascript */
+    // asserts the returned job ID matches the mocked mergeJob.create
+    expect(result.jobId).toBe(101);
+    /* asserts the output location, filePath, is an S3 URL under outputs/ and follows the 
+    sample-<timestamp>.html naming pattern */
+    expect(result.filePath).toMatch(
+      /^s3:\/\/unit-test-bucket\/outputs\/sample-\d+\.html$/
+    );
+
+    /* captures the body uploaded to S3 PutObject (sanitized HTML)
+    - peeks into the S3 client mock to find the call where I uploaded the merged file
+    - s3.send.mock.calls - array of each function call's arg list array
+    - each inner array is the arg list for one invocation fo s3.send */
+    const put = s3.send.mock.calls.find(
+      // specifically locates the invocation whose first arg is an instance of PutObjectCommand
+      ([c]) => c && c.constructor && c.constructor.name === "PutObjectCommand"
+    );
+    // extracts the input passed to that PutObjectCommand, i.e. { Bucket, Key, Body, ContentType, ... }
+    const putInput = put && put[0] && put[0].input;
+    /* pulls the uploaded body (Body) and converts it to a string- this is the sanitized final HTML 
+    that was stored to S3 */
+    const written = putInput && putInput.Body && putInput.Body.toString("utf8");
+
+    // verifies sanitization worked: no <script> tags and no javascript: URLs remain
     expect(written).not.toMatch(/<script>/i);
     expect(written).not.toMatch(/javascript:/i);
     /* remote src is allowed (only warned at lint time, sanitize doesn't remove remote
@@ -160,71 +248,116 @@ describe("merge.service mergeTemplate", () => {
   });
   // *** VERIFIES HTML -> PDF VIA PUPPETEER
   test("HTML merge -> PDF via Puppeteer", async () => {
-    // mocks a different HTML template
+    /* mocks a different HTML template 
+    - stubs the db lookup: when mergeTemplate asks Prisma for the template, it gets an HTML template
+      with a single required field title */
     prisma.template.findUnique.mockResolvedValue({
       id: "tpl-html-2",
       name: "1000-letter.html",
       fields: [{ name: "title" }],
     });
+    // stubs the db write: merger job insert returns a fake job with id: 202
     prisma.mergeJob.create.mockResolvedValue({ id: 202 });
 
     const result = await mergeTemplate({
       templateId: "tpl-html-2",
       data: { title: "Report" },
-      // calls with different outputType
+      /* calls with different outputType 
+      - tells the HTML branch to render HTML via Mustache, and then convert to PDF with Puppeteer */
       outputType: "pdf",
       userId: "ul",
+      // no sanitization step
       fromWebhook: false,
     });
 
+    // asserts the returned job matches the mocked insert
     expect(result.jobId).toBe(202);
-    // asserts filePath ends in .pdf...
-    expect(result.filePath).toMatch(/letter-\d+\.pdf$/);
-    // asserts page.setContent, page.pdf, and browser.close are called
+    // asserts filePath ends in .pdf
+    // expect(result.filePath).toMatch(/letter-\d+\.pdf$/);
+    // asserts S3 URL ends in .pdf...
+    expect(result.filePath).toMatch(
+      /^s3:\/\/unit-test-bucket\/outputs\/letter-\d+\.pdf$/
+    );
+    /* asserts page.setContent, page.pdf, and browser.close are called 
+    - validates the Puppeteer flow ran:
+    -- setContent(...) was called to load the merged HTML
+    -- pdf() was called to generate PDF
+    -- the browser was closed */
     expect(puppeteer._pageMock.setContent).toHaveBeenCalledTimes(1);
     expect(puppeteer._pageMock.pdf).toHaveBeenCalledTimes(1);
     expect(puppeteer._browserMock.close).toHaveBeenCalledTimes(1);
   });
 
+  // checks that my mocks are loaded and behave as expected
   test("mocks wired", async () => {
+    // imports my mocked Docxtemplater wrapper
     const docx = require("../docx-templating.js");
+    /* asserts that renderDocxBufferOrThrow() (mocked) returns a Buffer (no real templating happens) */
     expect(docx.renderDocxBufferOrThrow()).toBeInstanceOf(Buffer);
 
     const puppeteer = require("puppeteer");
+    /* checks the Puppeteer mock: calling launch() resolves to my _browserMock instance */
     await expect(puppeteer.launch()).resolves.toBe(puppeteer._browserMock);
 
     const libre = require("libreoffice-convert");
+    // checks the libreoffice-convert mock...
     const out = await new Promise((res) =>
+      // calling convert(...) yields a buffer (e.g. PDF_BUF in my mock)
       libre.convert(Buffer.from("x"), ".pdf", null, (_, b) => res(b))
     );
+    // ensures the mock wiring for conversions works
     expect(Buffer.isBuffer(out)).toBe(true);
   });
 
   // *** VERIFIES DOCX -> DOCX
   test("DOCX merge -> DOCX output", async () => {
-    // mocks a DOCX template
+    // mocks a DOCX template and stubs the db lookup for the template
     prisma.template.findUnique.mockResolvedValue({
       id: "tpl-docx-1",
+      // this is the stored file
       name: "1111-form.docx",
+      // template requires a single placeholder named client.name
       fields: [{ name: "client.name" }],
     });
+    // stubs the db insert for the merge job so my code can return jobId: 303 without hitting a real db
     prisma.mergeJob.create.mockResolvedValue({ id: 303 });
 
     const result = await mergeTemplate({
       templateId: "tpl-docx-1",
+      // data satisfies the required client.name field
       data: { client: { name: "Ada" } },
-      // calls with outputType: "docx"
+      // renders the DOCX template via Docxtemplater and output a merged DOCX (no PDF conversion)
       outputType: "docx",
+      // userId is recorded on the job
       userId: "ul",
     });
 
+    // asserts the returned job matches the mocked mergeJob.create
     expect(result.jobId).toBe(303);
     // asserts the file path suffix
-    expect(result.filePath).toMatch(/form-\d+\.docx$/);
+    // expect(result.filePath).toMatch(/form-\d+\.docx$/);
     // fs.writeFile called with merged DOCX buffer
-    const written = fs.writeFile.mock.calls[0][1];
+    // const written = fs.writeFile.mock.calls[0][1];
     // asserts that the written buffer is indeed a Buffer
-    expect(Buffer.isBuffer(written)).toBe(true);
+    // expect(Buffer.isBuffer(written)).toBe(true);
+
+    /* checks the output location string is an S3 URL in my outputs/ prefix and follows the naming pattern
+    form-<timestamp>.docx */
+    expect(result.filePath).toMatch(
+      /^s3:\/\/unit-test-bucket\/outputs\/form-\d+\.docx$/
+    );
+    /* PutObject body is the merged DOCX buffer 
+    - digs into the S3 client mock call history and finds the call where my code uploaded the file
+    - s3.send.mock.calls - an array of call; each element is the array of args for that call */
+    const put = s3.send.mock.calls.find(
+      // identifies the call whose first argument is an instance of PutObjectCommand
+      ([c]) => c && c.constructor && c.constructor.name === "PutObjectCommand"
+    );
+    /* verifies the command's input body (the bytes sent to S3) is a Buffer i.e. I actually uploaded a binary
+    DOCX, not a string or something else
+    - put[0] is the command instance captured from the mock call's first argument
+    - .input.Body is the uploaded payload */
+    expect(Buffer.isBuffer(put[0].input.Body)).toBe(true);
   });
 
   // *** VERIFIES DOCX -> PDF VIA LIBREOFFICE-CONVERT
