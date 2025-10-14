@@ -60,7 +60,6 @@ function lintHtmlBuffer(
   // prepares an issues accumulator with separate errors and warnings
   const issues = { errors: [], warnings: [] };
   /* if the template uses Mustache triple braces (raw HTML insertion) 
-  - triple braces inserts raw HTML 
   - raw HTML + attacker-controlled data = XSS/markup injection 
   -- user can smuggle <img onerror=…> or href="javascript:…" 
   - raw HTML can break layouts or styles, making output unpredictable */
@@ -82,40 +81,3 @@ function lintHtmlBuffer(
 }
 
 module.exports = { lintHtmlBuffer };
-
-/* DNS resolution - process of turning a human-friendly hostname, like api.example.com, into the IP
-                    addresses my computer needs to connect to
-XSS - an attacker gets their JavaScript to run in a victim's browser on my site
-example: 
-Template (HTML)
-<p>Click to view your profile:</p>
-<a href="{{profileUrl}}">View Profile</a>
-
-Attacker-controlled data (e.g., from CSV/JSON)
-{
-  "profileUrl": "javascript:alert('pwned')"
-}
-
-After merge (what your renderer sends to the browser/puppeteer)
-<p>Click to view your profile:</p>
-<a href="javascript:alert('pwned')">View Profile</a>
-
-SSRF - an attacker tricks my server into making HTTP requests to a URL they control or to internal
-       endpoints they shouldn't reach
-       - the request originates from my trusted network, so the request can hit localhost, VPC-only 
-         () services, or cloud metadata endpoints
-example:
-Buggy endpoint:
-// GET /fetch?url=https://example.com
-app.get('/fetch', async (req, res) => {
-  const r = await fetch(req.query.url);  // ❌ unvalidated
-  res.send(await r.text());
-});
-
-Attack requests:
-# Hit internal admin panel
-GET /fetch?url=http://127.0.0.1:8080/admin
-
-# Steal cloud creds (classic)
-GET /fetch?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/
-*/

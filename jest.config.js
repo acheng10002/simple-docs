@@ -1,8 +1,7 @@
-/* *** DEV DEP - TESTING: JEST
+/* DEV DEP - TESTING: JEST
 basic Jest config so Node-style CJS works cleanly */
 module.exports = {
-  /* tells Jest ro run tests in a Node environment, no browser APIs like window/document 
-  - this is for server-side code, jsdom is for browser-y tests */
+  // tells Jest to run tests in a Node environment, no browser APIs like window/document
   testEnvironment: "node",
   // limits where Jest looks for tests to the tests folder at project root
   roots: ["<rootDir>", "<rootDir>/tests"],
@@ -10,19 +9,13 @@ module.exports = {
   moduleFileExtensions: ["js", "json"],
   /* after each test, restores spied-on functions to their original implementation 
   - like calling jest.restoreMocks() automatically
-  - great for jest.spyOn() clean-up 
-  - puts the real method back */
+  - great for jest.spyOn() clean-up, puts the real method back */
   restoreMocks: true,
   /* after each test, clears usage data/history from mocks/spies 
-  - like jest.clearAllMocks() automatically 
-  - wipes call history */
+  - like jest.clearAllMocks() automatically, wipes call history */
   clearMocks: true,
-  /* after each test, resets mock implementations to their initial, default state 
-  - removes custom implementations set in a test
-  - resets the implementation of Jest mock functions */
+  // after each test, resets mock implementations to their initial, default state
   resetMocks: false,
   /* above three mock flags make each test start with a clean state 
-  - no leaks calls or stubbed behavior from prior tests
-  - stubbed behavior - replaced a real function with a controlled, fake implementation
-                       for a test */
+  - no leaks calls or stubbed behavior from prior tests */
 };
