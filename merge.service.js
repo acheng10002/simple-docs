@@ -1,9 +1,5 @@
-/* *MERGE ENGINE (DOCX/HTML -> DOCX/HTML/PDF) 
-*** ORCHESTRATES IO, RENDERING, CONVERSIONS, AND AUDITING
-- core merge engine - loads the template by templateId 
-- renders the template via Docxtemplater (DOCX) or Mustache (HTML), optionally converts to 
-  different file format, writes the output, and records a MergeJob
-- *** NODE STDLIB - PATH, FS/PROMISES, OS, CHILD_PROCESS.SPAWN, UTIL (PROMISIFY, TYPES)
+/* MERGE ENGINE (DOCX/HTML -> DOCX/HTML/PDF) 
+ORCHESTRATES IO, RENDERING, CONVERSIONS, AND AUDITING
 - Node's path utilities for safe, cross-platform path joins and basename extraction */
 const path = require("path");
 // promise-based filesystem API
@@ -11,28 +7,28 @@ const fs = require("fs/promises");
 /* gives me read-only info about the machine/OS my code is running on; useful for paths, sizing 
 pools, diagnostics, etc. */
 const os = require("os");
-/* spawn lets me start another process, e.g. run a CLI and strea, its stdout/stderr 
+/* spawn lets me start another process, e.g. run a CLI and stream, its stdout/stderr 
 - spawn is used when I need incremental output or to handle large data without buffering it all */
 const { spawn } = require("child_process");
 /* promisify - turns a Node-style cb function (...args, callback) into a function that returns a Promise 
 types - collection of robust type-check helpers helpful where typeof falls short */
 const { promisify, types } = require("util");
 
-/* *** THIRD-PARTY LIBS
+/* THIRD-PARTY LIBS
 wrapper around LibreOffice (soffice) to convert DOCX -> PDF (and other formats) or HTML -> PDF */
 const libre = require("libreoffice-convert");
+// server-side DOM work, sanitize HTML
 const { JSDOM } = require("jsdom");
-// HTML templating engine; HTML -> merged HTML; further conversion may happen downstream
+// HTML templating engine: HTML -> merged HTML, further conversion may happen downstream
 const Mustache = require("mustache");
 // merged HTML -> PDF
 const puppeteer = require("puppeteer");
 // my initalized Prisma client
 const prisma = require("./prisma");
-// centralized directories for input templates and produced outputs
-// const { UPLOADS_DIR, OUTPUTS_DIR } = require("./paths");
+// gets properties off s3
 const { s3, PutObjectCommand, GetObjectCommand, withPrefix } = require("./s3");
 
-/* *** MY OWN MODULES
+/* MY OWN MODULES
 centralized DOCX render with normalized errors */
 const {
   renderDocxBufferOrThrow,
@@ -44,30 +40,12 @@ const convertAsync = types.isAsyncFunction(libre.convert)
   ? libre.convert
   : promisify(libre.convert);
 
-/* *** ENSUREOUTPUTSDIR() CREATES UPLOADS/ AND OUTPUTS/
-- ensures both uploads and outputs directories exist */
-// async function ensureOutputsDir() {
-/* creates the directories and any parent directories that don't exist
-  - doesn't throw an error if the directory already exists 
-  - idempotent - an operation that can applied multiple times without changing the result beyond the 
-                 first application */
-// await fs.mkdir(UPLOADS_DIR, { recursive: true });
-// await fs.mkdir(OUTPUTS_DIR, { recursive: true });
-// }
-
-/* *** READS/WRITES WITH FS/PROMISES, PATH, OS
- *** LOADTEMPLATEBUGGER(TEMPLATE) - READS TEMPLATE BYTES FROM DISK INTO MEMORY 
+/* READS/WRITES WITH FS/PROMISES, PATH, OS
+LOADTEMPLATEBUGGER(TEMPLATE) - READS TEMPLATE BYTES
  - expects a template object (from DB) that includes template.name (the stored filename) */
 async function loadTemplateBuffer(template) {
-  /* template.name is from the template metadata persisted in templateUploadHandler.js
-  - builds the on-disk fs path string by joining a base directory UPLOADS_DIR with a filename template.name
-  - path.join handles separators correctly and normalizes things like extra slashes 
-  - at merge time, engine reads the file from this path */
-  // const fullPath = path.join(UPLOADS_DIR, template.name);
-  // reads the file's bytes at that path, returns a Promise tha tresolves to a Buffer containing the file data
-  // return fs.readFile(fullPath);
   /* builds the S3 object key- the "path" in the bucket
-  - uploads/ is my folder-like prefix; template.name is the timestamped, sanitized filename I saved earlier 
+  - uploads/ is my folder-like prefix, template.name is the timestamped, sanitized filename I saved earlier 
   - withPrefix(...) lets me inject a global prefix later without touching callers */
   const key = withPrefix(`uploads/${template.name}`);
   /* uses AWS SDK v3 s# client to call the GetObject API 
@@ -83,50 +61,33 @@ async function loadTemplateBuffer(template) {
   // prepares an array to collect incoming stream chunks/Node Buffers
   const chunks = [];
   /* asynchronously iterates the streaming body
-  - each chunk is a Buffer with the next slice of data 
-  - pushes chunks into the array until the stream ends
-  - this pattern consumes the whole object into memory; it's ok for small/medium files */
+  - each chunk is a Buffer with the next slice of data, pushes chunks into the array until the stream ends
+  - this pattern consumes the whole object into memory, it's ok for small/medium files */
   for await (const chunk of resp.Body) chunks.push(chunk);
   /* stitches all chunks together into a single Buffer and returns it to the caller
   - callers now have the full file bytes memory, which will be useful if I need to pass it to libraries like
-     Docxtemplater, LibreOffice converters, Mustache, etc. */
+    Docxtemplater, LibreOffice converters, Mustache, etc. */
   return Buffer.concat(chunks);
 }
 
-/* *STORAGE & CONVERSIONS
-*** FILLED DOCX -> PDF CONVERSION via LIBREOFFICE WITH PROMISIFY WHEN NEEDED
-- hands the merged DOCX buffer to libreoffice-convert and returns a PDF buffer */
+/* STORAGE & CONVERSIONS
+FILLED DOCX -> PDF CONVERSION via LIBREOFFICE WITH PROMISIFY WHEN NEEDED */
 async function convertDocxToPdfBuffer(docxBuffer) {
-  // libreoffice-convert uses installed LibreOffice (soffice) to convert merged DOCX to PDF
+  // libreoffice-convert uses installed LibreOffice (soffice) to convert merged DOCX buffer to PDF buffer
   return convertAsync(docxBuffer, ".pdf", undefined);
 }
 
-/* DOCX -> HTML via LibreOffice, with CLI fallback 
-- takes a Buffer of a merged DOCX and will return a Buffer of HTML 
-- */
+// DOCX -> HTML via LibreOffice, with CLI fallback
 async function convertDocxToHtmlBuffer(docxBuffer) {
   /* first tries the in-process converter 
-  - calls the Node API, libreoffice-convert with DOCX bytes
-  - the Node API returns the HTML converted bytes directly 
-  - attempting in-process first means:
-  -- calls function in Node
-  -- least overhead- no disk write, no child process spawn, fewer syscalls
-  -- fewer failure points- no cwd handling, no file cleanup
-  cwd = current working directory
   - uses libreoffice-convert's async API (my convertAsync) to convert the DOCX bytes directly to HTML 
   - if this succeeds, it returns the HTML Buffer immediately */
   try {
     return await convertAsync(docxBuffer, ".html", undefined);
     /* if the in-process conversion throws (missing filters, plaform quirks, etc.), fall back to calling the 
-  soffice CLI */
+    soffice CLI */
   } catch (e) {
-    /* fallback to CLI program for LO, soffice (more reliable when filters/options differ) 
-    - instead of calling function in Node, spawns external process
-    - write the DOCX to a temp directory, spawn soffice --headless --convert-to ..., then read the resulting
-      file back into Buffer 
-    - consistent with what LibreOffice does on the command line 
-    - calls my resolveSoffice() helper to find the correct soffice binary path (env override or sensible default)
-    binary path - fs path to an executable program; need to spawn the program */
+    // fallback to CLI program for LO, soffice (more reliable when filters/options differ)
     const soffice = await resolveSoffice();
     /* creates a unique temp directory under the OS temp folder
     - keeps all intermediate files isolated (avoids name clashes) */
@@ -175,30 +136,23 @@ async function convertDocxToHtmlBuffer(docxBuffer) {
   }
 }
 
-/* *MERGE HELPERS - HTML templating & conversions 
-*** HTML -> FILLED HTML MERGE via MUSTACHE, RENDERHTMLBUFFER
-- HTML templates get merged and are rendered as filled HTML 
+/* MERGE HELPERS - HTML templating & conversions 
+HTML -> FILLED HTML MERGE via MUSTACHE, RENDERHTMLBUFFER
 - (optionally convertHtmlToPdfBuffer via PUPPETEER or convertHtmlToDocxBuffer via 
   LibreOffice CLI) */
 function renderHtmlBuffer(templateBuffer, data) {
   // converts the uploaded HTML file (Buffer) to a UTF-8 string
   const raw = templateBuffer.toString("utf-8");
-  /* renders Mustache tags ({{...}} by default) in the HTML, using data 
-  - Mustache escapes by default; it replaces characters that have special meaning in HTML with their
-    safe equivalents
-  -- this prevents HTML injection/XSS attacks */
+  // renders Mustache tags ({{...}} by default) in the HTML, using data
   const merged = Mustache.render(raw, data);
   // converts merged HTML string back to Buffer for downstream converters
   return Buffer.from(merged, "utf-8");
 }
 
-/* *** HTML SANITIZATION - JSDOM DOM REWRITE (SANITIZEHTMLBUFFER) REMOVES DANGEROUS FEATURES
-- <script>, dangerous attributes/URLs, etc.
-returns a sanitized HTML Buffer */
+/* HTML SANITIZATION - JSDOM DOM REWRITE (SANITIZEHTMLBUFFER) REMOVES DANGEROUS FEATURES
+returns a sanitized HTML Buffer without <script>, dangerous attributes/URLs, etc. */
 function sanitizeHtmlBuffer(htmlBuffer) {
-  /* converts incoming bytes to a UTF-8 string and feeds it to JSDOM to create a DOM 
-  - with default options, JSDOM does not execute scripts and does not fetch remote 
-    resources */
+  // converts incoming bytes to a UTF-8 string and feeds it to JSDOM to create a DOM
   const dom = new JSDOM(htmlBuffer.toString("utf8"));
   // gets the document object so I can query and modify the DOM
   const doc = dom.window.document;
@@ -234,35 +188,28 @@ function sanitizeHtmlBuffer(htmlBuffer) {
   return Buffer.from(htmlOut, "utf8");
 }
 
-/* *** CONVERTHTMLTOPDFBUFFER - FILLED HTML -> PDF CONVERSION via PUPPETEER, HEADLESS PRINT TO PDF
+/* CONVERTHTMLTOPDFBUFFER - FILLED HTML -> PDF CONVERSION via PUPPETEER, HEADLESS PRINT TO PDF
 - accepts an HTML Buffer and returns a Promise resolving to a PDF Buffer */
 async function convertHtmlToPdfBuffer(htmlBuffer) {
-  /* launches headless Chromium as a non-root user in Docker
-  - Chromium - Chrome, if it's headless that means it's controlled by Puppeteer
-  - non-root user - meaning the Chromium process runs without root privileges which is safer
-  - Docker - "in Docker" means it's running inside a container
-  - restores Chromium's sandbox and materially reduces blast radius */
+  // launches headless Chromium as a non-root user in Docker
   const browser = await puppeteer.launch({
     // uses Chromium's modern headless mode - no GUI
     headless: "new",
-    /* tells Chromium not use shared memory; helps avoid crashes in containers where shared 
-    memory is tiny by default 
-    - pairs with --shm-size on docker run */
+    /* tells Chromium not use shared memory, helps avoid crashes in containers where shared memory 
+    is tiny by default */
     args: ["--disable-dev-shm-usage"],
   });
   try {
     // opens a new tab/creates a page inside the launched browser and loads my HTML
     const page = await browser.newPage();
-    /* loads HTML directly as the page contents 
-    - converts the incoming HTML Buffer to a UTF-8 string and sets it as the page's full HTML */
+    // loads HTML directly as the page contents
     await page.setContent(htmlBuffer.toString("utf-8"), {
       /* networkidle0 waits until no network connections remain, good for when my HTML references 
       SPA assets/fonts so they finish loading before the PDF render */
       waitUntil: "networkidle0",
     });
     /* renders the page in a print layout (US Letter) and returns a PDF buffer since no path is 
-    provided 
-    - common extras: printBackground: true, margin: {...}, scale, or landscape: true */
+    provided */
     return await page.pdf({ format: "Letter" });
   } finally {
     // ensures Chromium is closed whether the PDF succeeded or on error
@@ -270,38 +217,13 @@ async function convertHtmlToPdfBuffer(htmlBuffer) {
   }
 }
 
-/* soffice - command-line frontend to LibreOffice that I call for conversions/automations 
-- it loads a document with an import filter, converts it to LO's internal document model,
+/* soffice loads a document with an import filter, converts it to LO's internal document model,
   and then saves it with an export filter
-- spawn soffice and capture output 
-cmd - executable path
-args - array of CLI args
-cwd - working directory for the process (where relative paths are resolved and where
-      LibreOffice may write outputs) */
+- spawn soffice and capture output */
 function runSoffice(cmd, args, cwd) {
-  /* wraps the child process in a Promise so callers can await it 
-  child process - separate OS process that's created by a parent process
-                  it has its own Process ID (PID), memory space, environment, and lifecycle
-                  it runs concurrently with the parent  */
+  // wraps the child process in a Promise so callers can await it
   return new Promise((resolve, reject) => {
-    /* starts the child process using Node's child_process.spawn and streams output
-    - cwd options sets the process's current working directory
-    - returns a ChildProcess instance with stdin, stdout, stderr streams and lifecycle events 
-    byte stream - one-way sequence of bytes that arrives in order over time
-    streaming - process data as it arrives, chunk by chunk
-                typical with spawn(), read from stdout as as stream
-                low latency, low memory, handles arbitrarily large output
-    buffering - read everything into memory first then process
-                typical with exec() 
-                simple for small outputs or when I need the whole result at once 
-    pipe - OS-provided byte stream with two ends: write -> read 
-           when I spawn a child process, Node gives me 3 pipes: child.stdin, .stdout, .sterr 
-           pipes are unidirectional and support backpressure 
-    readable stream (source) - produces data chunks
-    writable stream- consumes data chunks at its own pace
-    backpressure - the writable tells the readble to slow down when its internal buffer is full
-                   it's the flow control mechanism that prevents a fast source from overwhelming
-                   a slow destination */
+    // starts the child process using Node's child_process.spawn and streams output
     const proc = spawn(cmd, args, { cwd });
 
     // initializes string buffers to collect the child's output
@@ -337,27 +259,14 @@ function runSoffice(cmd, args, cwd) {
 
 /* best-effort resolution of soffice on macOS if not on PATH 
 - returns via a Promise the path to the soffice binary (which is again, LibreOffice CLI that does 
-  the filled HTML -> DOCX conversions)
-- set SOFFICE_BIN if soffice is not on the system PATH and spawning it will fail with ENOENT 
-- ENOENT - POSIX error code for "No such file or directory" 
-- POSIX - Portable Operating System Interface, a family of standards that define a common API and 
-          behavior for Unix-like operating systems with the goal that: software written for one 
-          compliant system can be ported to another compliant system with minimal change
-- porting - adapting software so it can run on aiddferent os, hardware, or environment than the 
-            one it was originally developed for */
+  the filled HTML -> DOCX conversions) */
 async function resolveSoffice() {
-  /* if env variable is set, use it and stop 
-  - this is an env override 
-  env override - an env I can set to override the default detection logic
-  - e.g. resolveSoffice() first checks process.env.SOFFICE_BIN and if it's set, uses it instead of
-    searching the system defaults/PATH */
+  /* resolveSoffice() first checks process.env.SOFFICE_BIN and if it's set, uses it instead of
+  searching the system defaults/PATH */
   if (process.env.SOFFICE_BIN) return process.env.SOFFICE_BIN;
   // try a well-known default path if I'm running on macOS
   if (process.platform === "darwin") {
-    /* canonical macOS install path to the LibreOffice's CLI 
-    - .app bundle is placed in /Applications
-    - inside that bundle, the actual CLI binary lives at Contents/MacOS/soffice 
-    - binary - a program that has been compiled into machine code that my CPU executes directly */
+    // canonical macOS install path to the LibreOffice's CLI
     const macPath = "/Applications/LibreOffice.app/Contents/MacOS/soffice";
     try {
       // checks whether the file exists and is accessible
@@ -371,24 +280,18 @@ async function resolveSoffice() {
   return "soffice";
 }
 
-/* *** FILLED HTML -> DOCX VIA LibreOffice CLI AND RUNSOFFICE()
-- HTML -> ODT (Writer) -> DOCX 
-- takes an HTML Buffer and returns a Promise resolving to a DOCX Buffer
-- always use the CLI fallback; it's more reliable than libreoffice-convert for buffer-only HTML */
+/* FILLED HTML -> DOCX VIA LibreOffice CLI AND RUNSOFFICE()
+- HTML -> ODT (Writer) -> DOCX, takes an HTML Buffer and returns a Promise resolving to a DOCX Buffer */
 async function convertHtmlToDocxBuffer(htmlBuffer) {
   // figures out the path/command for LibreOffice's CLI
   const soffice = await resolveSoffice();
-  /* *** WRITES TEMP HTML AND CALLS SOFFICE DIRECTLY AS FALLBACK
+  /* WRITES TEMP HTML AND CALLS SOFFICE DIRECTLY AS FALLBACK
   - creates a unique temporary directory under the system temp folder 
   - keeps all intermediate files isolated */
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "html2docx-"));
   // prepares full path for the input HTML file
   const inHtml = path.join(tmpDir, "source.html");
-  /* ODT - open-source equivalent of DOCX, stands for OpenDocument Text; it's the default file format used by
-           LibreOffice Writer 
-  - LibreOffice is a suite of apps: Writer is a word processor (.odt), Calc is for spreadsheets (.ods), and 
-    Impress is for presentations (.odp) 
-  - prepares full path for the input HTML file */
+  // prepares full path for the odt file
   const midOdt = path.join(tmpDir, "source.odt");
   // prepares full path for the final DOCX file to read back
   const outDocx = path.join(tmpDir, "source.docx");
@@ -436,27 +339,19 @@ async function convertHtmlToDocxBuffer(htmlBuffer) {
   } finally {
     // best-effort cleanup (don't fail the request if this throws)
     try {
-      /* *** CLEANS TEMP DIR
+      /* CLEANS TEMP DIR
       always attempt to delete the temp directory and everything inside it, whether success or failure */
       await fs.rm(tmpDir, { recursive: true, force: true });
     } catch {}
   }
 }
 
-/* *** DOT-PATH EXTRACTION FOR DEEP KEY VALIDATION
-helper function that returns a flat list of dot-paths for a nested object's leaf keys
-e.g. { client: { name: 'X' } -> ['client.name'] 
-- prefix - current path during recursion i.e. accumulated breadcrumbs of keys from
-           the root of the object down to the node I'm currently visiting; defaults 
-           to empty
-this function enumerates keys
-- CSV rows are flat objects, so it's produce headers, even dot-keys like "client.name" which will match 
-  template.fields if my templates uses that name */
+/* DOT-PATH EXTRACTION FOR DEEP KEY VALIDATION
+helper function that returns a flat list of dot-paths for a nested object's leaf keys */
 function flattenKeys(obj, prefix = "") {
   // accumulator array for all discovered key paths
   const out = [];
-  /* iterates over the object's own enumerable string keys and returns an array of 
-  [key, value] pairs
+  /* iterates over the object's own enumerable string keys and returns an array of [key, value] pairs
   - obj || {} guards against null/undefined so Object.entries doesn't throw */
   for (const [k, v] of Object.entries(obj || {})) {
     /* builds the full dot path for this key 
@@ -465,19 +360,9 @@ function flattenKeys(obj, prefix = "") {
     /* v - excludes null
     typeof v === "object" ensures only objects are recursed into
     !Array.isArray(v) treats arrays as leaves
-    leaf - any value I don't recurse into
     - no drilling to indices, i.e. I don't enumerate array elements */
     if (v && typeof v === "object" && !Array.isArray(v)) {
       /* recurse into the nested object and spread the returned paths into out
-      - key is "client" and v is:
-      v = { address: {city: "NYC", zip: "10001" }, name: "Ada" };
-      path = "client";
-      
-      flattenKeys(v, "client") -> ["client.address.city", "client.address.zip", "client.name"]
-      spread push(...["client.address.city", "client.address.zip", "client.name"]);
-      - spread push, pushes each path string separately; without it, the entire array becomes an
-        element in an array, [[]]
-      out = ["client.address.city", "client.address.zip", "client.name"]; 
       - appends those individuals path strings to the accumulator out */
       out.push(...flattenKeys(v, path));
     } else {
@@ -489,9 +374,7 @@ function flattenKeys(obj, prefix = "") {
   return out;
 }
 
-/* *** MAIN MERGE FLOW 
-- mergeTemplate({...}) is format-agnostic - it just needs a single JS object of key/value pairs
-- CSV rows after parsing are JS objects of key/value pairs */
+// MAIN MERGE FLOW
 async function mergeTemplate({
   templateId,
   data,
@@ -499,11 +382,7 @@ async function mergeTemplate({
   userId = null,
   fromWebhook = false,
 }) {
-  /* *** ENSURES DIRS 
-  - makes sure upload/output directories exist */
-  // await ensureOutputsDir();
-
-  /* *** FETLCH TEMPLATE + FIELDS VIA PRISMA
+  /* FETLCH TEMPLATE + FIELDS VIA PRISMA
   C8. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): template loading & validation 
   B5. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): template loading & validation
   B5a. fetches template metadata and its known placeholders for validation/logging */
@@ -517,20 +396,14 @@ async function mergeTemplate({
 
   /* C9. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): data validation
   B6. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): data validation
-  *** SOFT-VALIDATE PROVIDED DATA/KEYS AGAINST STORED FIELDS/TEMPLATE.FIELDS
-  - extracts the values for the name property of the field objects, which corresponds 
-    to placeholders in the template, into an array 
-  - wraps the array in a Set which allows fast lookups and ensures uniqueness */
+  SOFT-VALIDATE PROVIDED DATA/KEYS AGAINST STORED FIELDS/TEMPLATE.FIELDS */
   const allowed = new Set(template.fields.map((f) => f.name));
   // compares leaf dot paths from provided data to allowed placeholders
   const provided = flattenKeys(data);
-  /* - data - object the client sends with values for the placeholders
-  - .filter - gets an array of keys NOT present in the allowed set */
+  // .filter - gets an array of keys NOT present in the allowed set
   const extras = provided.filter((k) => !allowed.has(k));
-  /* *** WARNS ON EXTRA KEYS (NOT FATAL)
-  if any unexpected keys are found, logged to console as a warning but does not
-  reject the request 
-  - server only logs this message during merge, not upload */
+  /* WARNS ON EXTRA KEYS (NOT FATAL)
+  if any unexpected keys are found, logged to console as a warning but does not reject the request */
   if (extras.length) console.warn("Unexpected field:", extras);
 
   // fails fast on missing data for tags
@@ -538,7 +411,7 @@ async function mergeTemplate({
   // .filter - gets an array of tags NOT present in the provided data set
   const missing = [...allowed].filter((k) => !providedSet.has(k));
   if (missing.length) {
-    // *** ERROR ON MISSING REQUIRED PLACEHOLDERS
+    // ERROR ON MISSING REQUIRED PLACEHOLDERS
     const err = new Error(`Missing required fields: ${missing.join(" ,")}`);
     err.status = 422;
     throw err;
@@ -547,11 +420,9 @@ async function mergeTemplate({
   /* *** DETECTS .DOCX VS .HTML 
   C10. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): template processing
   B7. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): template processing
-  detects .docx vs .html
-  returns true if the stored filename for the template ends in .docx */
+  detects .docx vs .html */
   const isDocx = /\.docx$/i.test(template.name);
-  /* returns true if the stored filename for the template ends in .html 
-  - ? means the preceding l can be optional, so it matches .htm or .html */
+  // returns true if the stored filename for the template ends in .html
   const isHtml = /\.html?$/i.test(template.name);
 
   // guards: only DOCX and HTML are supported
@@ -559,28 +430,21 @@ async function mergeTemplate({
     throw new Error("Unsupported template type. Use .docx or .html");
   }
 
-  /* *** READS TEMPLATE BYTES
-  reads the template file from disk into memory 
-  disk- persistent storage, hard drive, SSD
-  memory - volatile RAM used by a running process */
+  /* READS TEMPLATE BYTES
+  reads the template file from S3 */
   const buf = await loadTemplateBuffer(template);
 
   /* prepares variabes
-  - outBuffer - will hold the converted output */
+  outBuffer - will hold the converted output */
   let outBuffer;
   /* safeBase - sanitized filename stem 
   - enforces that the resolved path stays inside a known safe directory */
   const safeBase = path
-    /* strips any directory parts and keeps only the file name 
-    - prevents path traversal like ../../evil.docx
-    - works cross-platform, handles / and \ */
+    // strips any directory parts and keeps only the file name
     .basename(template.name)
-    /* replaces any run of disallowed characters witha single underscore _
-    - allowed: letters, digits, underscore, dot, hyphen, and space */
+    // replaces any run of disallowed characters witha single underscore _
     .replace(/[^\w.\- ]+/g, "_")
     /* removes the final file extension only
-    - matches a dot followed by one or more non-dot chars up to the end ($)
-    - ex. report.final.v2.docx -> report.final.v2
     - after this, safeBase is fully sanitized and extensionless, safe for creating output files */
     .replace(/\.[^.]+$/, "");
   // unique-ish filename timestamp
@@ -596,17 +460,14 @@ async function mergeTemplate({
     B7b. DOCX -> filled DOCX merge in memory via Docxtemplater 
     - (optional LibreOffice converts filled DOCX to PDF) */
     try {
-      /* *** DOCX PATH -> DOCX-TEMPLATING.JS (PIZZIP + DOCXTEMPLATER) 
-      *** MERGES WITH RENDERDOCXBUFFERORTHROW -> MERGEDDOCX(BUFFER) 
-      DOCX templating - calls my public merge API and tries to merge the DOCX template 
-      buf with data 
+      /* DOCX PATH -> DOCX-TEMPLATING.JS (PIZZIP + DOCXTEMPLATER) 
+      MERGES WITH RENDERDOCXBUFFERORTHROW -> MERGEDDOCX(BUFFER) 
       - returns a Buffer of the merged DOCX */
       mergedDocx = renderDocxBufferOrThrow(buf, data);
     } catch (err) {
       if (err instanceof TemplateParseError) {
         /* tags an HTTP-ish status for a generic error handler upstream 
-        - template parsing/merging error - bad/missing tags, logic blocks, etc. 
-        = 422 Unprocessable Entity */
+        - template parsing/merging error - bad/missing tags, logic blocks, etc. = 422 Unprocessable Entity */
         err.status = 422;
         // rethrows domain error unchanged
         throw err;
@@ -615,20 +476,18 @@ async function mergeTemplate({
       throw err;
     }
 
-    // *** IF DOCX REQUESTED, WRITES MERGED DOCX
+    // IF DOCX REQUESTED, WRITES MERGED DOCX
     if (outputType === "docx") {
       // keeps the merged DOCX in memory
       outBuffer = mergedDocx;
-      /* saves the merged DOCX and sets the output path to a .docx file under OUTPUTS_DIR */
-      // filePath = path.join(OUTPUTS_DIR, `${stamp}.docx`);
+      // saves the merged DOCX and sets the output path to a .docx file
       filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${stamp}.docx`)}`;
       // if PDF requested
     } else if (outputType === "pdf") {
-      /* *** IF PDF REQUESTED, DOCX -> PDF VIA CONVERTDOCXTOPDFBUFFER 
+      /* IF PDF REQUESTED, DOCX -> PDF VIA CONVERTDOCXTOPDFBUFFER 
       B7c. converts merged DOCX to PDF via LibreOffice, stores that PDF Buffer in outBuffer */
       outBuffer = await convertDocxToPdfBuffer(mergedDocx);
       // sets a .pdf path
-      // filePath = path.join(OUTPUTS_DIR, `${stamp}.pdf`);
       filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${stamp}.pdf`)}`;
     } else if (outputType === "html") {
       // maps outputType = "html" to ContentType: "text/html" in the S3 PutObject switch
@@ -641,12 +500,12 @@ async function mergeTemplate({
   }
 
   if (isHtml) {
-    /* *** HTML PATH -> MUSTACHE, OPTIONAL JSDOM SANITIZATION, PUPPETEER TO PDF, LIBREOFFICE CLI
+    /* HTML PATH -> MUSTACHE, OPTIONAL JSDOM SANITIZATION, PUPPETEER TO PDF, LIBREOFFICE CLI
     TO DOCX
     C10. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): template processing
     B7. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): template processing
     B7a. detects .docx vs .html 
-    *** HTML -> FILLED HTML - MERGE VIA MUSTACHE -> MERGED HTML (BUFFER)
+    HTML -> FILLED HTML - MERGE VIA MUSTACHE -> MERGED HTML (BUFFER)
     B7b. HTML -> filled HTML merge in memory via Mustache
     - (optional) Puppeteer prints to PDF */
     const mergedHtml = renderHtmlBuffer(buf, data);
@@ -661,21 +520,18 @@ async function mergeTemplate({
         template.id
       );
     }
-    // *** PRODUCES PDF VIA PUPPETEER, DOCX VIA LO CLI, AND HTML AS IS
+    // PRODUCES PDF VIA PUPPETEER, DOCX VIA LO CLI, AND HTML AS IS
     if (outputType === "pdf") {
       //  B7c. converts HTML to PDF via Puppeteer
       outBuffer = await convertHtmlToPdfBuffer(finalHtml);
-      // filePath = path.join(OUTPUTS_DIR, `${stamp}.pdf`);
       filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${stamp}.pdf`)}`;
     } else if (outputType === "docx") {
       // B7c. converts HTML to DOCX via LibreOffice
       outBuffer = await convertHtmlToDocxBuffer(finalHtml);
-      // filePath = path.join(OUTPUTS_DIR, `${stamp}.docx`);
       filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${stamp}.docx`)}`;
     } else if (outputType === "html") {
       // already returns the filled HTML as a Buffer
       outBuffer = finalHtml;
-      // filePath = path.join(OUTPUTS_DIR, `${stamp}.html`);
       filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${stamp}.html`)}`;
     } else {
       // guards against unsupported outputs
@@ -685,14 +541,11 @@ async function mergeTemplate({
     }
   }
 
-  /* *** WRITES OUTPUT TO OUTPUTS/ WITH A SAFE, TIMESTAMPED FILENAME 
+  /* WRITES OUTPUT TO OUTPUTS/ WITH A SAFE, TIMESTAMPED FILENAME 
   C11. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): output generation 
   B8. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): output generation
-  B8a. writes results to outputs/ (disk) 
-  B8b. records a MergeJob in db for audit trail
-  - persists the output Buffer to disk */
-  // await fs.writeFile(filePath, outBuffer);
-  // write output to S3
+  B8a. writes results to outputs/ S3
+  B8b. records a MergeJob in db for audit trail */
   const key = filePath.replace(/^s3:\/\/[^/]+\//, "");
   await s3.send(
     new PutObjectCommand({
@@ -710,10 +563,9 @@ async function mergeTemplate({
     })
   );
 
-  /* *** PERSISTS MERGE RESULTS VIA PRISMA  
-  *** CREATES A MERGEJOB ROW WITH PRISMA
-  persists a merge job record 
-  - records success in MergeJob with metadata for audit/retrieval */
+  /* PERSISTS MERGE RESULTS VIA PRISMA  
+  CREATES A MERGEJOB ROW WITH PRISMA
+  -  persists a merge job record, records success in MergeJob with metadata for audit/retrieval */
   const job = await prisma.mergeJob.create({
     data: {
       templateId: template.id,
@@ -726,39 +578,7 @@ async function mergeTemplate({
     },
   });
 
-  // *** RETURNS
   return { jobId: job.id, filePath };
 }
 
 module.exports = { mergeTemplate };
-
-/* B. Manual (JWT)
-authentication- JWT Bearer token
-data location- req.body.data
-output default-docx
-output source- request body
-identity- req.user available
-body processing- JSON parsed by EXPRESS
-docx -> filled docx - opens .docx zip with PIZZIP
-                      render placeholders and does merging using DOCXTEMPLATER
-                      renderDocxBufferOrThrow(buf, data) using my Mustache-style delimiters and 
-                      nullGetter(which raises a Template ParseError) to get a filled docx buffer
-html -> filled html - renderHtmlBuffer(buf, data) using MUSTACHE
-docx -> filled docx - above
-filled docx -> pdf  - conversion via convertDocxToPdfBuffer(..) using LIBREOFFICE, libre-office-convert
-filled html -> docx - conversion via convertHtmlToDocxBuffer(...) using LIBREOFFICE SOFFICE CLI pipeline
-                    - run soffice --headless --convert-to 'docx:"MS Word 2007 XML"' or via HTML → ODT → DOCX  
-filled html -> pdf  - conversion via convertHtmlToPdfBuffer(...) feeds the HTML string to PUPPETEER,
-                      Chromium, and print to PDF
-
-C. Webhook (HMAC) 
-authentication- HMAC signature
-data location- req.parsedBody/ entire payload
-output default- pdf
-output source- query string
-identity- no user identity
-body processing- raw bytes manually parsed 
-
-only difference is the authentication mechanism and data extraction source 
-
-KEY LIBS: LIBREOFFICE-CONVERT, PUPPETEER, JSDOM, MUSTACHE, CHILD_PROCESS, UTIL, @PRISMA/CLIENT */
