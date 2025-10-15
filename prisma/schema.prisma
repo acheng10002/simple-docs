@@ -24,8 +24,8 @@ enum JobStatus {
 }
 
 enum UserRole {
-    USER
-    ADMIN
+    user
+    admin
 }
 
 /**
@@ -36,7 +36,7 @@ model User {
     email    String   @unique
     username String?  @unique
     password String // store hashed passwords only
-    role     UserRole @default(USER)
+    role     UserRole @default(user)
     isActive Boolean  @default(true)
 
     firstName String?
