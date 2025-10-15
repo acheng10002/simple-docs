@@ -32,14 +32,13 @@ class TemplateParseError extends Error {
   /* details - structured info about what went wrong i.e. Docxtemplater errors
   cause - original low-level error */
   constructor(details, cause) {
-    // calls the parent Error constructor with a message, sets err.message
-    super("TEMPLATE_PARSE_ERROR");
+    /* calls the parent Error constructor with a message, sets err.message 
+    cause passed in so stacks chain */
+    super("TEMPLATE_PARSE_ERROR", { cause });
     // overrides the default name ("Error")
     this.name = "TemplateParseError";
     // attaches my structured payload so callers can return helpful 422 responses
     this.details = details;
-    // if provided, stores the original error
-    if (cause) this.cause = cause;
   }
 }
 
