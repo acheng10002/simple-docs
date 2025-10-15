@@ -14,7 +14,6 @@ Keep-Alive: timeout=5
   <title>Sample Contact Sheet</title>
   <style>
     body { font-family: Arial, sans-serif; line-height: 1.45; margin: 2rem; }
-    .muted { color: #666; }
   </style>
 </head>
 <body>
@@ -25,7 +24,7 @@ Keep-Alive: timeout=5
     {{town}}, {{state}} {{zipCode}}
   </p>
 
-  <p class="muted">
+  <p>
     Email: {{email}} • Phone: {{phoneNumber}}
   </p>
 </body>
