@@ -16,6 +16,4 @@ module.exports = {
   clearMocks: true,
   // after each test, resets mock implementations to their initial, default state
   resetMocks: false,
-  /* above three mock flags make each test start with a clean state 
-  - no leaks calls or stubbed behavior from prior tests */
 };
