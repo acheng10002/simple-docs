@@ -22,8 +22,7 @@ const {
 
 beforeEach(() => {
   /* pre-test cleanup using a helper I attached to the mock 
-  - resets internal flags like shouldThrow/throw Shape so each test starts from a clean, predictable 
-    baseline */
+  - resets internal flags like shouldThrow/throw Shape */
   Docxtemplater._reset();
 });
 

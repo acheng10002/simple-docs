@@ -1,4 +1,4 @@
-/* *** MOCK: PRISMA WITH A MANUAL MOCK 
+/* MOCK: PRISMA WITH A MANUAL MOCK 
 - tells Jest to replace my real Prisma client with the stub in _mocks_/prisma */
 jest.mock("../prisma", () => require("../__mocks__/prisma"));
 // pulls in the mocked Prisma instance (with findUnique, create, etc. as jest fns)
@@ -76,8 +76,7 @@ const { mergeTemplate } = require("../merge.service");
 
 /* helper: fake upload buffer with a small HTML file that includes intentionally 
 unsafe content 
-- <script>, href="javascript..." link, a remote img URL 
-- small HTML template with intentionally unsafe content, used to test sanitization */
+- <script>, href="javascript..." link, a remote img URL */
 const HTML_TEMPLATE = Buffer.from(
   `<!DOCTYPE html>
 <html><head><title>T</title></head>
@@ -98,9 +97,6 @@ const DOCX_TEMPLATE = Buffer.from("FAKE_DOCX_CONTENT");
 beforeEach(() => {
   jest.clearAllMocks();
 
-  // fs.mkdir OK; pretends directory creation always works
-  // fs.mkdir.mockResolvedValue();
-
   // ensure the code under test writes to a predictable bucket in tests
   process.env.S3_BUCKET = "unit-test-bucket";
   // default: S3 GetObject returns a stream of the right template bytes based on key
@@ -120,12 +116,12 @@ beforeEach(() => {
     }
 
     if (cmd instanceof PutObjectCommand) {
-      // PutObject/HeadObject: return minimal ok
+      // PutObject: return minimal ok
       return Promise.resolve({ Etag: '"deadbeef"' });
     }
 
     if (cmd instanceof HeadObjectCommand) {
-      // PutObject/HeadObject: return minimal ok
+      // HeadObject: return minimal ok
       return Promise.resolve({ ContentLength: 123 });
     }
 
@@ -143,10 +139,8 @@ afterEach(() => {
   delete process.env.S3_BUCKET;
 });
 
-// *** VERIFIES HTML -> HTML WITH SANITZATION (FROM WEBHOOK: TRUE)
+// VERIFIES HTML -> HTML WITH SANITZATION (FROM WEBHOOK: TRUE)
 test("HTML merge -> HTML output (webhook path sanitizes)", async () => {
-  // regex-escape helper
-  // const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // defines the stored file name of the template record the merge will load
   const templateName = "9999-sample.html";
   /* db template metadata + fields 
@@ -175,31 +169,6 @@ test("HTML merge -> HTML output (webhook path sanitizes)", async () => {
     fromWebhook: true,
   });
 
-  /* mirrors how the system under test builds the base (strips only the final extension) 
-    - takes just the file name from a full path 
-    - removes only the final extension 
-    const stem = path.basename(templateName).replace(/\.[^.]+$/, "");
-    /* builds a directory prefix by appending the platform specific separator 
-    - wraps it in escRe(...), helper that escape regex metacharacters so the directory path
-      is safe to embed in a RegExp 
-    const outputsDirEsc = escRe(OUTPUTS_DIR + path.sep);
-
-    // asserts result shape
-    expect(result).toEqual({
-      jobId: 101,
-      // filePath must match this regex
-      filePath: expect.stringMatching(
-        // asserts a path that looks like <OUTPUTS_DIR>/<stem>-<digits>.html
-        new RegExp(`^${outputsDirEsc}${escRe(stem)}-\\d+\\.html$`)
-      ),
-    });
-
-    // asserts what got written was sanitized (script and javascript: removed)
-    const writeArgs = fs.writeFile.mock.calls[0];
-    const writtenBuf = writeArgs[1];
-    const written = writtenBuf.toString("utf8");
-    /* actual bytes written (captured from fs.writeFile) no longer contain <script> or
-    javascript */
   // asserts the returned job ID matches the mocked mergeJob.create
   expect(result.jobId).toBe(101);
   /* asserts the output location, filePath, is an S3 URL under outputs/ and follows the 
@@ -242,7 +211,7 @@ test("HTML merge -> HTML output (webhook path sanitizes)", async () => {
     })
   );
 });
-// *** VERIFIES HTML -> PDF VIA PUPPETEER
+// VERIFIES HTML -> PDF VIA PUPPETEER
 test("HTML merge -> PDF via Puppeteer", async () => {
   /* mocks a different HTML template 
     - stubs the db lookup: when mergeTemplate asks Prisma for the template, it gets an HTML template
@@ -268,8 +237,6 @@ test("HTML merge -> PDF via Puppeteer", async () => {
 
   // asserts the returned job matches the mocked insert
   expect(result.jobId).toBe(202);
-  // asserts filePath ends in .pdf
-  // expect(result.filePath).toMatch(/letter-\d+\.pdf$/);
   // asserts S3 URL ends in .pdf...
   expect(result.filePath).toMatch(
     /^s3:\/\/unit-test-bucket\/outputs\/letter-\d+\.pdf$/
@@ -305,7 +272,7 @@ test("mocks wired", async () => {
   expect(Buffer.isBuffer(out)).toBe(true);
 });
 
-// *** VERIFIES DOCX -> DOCX
+// VERIFIES DOCX -> DOCX
 test("DOCX merge -> DOCX output", async () => {
   // mocks a DOCX template and stubs the db lookup for the template
   prisma.template.findUnique.mockResolvedValue({
@@ -330,12 +297,6 @@ test("DOCX merge -> DOCX output", async () => {
 
   // asserts the returned job matches the mocked mergeJob.create
   expect(result.jobId).toBe(303);
-  // asserts the file path suffix
-  // expect(result.filePath).toMatch(/form-\d+\.docx$/);
-  // fs.writeFile called with merged DOCX buffer
-  // const written = fs.writeFile.mock.calls[0][1];
-  // asserts that the written buffer is indeed a Buffer
-  // expect(Buffer.isBuffer(written)).toBe(true);
 
   /* checks the output location string is an S3 URL in my outputs/ prefix and follows the naming pattern
     form-<timestamp>.docx */
@@ -343,8 +304,7 @@ test("DOCX merge -> DOCX output", async () => {
     /^s3:\/\/unit-test-bucket\/outputs\/form-\d+\.docx$/
   );
   /* PutObject body is the merged DOCX buffer 
-    - digs into the S3 client mock call history and finds the call where my code uploaded the file
-    - s3.send.mock.calls - an array of call; each element is the array of args for that call */
+    - digs into the S3 client mock call history and finds the call where my code uploaded the file */
   const put = s3.send.mock.calls.find(
     // identifies the call whose first argument is an instance of PutObjectCommand
     ([c]) => c && c.constructor && c.constructor.name === "PutObjectCommand"
@@ -356,7 +316,7 @@ test("DOCX merge -> DOCX output", async () => {
   expect(Buffer.isBuffer(put[0].input.Body)).toBe(true);
 });
 
-// *** VERIFIES DOCX -> PDF VIA LIBREOFFICE-CONVERT
+// VERIFIES DOCX -> PDF VIA LIBREOFFICE-CONVERT
 test("DOCX merge -> PDF via LibreOffice", async () => {
   // mocks another DOCX template
   prisma.template.findUnique.mockResolvedValue({
@@ -379,7 +339,7 @@ test("DOCX merge -> PDF via LibreOffice", async () => {
   expect(result.filePath).toMatch(/contract-\d+\.pdf$/);
 });
 
-// *** VERIFIES MISSING REQUIRED FIELDS THROW 422
+// VERIFIES MISSING REQUIRED FIELDS THROW 422
 test("missing required fields throws 422", async () => {
   prisma.template.findUnique.mockResolvedValue({
     id: "tpl-docx-3",
@@ -399,7 +359,7 @@ test("missing required fields throws 422", async () => {
   ).rejects.toMatchObject({ status: 422 });
 });
 
-// *** VERIFIES EXTRA FIELDS WARN BUT DON'T BLOCK
+// VERIFIES EXTRA FIELDS WARN BUT DON'T BLOCK
 test("unexpected extra fields only warn (no throw)", async () => {
   prisma.template.findUnique.mockResolvedValue({
     id: "tpl-html-3",
