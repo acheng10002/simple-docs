@@ -36,4 +36,4 @@ DocxMock._reset = () => {
 // exports in a way that works for both CommonJS and ESM
 module.exports = DocxMock;
 module.exports.default = DocxMock;
-module.exports._esModule = true;
+module.exports.__esModule = true;
