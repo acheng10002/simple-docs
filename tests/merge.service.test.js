@@ -364,7 +364,7 @@ test("unexpected extra fields only warn (no throw)", async () => {
   prisma.template.findUnique.mockResolvedValue({
     id: "tpl-html-3",
     name: "4444-ok.html",
-    // template requires title...
+    // template requires title
     fields: [{ name: "title" }],
   });
   prisma.mergeJob.create.mockResolvedValue({ id: 505 });

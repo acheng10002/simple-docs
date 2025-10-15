@@ -97,8 +97,7 @@ test("TemplateParseError is thrown for templating issues", () => {
     renderDocxBufferOrThrow(buf, {});
     throw new Error("should have thrown");
   } catch (e) {
-    /* should throw my TemplateParseError with the canonical message 
-    - test verifies the error type and message */
+    // should throw my TemplateParseError with the canonical message
     expect(e).toBeInstanceOf(TemplateParseError);
     expect(e.message).toBe("TEMPLATE_PARSE_ERROR");
   }
