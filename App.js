@@ -26,6 +26,8 @@ if (missing.length > 0) {
 
 // BUILDS AN EXPRESS APP
 const app = express();
+// clients don't need this header, and it leaks stack info, so better for security
+app.disable("x-powered-by");
 
 /* INITIALIZES PASSPORT (JWT STRATEGY)
 - before routes, initialize passport so merge.routes.js can authenticate */
