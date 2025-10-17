@@ -6,10 +6,10 @@ const BAD_TAGS = new Set(["script", "iframe", "object", "embed"]);
 const ON_ATTR = /^on\w+/i;
 // href="javascript:..." -> block
 const JS_URL = /^javascript:/i;
+// finds Mustache triple braces {{{ }}} (error, because unescaped HTML)
+const TRIPLE = /{{{\s*[^}]+\s*}}}/;
 // any http(s):// value (used to warn if allowRemote is false)
 const REMOTE = /^https?:\/\//i;
-// finds Mustache triple braces {{{ }}} (warn, because unescaped HTML)
-const TRIPLE = /{{{\s*[^}]+\s*}}}/;
 
 // depth-first traversal helper
 function walk(node, issues, allowRemote) {
@@ -68,7 +68,7 @@ function lintHtmlBuffer(
     issues.errors.push("Disallowed {{{ triple braces }}} (unescaped HTML)");
 
   // parse HTML template into an AST with parse5
-  const ast = parse5.parse(html);
+  const ast = parse5.parse(html, { sourceCodeLocationsInfo: !!withLocations });
   // walk the AST  tree to collect issues
   walk(ast, issues, allowRemote);
   // if print CSS is required and not found
