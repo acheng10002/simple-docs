@@ -43,6 +43,19 @@ const {
 } = require("../s3");
 const { Readable } = require("stream");
 
+/* s3.send.mock.calls - Jest's recorded call history for the mocked s3.send function 
+                          it's an array of arg list arrays, each arg list for one function call
+.find(([c]) => c instanceof Cmd) - scans the call history and returns the first call whose
+                                    first arg (c) is an instance of the provided command class,
+                                    PutObjectCommand */
+const findS3 = (Cmd) => s3.send.mock.calls.find(([c]) => c instanceof Cmd)?.[0];
+
+/* [...s3.send.mock.calls] - clones the calls array
+.reverse()) - looks from the most recent to oldest 
+.find(([c]) => c instanceof Cmd)?.[0] - returns the most recent matching command instance */
+const lastS3 = (Cmd) =>
+  [...s3.send.mock.calls].reverse().find(([c]) => c instanceof Cmd)?.[0];
+
 /* MOCK: LIBREOFFICE-CONVERT - RETURNS A CANNED PDF BUFFER
 fakes LO conversion */
 jest.mock("libreoffice-convert", () => ({
@@ -177,16 +190,11 @@ test("HTML merge -> HTML output (webhook path sanitizes)", async () => {
     /^s3:\/\/unit-test-bucket\/outputs\/sample-\d+\.html$/
   );
 
-  /* captures the body uploaded to S3 PutObject (sanitized HTML)
-    - peeks into the S3 client mock to find the call where I uploaded the merged file
-    - s3.send.mock.calls - array of each function call's arg list array
-    - each inner array is the arg list for one invocation fo s3.send */
-  const put = s3.send.mock.calls.find(
-    // specifically locates the invocation whose first arg is an instance of PutObjectCommand
-    ([c]) => c && c.constructor && c.constructor.name === "PutObjectCommand"
-  );
-  // extracts the input passed to that PutObjectCommand, i.e. { Bucket, Key, Body, ContentType, ... }
-  const putInput = put && put[0] && put[0].input;
+  /* using the helper to inspect the upload 
+  - calls my findS3 helper to fetch the actual first PutObjectCommand that was sent */
+  const putCmd = findS3(PutObjectCommand);
+  // my mock command classes store constructor parameter on .input
+  const putInput = putCmd?.input;
   /* pulls the uploaded body (Body) and converts it to a string- this is the sanitized final HTML 
     that was stored to S3 */
   const written = putInput && putInput.Body && putInput.Body.toString("utf8");
@@ -303,17 +311,12 @@ test("DOCX merge -> DOCX output", async () => {
   expect(result.filePath).toMatch(
     /^s3:\/\/unit-test-bucket\/outputs\/form-\d+\.docx$/
   );
-  /* PutObject body is the merged DOCX buffer 
-    - digs into the S3 client mock call history and finds the call where my code uploaded the file */
-  const put = s3.send.mock.calls.find(
-    // identifies the call whose first argument is an instance of PutObjectCommand
-    ([c]) => c && c.constructor && c.constructor.name === "PutObjectCommand"
-  );
-  /* verifies the command's input body (the bytes sent to S3) is a Buffer i.e. I actually uploaded a binary
-    DOCX, not a string or something else
-    - put[0] is the command instance captured from the mock call's first argument
-    - .input.Body is the uploaded payload */
-  expect(Buffer.isBuffer(put[0].input.Body)).toBe(true);
+  /* asserts the uploaded body is a Buffer
+  - re-fetches the command instance for clarity */
+  const putCmd = findS3(PutObjectCommand);
+  /* putCmd.input.Body - the payload I attempted to upload to S3 
+  Buffer.isBuffer(...) - checks that the payload is a Node Bugger (binary), not a string or something else */
+  expect(Buffer.isBuffer(putCmd.input.Body)).toBe(true);
 });
 
 // VERIFIES DOCX -> PDF VIA LIBREOFFICE-CONVERT
