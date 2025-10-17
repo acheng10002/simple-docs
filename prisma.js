@@ -1,4 +1,4 @@
-/* *** DEV DEP - PRISMA TOOLING: PRISMA
+/* DEV DEP - PRISMA TOOLING: PRISMA
 INSTANTIATES AND EXPORTS A SINGLETON PRISMACLIENT */
 const { PrismaClient } = require("@prisma/client");
 
