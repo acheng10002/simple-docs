@@ -11,6 +11,10 @@ const prisma = require("./prisma");
 
 /* READS JWT_SECRET FROM ENV */
 const SECRET = process.env.JWT_SECRET;
+if (!SECRET) {
+  // fails early- safer than starting with a misconfig
+  throw new Error("JWT_SECRET is required");
+}
 
 // CONFIGURES PASSPORT WITH PASSPORT-JWT (JWTSTRATEGY, EXTRACTJWT)
 passport.use(
