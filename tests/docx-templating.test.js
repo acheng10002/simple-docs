@@ -26,6 +26,10 @@ beforeEach(() => {
   Docxtemplater._reset();
 });
 
+afterEach(() => {
+  Docxtemplater._reset();
+});
+
 // lintDocxBuffer test ensures my lint path maps Docxtemplater errors into arrays of details
 test("lintDocxBuffer returns [] when render succeeds", () => {
   const buf = Buffer.from("fake-docx");
