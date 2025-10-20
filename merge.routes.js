@@ -151,7 +151,7 @@ router.get(
 router.post(
   // POST endpoint that takes a templateId URL param
   "/templates/:templateId/merge-csv",
-  // requires a valid JWT, and on success, Passort sets req.user with no server-side sessions
+  // requires a valid JWT, and on success, Passport sets req.user with no server-side sessions
   passport.authenticate("jwt", { session: false }),
   /* multer middleware that expects one uploaded file under the form field name csv
   - puts the file bytes in req.file.buffer */
@@ -340,8 +340,11 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
   // C5b. outputType read from query string
   const outputType = req.query.outputType || "pdf";
 
-  // gets and lowercase the request Content-Type from the req headers
-  const ctype = (req.get("content-type") || "").toLowerCase();
+  // gets the request Content-Type (case-insensitive), normalize, and strip parameters (e.g. charset=utf-8)
+  const ctype = (req.get("content-type") || "")
+    .toLowerCase()
+    .split(";")[0]
+    .trim();
   let rows;
   const raw = req.body;
 
