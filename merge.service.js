@@ -430,6 +430,19 @@ async function mergeTemplate({
     throw new Error("Unsupported template type. Use .docx or .html");
   }
 
+  // validates allowed outputs for each template family
+  if (isDocx && !["docx", "pdf", "html"].includes(outputType)) {
+    throw new Error(
+      "outputType must be one of: docx, pdf, html for DOCX templates"
+    );
+  }
+
+  if (isHtml && !["html", "pdf", "docx"].includes(outputType)) {
+    throw new Error(
+      "outputType must be one of: html, pdf, docx for HTML templates"
+    );
+  }
+
   /* READS TEMPLATE BYTES
   reads the template file from S3 */
   const buf = await loadTemplateBuffer(template);
