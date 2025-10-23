@@ -20,8 +20,16 @@ const s3 = new S3Client({
 /* helper to consistently add an optional prefix (a "folder-like" path) to all S3 keys (each 
 key corresponds to a stored object/file) */
 function withPrefix(key) {
+  const prefix = (process.env.S3_PREFIX || "").trim();
+  const clean = (s) =>
+    String(s || "")
+      // trims leading slashes
+      .replace(/^\/*/, "")
+      // no parent segments
+      .replace(/\.\./g, "");
   // returns the original key
-  return key;
+  if (!prefix) return clean(key);
+  return `${clean(prefix).replace(/\/+$/, "")}/${clean(key)}`;
 }
 
 module.exports = {
