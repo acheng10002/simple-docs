@@ -1,6 +1,10 @@
 /* MINIMAL USER SEED USING PRISMA THEN DISCONNECTS
 imports my initialized Prisma Client instance */
 const prisma = require("./prisma");
+
+const EMAIL = process.env.SEED_USER_EMAIL || "u1@example.com";
+const PASSWORD = process.env.SEED_USER_PASSWORD || "devpass";
+
 // starts an async Immediately Invoked Function Expression (IIFE)
 (async () => {
   try {
@@ -10,7 +14,7 @@ const prisma = require("./prisma");
       // if that user exists, update nothing
       update: {},
       // if it doesn't exist, create it with these fields, include required fields
-      create: { id: "u1", email: "u1@example.com", password: "devpass" },
+      create: { id: "u1", email: EMAIL, password: PASSWORD },
     });
     // simple success log once the upsert resolves
     console.log("seeded u1");
