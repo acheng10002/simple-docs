@@ -1,25 +1,8 @@
 /* central Multer config shared across routes 
-multer - middleware, async/await, that parses multipart/form-data of file uploads (the incoming request) from 
-         <input type="file"> or curl -F for Express, and runs before the route handler accepts a file (the routes
-         can be attached to this middleware)    
-- multer determines the storage engine for the uploaded file:     
-.memoryStorage() - with upload.single("template"), temporarily parses file bytes into RAM memory, as one Buffer object/at req.file.buffer 
-                   and any text fields, on req.body, no file is written to disk (buffer-first, streamed-piped somewhere as it) i.e. 
-                   parse CSV, upload to S3, virus-scan in memory; req.file.buffer is then one storage object that I can reuse everywhere
-                   fast storage that clears on reboot/crash (nothing persists)
-- then file will inspected/validated, and lastly optionally saved instead of written to a temp folder on disk 
-.diskStorage() - immediately writes the file to disk with my naming/path logic like uploads/ (or remote) but 
-                  without me touching it; much slower storage that surivives reboot 
-buffer - chunk of raw binary data stored in memory
 - Multer supports custom storage engines, and there are community packages:
 -- S3: multer-s3, Amazon Simple Storage Service
---- durable, scalable object storage service from AWS 
---- I store files (“objects”) in buckets, access them over HTTPS, and control access with IAM policies (Identity and Access 
-    Management, who can do what to which resources under which conditions). 
---- Common features: pre-signed URLs for direct browser uploads/downloads, versioning, lifecycle policies (auto-archive/delete),
-    server-side encryption, cross-region replication, great for storing user uploads, templates, and generated documents   
 -- multer finds the field name named template (must match -F "template=@file", DOCX or HTML, or in curl)
--- and, for client-server alignment, multer populates:
+-- for client-server alignment, multer populates:
 --- req.file.buffer - raw file bytes, Buffer
 --- req.file.originalname - e.g. sample.html
 --- req.file.mimetype - e.g. text/html */
@@ -31,16 +14,10 @@ const storage = multer.memoryStorage();
 // base limits I can tweak in one place - 15MB, limits for file size, number of files, parts, etc.
 const BASE_LIMITS = { fileSize: 15 * 1024 * 1024 };
 
-/* *** FACTORY FUNCTION TO CREATE MULTER INSTANCES WITH BASE LIMITS AND PER-ROUTE FILTERS
+/* FACTORY FUNCTION TO CREATE MULTER INSTANCES WITH BASE LIMITS AND PER-ROUTE FILTERS
 WITH OPTIONAL OVERRIDES 
 - makeUpload() gets called once per route config at module load time
 - each multer instance is stateless between requests
---- Multer does not keep state for any pre-request buffers, streams, filenames, temp paths, or parsed fields/files; 
-    all of the per-request/per file state disappears after the request/response cycle 
---- on each request, Multer spins up a new, streaming parser, Busboy, and wires it to my multer storage engine
----- Busboy parses the HTTP. byte stream, decodes each part's headers, emits events with Node streams, handles 
-     backpressure efficiently, enforces limits, and is format-focused; everything is stream-driven (each request 
-     gets fresh, isolated parsing objects)
 - options argument has two parts ( options arg defaults to {} so calling makeUpload() is safe): 
 - limits - defaults to an empty object 
 - fileFilter - optional callback to accept or reject files */
@@ -61,7 +38,7 @@ function makeUpload({ limits = {}, fileFilter } = {}) {
 }
 
 /* uploadTemplate and uploadCsv are prebuilt route-specific middlewares
-*** UPLOADTEMPLATE ACCEPTS .DOCX AND .HTML TEMPLATES
+UPLOADTEMPLATE ACCEPTS .DOCX AND .HTML TEMPLATES
 - template-specific filters/limits */
 const uploadTemplate = makeUpload({
   /* req - Express request
@@ -85,8 +62,8 @@ const uploadTemplate = makeUpload({
   },
 });
 
-/* *** UPLOADCSV ACCEPTS CSV MIMETYPES
-csv--specific filters/limits */
+/* UPLOADCSV ACCEPTS CSV MIMETYPES
+csv - specific filters/limits */
 const uploadCsv = makeUpload({
   fileFilter: (req, file, cb) => {
     /* accepts text/csv and common CSV mimetypes 
@@ -100,9 +77,7 @@ const uploadCsv = makeUpload({
       "text/plain",
       "application/octet-stream",
     ].includes(file.mimetype);
-    /* calls Multer's callback to accept or reject the file 
-    - cb(error, acceptBoolean) 
-    - if ok is true, cb(null, true); if ok is false, cb ( new Error(), false) */
+    // calls Multer's callback to accept or reject the file
     cb(ok ? null : new Error("Unsupported CSV type"), ok);
   },
   // CSVs can be larger
