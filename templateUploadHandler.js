@@ -54,17 +54,20 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
   try {
     /* gets the uploaded file from the request, and responds with 400 Bad Request if no file found 
     
-    A2. TEMPLATE UPLOAD - INGESTION & DISCOVERY: basic request guard*/
+    A2. TEMPLATE UPLOAD - INGESTION & DISCOVERY: basic request guard */
     const file = req.file;
     // POSSIBLE ERROR - no file sent
     if (!file) return res.status(400).send("No file uploaded");
 
+    // MIME (detection & normalization
+    const declared = (file.mimetype || "").toLowercase();
+    const ext = path.extname(file.originalname).toLowercase();
+
     /* VALIDATES TYPE WITH FILE-TYPE + EXTENSION FALLBACKS
     MAGIC-BYTE MIME DETECTION (+FALLBACKS)
-    inspects file's binary content, its file signature, and tries to infer/validate the MIME type 
-    - file-type lib's fromBuffer function reads the first N bytes 
-    - file-type compares that byte pattern against a db of known file signatures (with known mappings 
-      to MIME types)
+    inspects file's binary content, its file signature (magic bytes), and tries to infer/validate the MIME type 
+    - file-type lib's fromBuffer function reads the  magic bytes, first N bytes 
+    - file-type compares that byte pattern against a db of known file signatures (with known mappings to MIME types)
     - if a match is found, function returns an object with file extension and MIME type 
     
     A3. TEMPLATE UPLOAD - INGESTION & DISCOVERY: file type detection (magic bytes + fallback)
@@ -104,12 +107,27 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
       }
     }
 
+    // cross-checks and finalizes
+    const finalMime =
+      fileType?.mime ||
+      (ext === ".docx"
+        ? FALLBACK_MIME_MAP[".docx"]
+        : ext === "html" || ext === ".htm"
+          ? FALLBACK_MIME_MAP[".html"]
+          : null);
+
     /*  compares MIME types & if still no fileType or if file type not on the allowed list, reject
 
     A3c. allow-list enforcement */
-    if (!fileType || !ALLOWED_MIME_TYPES.includes(fileType.mime)) {
+    if (!finalMime || !ALLOWED_MIME_TYPES.includes(finalMime)) {
       //  POSSIBLE ERROR - type not allowed or MIME detection rejected the file
       return res.status(415).send("Unsupported or undetectable file type.");
+    }
+
+    if (declared && declared !== finalMime) {
+      console.warn(
+        `Declared mimetype ${declared} differs from computed ${finalMime}`
+      );
     }
 
     /* BLOCKS EXECUTION ON DOCX/HTML TEMPLATE ROUTES IF TEMPLATES ARE INVALID
