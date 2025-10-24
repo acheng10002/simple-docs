@@ -72,6 +72,9 @@ async function resolveTemplateFile(templateId) {
     /* emulate former shape: stat.size used by route for Content-Length 
     - head.ContentLength - byte size from S3 */
     stat: { size: Number(head.ContentLength || 0) },
+    // include etag and lastModified so callers can add cache headers and validate downloads
+    etag: head.ETag,
+    lastModified: head.LastModified,
     // MIME type derived from the file name
     contentType: contentTypeFor(tpl.name),
     // filename without the timestamp prefix
