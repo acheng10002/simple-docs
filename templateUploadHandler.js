@@ -223,8 +223,8 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     });
 
     /* A10. TEMPLATE UPLOAD - INGESTION & DISCOVERY: error handling
-    POSSIBLE ERROR - catches and logs any unexpected server errors 
-    - unexpected issues return 500; validation failures already exited with 400/415 */
+    - catches and logs any unexpected server errors, unexpected issues return 500; validation failures already 
+      exited with 400/415 */
   } catch (err) {
     console.error("Upload error:", err);
     res.status(500).send("Internal Server Error");
