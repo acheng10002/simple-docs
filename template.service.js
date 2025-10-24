@@ -1,7 +1,7 @@
-/*TEXT & FIELD EXTRACTION FOR UPLOADS 
-- service helpers used by the upload handler
-- pulls plain text from .docx/.html, so I can regex the placeholders
+/* TEXT & FIELD EXTRACTION FOR UPLOADS 
+- service helpers used by the upload handler, pulls plain text from .docx/.html, so I can regex the placeholders
 - writes Template + Field[] rows/ db records that merge.service.js reads
+
 TEMPLATE UPLOAD & PARSE - USE PARSER TO EXTRACT TEXT
 mammoth module for server-side parsing of .DOCX files, extracting plain text from them */
 const mammoth = require("mammoth");
@@ -13,10 +13,6 @@ const { JSDOM } = require("jsdom");
 const prisma = require("./prisma");
 // path string utilities
 const path = require("path");
-// promise-based fileststem I/O
-// const fs = require("fs/promises");
-// absolute path for all uploads
-// const { UPLOADS_DIR } = require("./paths");
 // s3 instance
 const { s3, HeadObjectCommand, withPrefix } = require("./s3");
 
@@ -36,7 +32,7 @@ function downloadNameFor(storedName) {
   return storedName.replace(/^\d+-/, "");
 }
 
-/* *** RESOLVETEMPLATEFILE(ID) FINDS TEMPLATE IN DB, RESOLVES ABSOLUTE PATH WHERE UPLOADED
+/* RESOLVETEMPLATEFILE(ID) FINDS TEMPLATE IN DB, RESOLVES PATH WHERE UPLOADED
 FILE LIVES, STATS FILE, DERIVES MIME TYPE, AND RETURNS A BUNDLE FOR DOWNLOAD
 given a template id, gathers everything needed to serve/download the original file 
 (metadata, file path, size, and headers) */
@@ -45,18 +41,6 @@ async function resolveTemplateFile(templateId) {
   const tpl = await prisma.template.findUnique({ where: { id: templateId } });
   // if template doesn't exist, bail out so the caller can return 404 Not Found
   if (!tpl) return null;
-
-  // builds absolute path where the uploaded file lives
-  // const absPath = path.join(UPLOADS_DIR, tpl.name);
-
-  /* ensures the file exists and gets its size for Content-Length 
-  - uses Promise-based fs.stat to get fs metadata for absPath
-  - if the path doesn't exist or the file is missing or unreadable, .catch returns null instead of throwing 
-  - stat will be either a fs.stat object (truthy) if the path is accessible or null if it isn't */
-  // const stat = await fs.stat(absPath).catch(() => null);
-  /* if the file isn't on disk- db says it exist, but fs doesn't, return metadata plus a missing: true flag 
-  so the caller can return a useful 404, like "Template file missing on disk" */
-  // if (!stat) return { tpl, missing: true };
 
   /* S3 object lives under uploads/<name> 
   - builds the S3 object key (path inside the bucket)
@@ -83,10 +67,6 @@ async function resolveTemplateFile(templateId) {
   return {
     // db template record I looked up earlier (id, name, etc.)
     tpl,
-    // full path to the template on disk
-    // absPath,
-    // file stats
-    // stat,
     // where the file lives in S3 (used later to stream via GetObject)
     s3Key,
     /* emulate former shape: stat.size used by route for Content-Length 
@@ -99,7 +79,7 @@ async function resolveTemplateFile(templateId) {
   };
 }
 
-/* *** EXTRACTTEXTFROMBUFFER DISPATCHES TO MAMMOTH (DOCX) OR JSDOM (HTML)
+/* EXTRACTTEXTFROMBUFFER DISPATCHES TO MAMMOTH (DOCX) OR JSDOM (HTML)
 extracts and returns raw text content from the buffer, depending on file type */
 async function extractTextFromBuffer(buffer, mimeType) {
   if (
@@ -108,7 +88,7 @@ async function extractTextFromBuffer(buffer, mimeType) {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
     /* A7a. TEMPLATE UPLOAD - INGESTION & DISCOVERY: extracts plain text for placeholder discovery in DOCX 
-    *** USES MAMMOTH FOR PARSING .DOCX, EXTRACTS PLAIN TEXT FROM THE .DOCX FILE'S BUFFER
+    USES MAMMOTH FOR PARSING .DOCX, EXTRACTS PLAIN TEXT FROM THE .DOCX FILE'S BUFFER
     - Mammoth reads text only (not raw XML) */
     const { value } = await mammoth.extractRawText({ buffer });
     // value contains extracted text
@@ -119,7 +99,7 @@ async function extractTextFromBuffer(buffer, mimeType) {
     // if the file is html, converts the raw binary buffer into a UTF-8 string
     const html = buffer.toString();
     /* A7b. TEMPLATE UPLOAD - INGESTION & DISCOVERY: extracts plain text for placeholder discovery in HTML
-    *** USES JSDOM FOR PARSING AND TRAVERSING HTML WITHOUT A BROWSER AND READS DOCUMENT.BODY.TEXTCONTENT
+    USES JSDOM FOR PARSING AND TRAVERSING HTML WITHOUT A BROWSER AND READS DOCUMENT.BODY.TEXTCONTENT
     - parses the HTML string into a virtual DOM tree using jsdom */
     const dom = new JSDOM(html);
     // extracts and returns only the text inside the HTML <body> tag; falls back to empty string if no text
@@ -131,13 +111,13 @@ async function extractTextFromBuffer(buffer, mimeType) {
 }
 
 /* TEMPLATE UPLOAD & PARSE 
-*** REGEX TO FIND {{ FIELD }} AND DE-DUPE
+REGEX TO FIND {{ FIELD }} AND DE-DUPE
 - extracts placeholder fields from the provided DOCX or HTML plain text 
 - assumes placeholders are written in the format {{ fieldName }} */
 function extractPlaceholders(text) {
-  /* *PLACEHOLDER REGEX 
+  /* PLACEHOLDER REGEX 
   - uses regex to find all substrings that match {{ something }}
-  -returns an array of matches or an empty array if no matches found */
+  - returns an array of matches or an empty array if no matches found */
   const matches = text.match(/{{\s*([\w\.]+)\s*}}/g) || [];
   /* strips off {{ }} wrappers and trims whitespace from each placeholder
   - uses Set to remove duplicates
@@ -145,11 +125,11 @@ function extractPlaceholders(text) {
   return [...new Set(matches.map((m) => m.replace(/{{\s*|\s*}}/g, "")))];
 }
 
-/* *** CREATES TEMPLATE + NESTED FIELD[] VIA PRISMA
+/* CREATES TEMPLATE + NESTED FIELD[] VIA PRISMA
 A9a. TEMPLATE UPLOAD - INGESTION & DISCOVERY: TEMPLATE UPLOAD & PARSE - STORES ORIGINAL FILE & 
 STORES DETECTED FIELD NAMES
-templateName - a string representing the name of the uploaded template file
-fileNames - array of strings representing placeholder field names extracted from the doc */
+templateName - string name of the uploaded template file
+fieldNames - array of strings representing placeholder field names extracted from the doc */
 async function storeTemplateAndFields(templateName, fieldNames) {
   // creates a new record in the Template table
   return await prisma.template.create({
