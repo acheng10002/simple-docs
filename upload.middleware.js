@@ -7,6 +7,7 @@
 --- req.file.originalname - e.g. sample.html
 --- req.file.mimetype - e.g. text/html */
 const multer = require("multer");
+const path = require("path");
 
 // *** MULTER MIDDLEWARE IN MEMORY STORAGE MODE - PUTS FILE BYTES IN REQ.FILE.BUFFER
 const storage = multer.memoryStorage();
@@ -46,19 +47,27 @@ const uploadTemplate = makeUpload({
   cb - per-file decision hook/callback parameter that Multer passes into the optional fileFilter 
        function and I must call it exactly once inside fileFilter to accept/reject the file */
   fileFilter: (req, file, cb) => {
-    // allows .docx and .html MIME types
-    const ok = [
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/msword",
-      "application/zip",
-      "text/html",
-      "application/xhtml+xml",
-      // checks if the uploaded file's mimeType is in the allow-list; sets ok to true if allowed
-    ].includes(file.mimetype);
+    // normalize inputs
+    const declared = (file.mimetype || "").toLowerCase();
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    /* ok:
+    - real .docx: correct mimetype + extension
+    - some agents send application/zip for .docx: only accept if ext is .docx
+    - html/xhtml 
+    allows .docx and .html MIME types */
+    const allow =
+      (declared ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" &&
+        ext === ".docx") ||
+      (declared === "application/zip" && ext === ".docx") ||
+      declared === "text/html" ||
+      declared === "application/xhtml+xml";
+    // checks if the uploaded file's mimeType is in the allow-list; sets ok to true if allowed
+    // .includes(file.mimetype);
     /* calls Multer's callback to accept or reject the file 
     - cb(error, acceptBoolean) 
     - if ok is true, cb(null, true); if ok is false, cb ( new Error(), false) */
-    cb(ok ? null : new Error("Unsupported template type"), ok);
+    cb(allow ? null : new Error("Unsupported template type"), allow);
   },
 });
 
