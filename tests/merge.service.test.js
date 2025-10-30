@@ -219,6 +219,45 @@ test("HTML merge -> HTML output (webhook path sanitizes)", async () => {
     })
   );
 });
+
+// manual (JWT)/non-webhook HTML test to prove scripts aren't stripped when fromWebhook: false
+test("HTML merge -> HTML without sanitization (manual path keeps script tags)", async () => {
+  // stubs Prisma...:
+  prisma.template.findUnique.mockResolvedValue({
+    // so when my code looks up the template by ID it gets...
+    id: "tpl-html-nw",
+    // an HTML template file...
+    name: "9999-nw.html",
+    // and one required field in the template, title
+    fields: [{ name: "title" }],
+  });
+
+  // stubs the db insert for the merge job to "succeed" and returns a job ID of 606
+  prisma.mergeJob.create.mockResolvedValue({ id: 606 });
+
+  // calls my system under test:
+  const result = await mergeTemplate({
+    // templateId selects the HTML template
+    templateId: "tpl-html-nw",
+    // data supplies the {{title}} value
+    data: { title: "Hello" },
+    // outputType asks for HTML output, no PDF/DOCX conversion
+    outputType: "html",
+    // "not from webhook" so don't sanitize
+    fromWebhook: false,
+  });
+
+  /* fetch the first recorded PutObjectCommand sent to the mocked S3 client 
+  i.e. the upload of the generated output */
+  const putCmd = findS3(PutObjectCommand);
+  // reads the uploaded body (a Buffer) back into a UTF-8 string so I can inspect HTML contents
+  const written = putCmd.input.Body.toString("utf8");
+  // asserts the output still contains the script tag proving no sanitization occurred
+  expect(written).toMatch(/<script>evil\(\)<\/script>/);
+  // checks the function returned the mocked job ID
+  expect(result.jobId).toBe(606);
+});
+
 // VERIFIES HTML -> PDF VIA PUPPETEER
 test("HTML merge -> PDF via Puppeteer", async () => {
   /* mocks a different HTML template 
