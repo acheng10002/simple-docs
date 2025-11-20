@@ -1,5 +1,5 @@
 // *** UNIT TESTS FOR LINTHTMLBUFFER() ERROR/WARNING COVERAGE
-const { lintHtmlBuffer } = require("../html-lint");
+const { lintHtmlBuffer } = require("../../html-lint");
 
 // starts a Jest test suite
 describe("html-lint", () => {

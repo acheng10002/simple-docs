@@ -1,8 +1,8 @@
 /* tells Jest to replace ../prisma with my mock module in ../_mocks_/prisma 
 - uses a manual mock factory - whatever the require returns becomes the mocked module */
-jest.mock("../prisma", () => require("../__mocks__/prisma"));
+jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
 // imports the mocked Prism client, because of the jest.mock above
-const prisma = require("../prisma");
+const prisma = require("../../prisma");
 
 /* 
 // Node's promises fs API
@@ -18,7 +18,7 @@ const path = require("path");
 */
 
 // mock S3 client
-jest.mock("../s3", () => {
+jest.mock("../../s3", () => {
   return {
     s3: { send: jest.fn() },
     PutObjectCommand: class PutObjectCommand {},
@@ -28,14 +28,14 @@ jest.mock("../s3", () => {
   };
 });
 
-const { s3 } = require("../s3");
+const { s3 } = require("../../s3");
 
 // functions under tests from my service module
 const {
   resolveTemplateFile,
   extractTextFromBuffer,
   extractPlaceholders,
-} = require("../template.service");
+} = require("../../template.service");
 
 // starts a Jest test suite
 describe("template.service", () => {

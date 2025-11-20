@@ -1,11 +1,11 @@
 /* MOCK: PRISMA WITH A MANUAL MOCK 
 - tells Jest to replace my real Prisma client with the stub in _mocks_/prisma */
-jest.mock("../prisma", () => require("../__mocks__/prisma"));
+jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
 // pulls in the mocked Prisma instance (with findUnique, create, etc. as jest fns)
-const prisma = require("../prisma");
+const prisma = require("../../prisma");
 
 // mocks S3 client so I can inspect calls and provide canned responses
-jest.mock("../s3", () => {
+jest.mock("../../s3", () => {
   return {
     s3: { send: jest.fn() },
     /* PutObjectCommand - uploads bytes to a key, creates or overwrites an object at s3:/<Bucket>/<Key> 
@@ -40,7 +40,7 @@ const {
   PutObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
-} = require("../s3");
+} = require("../../s3");
 const { Readable } = require("stream");
 
 /* s3.send.mock.calls - Jest's recorded call history for the mocked s3.send function 
@@ -73,7 +73,7 @@ const puppeteer = require("puppeteer");
 
 /* MOCK: DOCX-TEMPLATING - RENDERDOCXBUFFERORTHROW RETURNING A FIXED BUFFER, AND 
 A LOCAL TEMPLATEPARSEERROR CLASS */
-jest.mock("../docx-templating.js", () => ({
+jest.mock("../../docx-templating.js", () => ({
   // returns a fixed Buffer "MERGED_DOCX" (so I don't really render)
   renderDocxBufferOrThrow: jest.fn(() => Buffer.from("MERGED_DOCX")),
   // class is redefined to simulate templating errors from my helper module
@@ -85,7 +85,7 @@ jest.mock("../docx-templating.js", () => ({
   },
 }));
 
-const { mergeTemplate } = require("../merge.service");
+const { mergeTemplate } = require("../../merge.service");
 
 /* helper: fake upload buffer with a small HTML file that includes intentionally 
 unsafe content 
@@ -301,7 +301,7 @@ test("HTML merge -> PDF via Puppeteer", async () => {
 // checks that my mocks are loaded and behave as expected
 test("mocks wired", async () => {
   // imports my mocked Docxtemplater wrapper
-  const docx = require("../docx-templating.js");
+  const docx = require("../../docx-templating.js");
   /* asserts that renderDocxBufferOrThrow() (mocked) returns a Buffer (no real templating happens) */
   expect(docx.renderDocxBufferOrThrow()).toBeInstanceOf(Buffer);
 

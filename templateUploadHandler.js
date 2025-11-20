@@ -60,8 +60,8 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     if (!file) return res.status(400).send("No file uploaded");
 
     // MIME (detection & normalization
-    const declared = (file.mimetype || "").toLowercase();
-    const ext = path.extname(file.originalname).toLowercase();
+    const declared = (file.mimetype || "").toLowerCase();
+    const ext = path.extname(file.originalname).toLowerCase();
 
     /* VALIDATES TYPE WITH FILE-TYPE + EXTENSION FALLBACKS
     MAGIC-BYTE MIME DETECTION (+FALLBACKS)
@@ -112,7 +112,7 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
       fileType?.mime ||
       (ext === ".docx"
         ? FALLBACK_MIME_MAP[".docx"]
-        : ext === "html" || ext === ".htm"
+        : ext === ".html" || ext === ".htm"
           ? FALLBACK_MIME_MAP[".html"]
           : null);
 

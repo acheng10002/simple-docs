@@ -67,9 +67,9 @@ function lintHtmlBuffer(
     // add a error
     issues.errors.push("Disallowed {{{ triple braces }}} (unescaped HTML)");
 
-  // parse HTML template into an AST with parse5
-  const ast = parse5.parse(html, { sourceCodeLocationsInfo: !!withLocations });
-  // walk the AST  tree to collect issues
+  // parses HTML template into an AST with parse5
+  const ast = parse5.parse(html);
+  // walks the AST  tree to collect issues
   walk(ast, issues, allowRemote);
   // if print CSS is required and not found
   if (requirePrintCss && !hasPrintCss(html)) {
