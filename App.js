@@ -66,27 +66,37 @@ app.use("/api", mergeRouter);
 
 const PORT = process.env.PORT || 3000;
 
+// STARTS HTTP SERVER
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
+async function gracefulShutdown(signal) {
+  console.log(`${signal} received, shutting down gracefully...`);
+
+  ServerSideEncryption.close(async () => {
+    console.log("HTTP server closed");
+    await prisma.$disconnect();
+    console.log("Database connections closed");
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+}
+
 /* GRACEFUL SHUTDOWN HANDLERS 
 - caching both of these handlers lets my server finish cleaning instead of dying mid-request
 - close HTTP server, close db connections, flush logs (any log messages still sitting in buffer actual get written 
   to their destinations), delete temp files before exiting
 SIGINT - sent when I press Ctrl+C in the terminal, Unix "signal" that tells my Node process to stop, "interrupt"
          covers local/dev workflows */
-process.on("SIGINT", () => {
-  console.log("Received SIGINT, shutting down gracefully...");
-  process.exit(0);
-});
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 /* SIGTERM - polite shutdown request usually sent by other programs, my platform, process managers/orchestrators,
              Unix "signal" that tells my Node process to stop, "terminate" covers prod stops/rollouts */
-process.on("SIGTERM", () => {
-  console.log("Received SIGTERM, shutting down gracefully...");
-  process.exit(0);
-});
-
-// STARTS HTTP SERVER
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 // KEY LIBS: EXPRESS, DOTENV, PASSPORT SETUP
