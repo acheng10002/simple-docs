@@ -1,12 +1,10 @@
 const request = require("supertest");
 const express = require("express");
-const path = require("path");
 
-// mock prisma
+// mocks prisma
 jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
-const prisma = require("../../prisma");
 
-// mock S3 client
+// mocks S3 client
 jest.mock("../../s3", () => {
   return {
     s3: { send: jest.fn() },
@@ -19,16 +17,16 @@ jest.mock("../../s3", () => {
   };
 });
 
-const { s3, PutObjectCommand } = require("../../s3");
+const { s3 } = require("../../s3");
 
-// mock file-type for MIME detection
+// mocks file-type for MIME detection
 jest.mock("file-type", () => ({
   fromBuffer: jest.fn(),
 }));
 
 const FileType = require("file-type");
 
-// mock template service functions
+// mocks template service functions
 jest.mock("../../template.service", () => ({
   extractTextFromBuffer: jest.fn(),
   extractPlaceholders: jest.fn(),
@@ -41,7 +39,7 @@ const {
   storeTemplateAndFields,
 } = require("../../template.service");
 
-// mock linting functions
+// mocks linting functions
 jest.mock("../../docx-templating", () => ({
   lintDocxBuffer: jest.fn(),
 }));
@@ -63,19 +61,21 @@ describe("Upload Routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // create express app
+    // creates express app
     app = express();
 
     // body parsers
     app.use(express.json({ limit: "10mb" }));
 
-    // mount upload router
+    // mounts upload router
     const uploadRouter = require("../../templateUploadHandler");
     app.use("/api", uploadRouter);
 
     // default mock implementations
     FileType.fromBuffer.mockResolvedValue(null);
-    extractTextFromBuffer.mockResolvedValue("Sample text with {{name}} placeholder");
+    extractTextFromBuffer.mockResolvedValue(
+      "Sample text with {{name}} placeholder"
+    );
     extractPlaceholders.mockReturnValue(["name"]);
     storeTemplateAndFields.mockResolvedValue({
       id: "template-123",
@@ -92,7 +92,7 @@ describe("Upload Routes", () => {
 
   describe("POST /api/upload", () => {
     test("should successfully upload a valid DOCX file", async () => {
-      // mock file-type to detect DOCX
+      // mocks file-type to detect DOCX
       FileType.fromBuffer.mockResolvedValue({
         ext: "docx",
         mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -109,7 +109,7 @@ describe("Upload Routes", () => {
       expect(response.body.fields).toEqual(["name"]);
       expect(response.body.message).toContain("successfully uploaded");
 
-      // verify S3 upload was called
+      // verifies S3 upload was called
       expect(s3.send).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
@@ -120,10 +120,10 @@ describe("Upload Routes", () => {
         })
       );
 
-      // verify DOCX linting was performed
+      // verifies DOCX linting was performed
       expect(lintDocxBuffer).toHaveBeenCalledWith(docxBuffer);
 
-      // verify template was stored
+      // verifies template was stored
       expect(storeTemplateAndFields).toHaveBeenCalled();
     });
 
@@ -143,7 +143,7 @@ describe("Upload Routes", () => {
       expect(response.body.templateId).toBe("template-123");
       expect(response.body.fields).toEqual(["name"]);
 
-      // verify HTML linting was performed
+      // verifies HTML linting was performed
       expect(lintHtmlBuffer).toHaveBeenCalledWith(
         htmlBuffer,
         expect.objectContaining({
@@ -152,7 +152,7 @@ describe("Upload Routes", () => {
         })
       );
 
-      // verify S3 upload
+      // verifes S3 upload
       expect(s3.send).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
@@ -188,7 +188,7 @@ describe("Upload Routes", () => {
       // file-type returns null (can't detect)
       FileType.fromBuffer.mockResolvedValue(null);
 
-      // create buffer with ZIP magic bytes (PK\x03\x04)
+      // creates buffer with ZIP magic bytes (PK\x03\x04)
       const zipMagic = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
       const docxBuffer = Buffer.concat([zipMagic, Buffer.from("fake docx")]);
 
@@ -199,7 +199,7 @@ describe("Upload Routes", () => {
 
       expect(response.body.templateId).toBe("template-123");
 
-      // verify it was treated as DOCX
+      // verifies it was treated as DOCX
       expect(lintDocxBuffer).toHaveBeenCalled();
     });
 
@@ -215,7 +215,7 @@ describe("Upload Routes", () => {
 
       expect(response.body.templateId).toBe("template-123");
 
-      // verify it was treated as HTML
+      // verifies it was treated as HTML
       expect(lintHtmlBuffer).toHaveBeenCalled();
     });
 
@@ -248,7 +248,7 @@ describe("Upload Routes", () => {
       });
 
       const htmlBuffer = Buffer.from(
-        '<html><body><script>alert(1)</script></body></html>'
+        "<html><body><script>alert(1)</script></body></html>"
       );
 
       const response = await request(app)
@@ -323,12 +323,12 @@ describe("Upload Routes", () => {
       const htmlBuffer = Buffer.from("<html><body>test</body></html>");
 
       // filename with special characters and path traversal attempt
-      const response = await request(app)
+      await request(app)
         .post("/api/upload")
         .attach("template", htmlBuffer, "../../../evil file (1).html")
         .expect(200);
 
-      // verify S3 key is sanitized
+      // verifies S3 key is sanitized
       const s3Call = s3.send.mock.calls[0][0];
       const s3Key = s3Call.input.Key;
 
@@ -355,7 +355,9 @@ describe("Upload Routes", () => {
         fields: [{ name: "name" }, { name: "product" }],
       });
 
-      const htmlBuffer = Buffer.from("<html><body>{{name}} {{product}}</body></html>");
+      const htmlBuffer = Buffer.from(
+        "<html><body>{{name}} {{product}}</body></html>"
+      );
 
       const response = await request(app)
         .post("/api/upload")
@@ -363,7 +365,10 @@ describe("Upload Routes", () => {
         .expect(200);
 
       expect(response.body.fields).toEqual(["name", "product"]);
-      expect(extractTextFromBuffer).toHaveBeenCalledWith(htmlBuffer, "text/html");
+      expect(extractTextFromBuffer).toHaveBeenCalledWith(
+        htmlBuffer,
+        "text/html"
+      );
       expect(extractPlaceholders).toHaveBeenCalledWith(
         "Hello {{name}}, your {{product}} is ready"
       );
