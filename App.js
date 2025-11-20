@@ -26,6 +26,14 @@ if (missing.length > 0) {
 
 // BUILDS AN EXPRESS APP
 const app = express();
+
+// times out long-running merges/conversions
+app.use((req, res, next) => {
+  req.setTimeout(120000);
+  res.setTimeout(120000);
+  next();
+});
+
 // clients don't need this header, and it leaks stack info, so better for security
 app.disable("x-powered-by");
 
