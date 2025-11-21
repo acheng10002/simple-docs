@@ -1,5 +1,4 @@
-/* MOCK: PRISMA WITH A MANUAL MOCK 
-- tells Jest to replace my real Prisma client with the stub in _mocks_/prisma */
+// MOCK: PRISMA WITH A MANUAL MOCK
 jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
 // pulls in the mocked Prisma instance (with findUnique, create, etc. as jest fns)
 const prisma = require("../../prisma");
@@ -8,24 +7,19 @@ const prisma = require("../../prisma");
 jest.mock("../../s3", () => {
   return {
     s3: { send: jest.fn() },
-    /* PutObjectCommand - uploads bytes to a key, creates or overwrites an object at s3:/<Bucket>/<Key> 
-    - uploads outputs */
+    // PutObjectCommand - uploads bytes to a key, creates or overwrites an object at s3:/<Bucket>/<Key>
     PutObjectCommand: class PutObjectCommand {
       constructor(input) {
         this.input = input;
       }
     },
-    /* GetObjectCommand - reads/streams an object, fetches the object bytes (the body) 
-    - in Node, the body is a Readable stream 
-    - reads template bytes to merge */
+    // GetObjectCommand - reads/streams an object, fetches the object bytes (the body)
     GetObjectCommand: class GetObjectCommand {
       constructor(input) {
         this.input = input;
       }
     },
-    /* HeadObjectCommand - checks existence & gets metadata (no body)
-    - lighweight way to probe if an object exits and fetches metadata without downloading it 
-    - verifies original templates exist */
+    // HeadObjectCommand - checks existence & gets metadata (no body)
     HeadObjectCommand: class HeadObjectCommand {
       constructor(input) {
         this.input = input;

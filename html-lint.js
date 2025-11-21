@@ -22,14 +22,10 @@ function walk(node, issues, allowRemote) {
 
     // iterates over element attributes
     for (const a of node.attrs || []) {
-      /* any on* attribute -> error... 
-      - stops cross-site scripting/code execution
-      - protects headless renderer, Puppeteer that does filled HTML -> PDF conversion and Mustache
-        that is templating engine for HTML -> filled HTML) */
+      // any on* attribute -> error...
       if (ON_ATTR.test(a.name))
         issues.errors.push(`Disallowed attr "${a.name}" on <${tag}>`);
-      /* href="javascript:..." -> error 
-      - javascript:links execute code when followed */
+      // href="javascript:..." -> error
       if (a.name === "href" && JS_URL.test(a.value))
         issues.errors.push(`javascript: URL on <${tag}>`);
       // if allowRemote is false and attribute value looks remote (http(s)://) -> warning
@@ -59,10 +55,7 @@ function lintHtmlBuffer(
   const html = buf.toString("utf-8");
   // prepares an issues accumulator with separate errors and warnings
   const issues = { errors: [], warnings: [] };
-  /* if the template uses Mustache triple braces (raw HTML insertion) 
-  - raw HTML + attacker-controlled data = XSS/markup injection 
-  -- user can smuggle <img onerror=…> or href="javascript:…" 
-  - raw HTML can break layouts or styles, making output unpredictable */
+  // if the template uses Mustache triple braces (raw HTML insertion)
   if (TRIPLE.test(html))
     // add a error
     issues.errors.push("Disallowed {{{ triple braces }}} (unescaped HTML)");

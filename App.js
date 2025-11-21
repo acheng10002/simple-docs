@@ -9,6 +9,8 @@ const { passport } = require("./passport");
 const uploadRouter = require("./templateUploadHandler");
 // router for merge execution & webhook intake
 const mergeRouter = require("./merge.routes");
+const rateLimit = require("express-rate-limit");
+const prisma = require("./prisma");
 
 /* ENV CHECK
 - startup validations for required env variables - fails fast if a critical secret/URL is missing */
@@ -37,16 +39,40 @@ app.use((req, res, next) => {
 // clients don't need this header, and it leaks stack info, so better for security
 app.disable("x-powered-by");
 
+// RATE-LIMITING - protects upload and webhook endpoints from abuse
+const uploadLimiter = rateLimit({
+  // 15 minutes
+  windowMs: 15 * 60 * 1000,
+  // limit each IP to 10 uploads per window
+  max: 10,
+  message: "Too many uploads, please try again later",
+});
+
+const webhookLimiter = rateLimit({
+  // 15 minutes
+  windowMs: 15 * 60 * 1000,
+  // webhooks might have a higher volume
+  max: 100,
+  message: "Too many webhook requests, please try again later",
+});
+
+app.use("/api/upload", uploadLimiter);
+app.use("/api/webhooks", webhookLimiter);
+
 /* INITIALIZES PASSPORT (JWT STRATEGY)
 - before routes, initialize passport so merge.routes.js can authenticate */
 app.use(passport.initialize());
 
-/* BODY PARSERS (in intentional order) 
-- express.raw({ type: 'application/json' }) - RAW body parser so that I can hash the raw req.body 
-                                              exactly as received for HMAC verification on webhook route
-- express.raw() collects exact bytes of the HTTP body and makes them available as a Node Buffer 
-  at req.body
-- buffer - fixed-length chunk of raw bytes from file in memory */
+app.get("/heath", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: "healthy", timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: "unhealthy", error: err.message });
+  }
+});
+
+// BODY PARSERS (in intentional order)
 const rawJson = express.raw({
   // only requests with these Content-Types will be handled as raw Buffers by this middleware
   type: ["application/json", "application/*+json", "text/csv"],
@@ -59,11 +85,7 @@ C1. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): body parsing 
 app.use("/api/webhooks", rawJson);
 
 /* enables JSON body parsing for all other routes, adds size limit for safety 
-B1. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): body parsing 
-express.json() - parses application.json requests/regular bodies, Content-Type: application/json, 
-                 into req.body for all routes other than webhook
-                 manual merge route reads { data, outputType } from req.body
-- express.json() decodes bytes to a string, parses them to a JS object, losing the original bytes */
+B1. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): body parsing */
 app.use(express.json({ limit: "10mb" }));
 
 // POST /api/upload - mounts the upload routes from ./templateUploadHandler under /api
@@ -95,12 +117,7 @@ async function gracefulShutdown(signal) {
   }, 10000);
 }
 
-/* GRACEFUL SHUTDOWN HANDLERS 
-- caching both of these handlers lets my server finish cleaning instead of dying mid-request
-- close HTTP server, close db connections, flush logs (any log messages still sitting in buffer actual get written 
-  to their destinations), delete temp files before exiting
-SIGINT - sent when I press Ctrl+C in the terminal, Unix "signal" that tells my Node process to stop, "interrupt"
-         covers local/dev workflows */
+// GRACEFUL SHUTDOWN HANDLERS
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 /* SIGTERM - polite shutdown request usually sent by other programs, my platform, process managers/orchestrators,

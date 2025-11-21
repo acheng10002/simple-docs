@@ -4,7 +4,6 @@ PUBLIC API SURFACE THAT CALLS INTO SERVICES: MERGE PATHS -> MERGE.SERVICE.JS
 - defines the JWT-protected upload download route, JWT-protected manual merge API, JWT-protected manual csv merge, 
   and HMAC-verified webhook API */
 require("dotenv").config();
-// imports Express so I can create a router
 const express = require("express");
 // imports my configured Passport instance with the JWT strategy I wired up to protect routes
 const passport = require("passport");
@@ -13,7 +12,6 @@ random bytes, and key derivation */
 const crypto = require("crypto");
 // central Multer config shared across routes
 const { uploadCsv } = require("./upload.middleware");
-// CSV body parser
 const { parse } = require("csv-parse/sync");
 // helper that looks up the template by templateId (db)
 const { resolveTemplateFile } = require("./template.service");
@@ -21,7 +19,6 @@ const { resolveTemplateFile } = require("./template.service");
 const { mergeTemplate } = require("./merge.service");
 const { s3, GetObjectCommand } = require("./s3");
 
-// creates a new isolated router object
 const router = express.Router();
 
 /* App.js's express.raw() leaves req.body as a Node buffer, raw bytes, for HMAC 
@@ -67,9 +64,7 @@ function verifyHmac(req, res, next) {
     // lengths must match
     provided.length !== expectedSignature.length ||
     /* C4b. performs constant-time comparison of the two byte arrays to avoid timing side channels/ 
-      timing leaks
-      - verifies the signature in constant time, then parses JSON only after HMAC passes,
-        and then merges */
+      timing leaks */
     !crypto.timingSafeEqual(provided, expectedSignature)
   ) {
     // C4c. any failure returns 401 unauthorized
@@ -82,18 +77,13 @@ function verifyHmac(req, res, next) {
 - streams original uploaded file by templateId */
 router.get(
   "/templates/:templateId/download",
-  /* tells Passport not to use server-side sessions, making the route stateless 
-  - middleware requires a valid JWT in Authorization: Bearer <token> */
+  // tells Passport not to use server-side sessions, making the route stateless
   passport.authenticate("jwt", { session: false }),
   async (req, res) => {
     try {
       // gets templateId path parameter
       const { templateId } = req.params;
-      /* helper that looks up the template by templateId (db) 
-      - builds the path to the file in S3
-      - stat the file in S3 (size, existence) 
-      - decides content type (DOCX vs HTML)
-      - compute a download filename */
+      // helper that looks up the template by templateId (db)
       const info = await resolveTemplateFile(templateId);
 
       // if the db record doesn't exist, respond 404
@@ -113,9 +103,7 @@ router.get(
         "Content-Disposition",
         `attachment; filename="${info.downloadName}"`
       );
-      /* AWS SDK v3, s3.send(...) executes the request 
-      - on success, obj is the response metadata plus a streaming body at obj.Body
-      Body - Node.js's readable stream of the object's bytes */
+      // AWS SDK v3, s3.send(...) executes the request
       const obj = await s3.send(
         // builds a GetObject request for...
         new GetObjectCommand({
@@ -135,8 +123,7 @@ router.get(
         a source to a destination), just end the connection to avoid a hung socket or partial garbage */ else
           res.end();
       });
-      /* streams the S3 object directly to the HTTP response
-      pipe - forwards data chunk-by-chunk (constant memory), so the whole file isn't buffered in RAM */
+      // streams the S3 object directly to the HTTP response
       obj.Body.pipe(res);
       // catches any other unexpected errors
     } catch (err) {
@@ -153,8 +140,7 @@ router.post(
   "/templates/:templateId/merge-csv",
   // requires a valid JWT, and on success, Passport sets req.user with no server-side sessions
   passport.authenticate("jwt", { session: false }),
-  /* multer middleware that expects one uploaded file under the form field name csv
-  - puts the file bytes in req.file.buffer */
+  // multer middleware that expects one uploaded file under the form field name csv
   uploadCsv.single("csv"),
   async (req, res) => {
     try {
@@ -178,8 +164,7 @@ router.post(
         });
       }
 
-      /* gets the uploaded CSV file's bytes from req.file.buffer, and converts it to a UTF-8 string 
-      - if absent, falls back to "" */
+      // gets the uploaded CSV file's bytes from req.file.buffer, and converts it to a UTF-8 string
       const csv = req.file?.buffer?.toString("utf8") ?? "";
 
       // empty text early-out
@@ -257,9 +242,7 @@ router.post(
 );
 
 /* *MANUAL MERGE (JWT) 
-path: POST /api/templates/:templateId/merge; JWT-protected and then hands off to merge engine
-- "This bearer (user) presents a signed passport describing who they are and what they can do, 
-  valid until it expires" */
+path: POST /api/templates/:templateId/merge; JWT-protected and then hands off to merge engine */
 router.post(
   // path param :templateId selects which template to merge
   "/templates/:templateId/merge",
@@ -271,10 +254,7 @@ router.post(
       B3a. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler */
       const { templateId } = req.params;
 
-      /* B3b. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler 
-      B3c. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler 
-      data - req.body.data (key-value map) 
-      outputType - req.body.outputType (default "docx") */
+      /* B3b & c. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler */
       const { data = {}, outputType = "docx" } = req.body || {};
 
       // logs the data
@@ -283,15 +263,7 @@ router.post(
         data && typeof data === "object" ? Object.keys(data) : data
       );
 
-      /* mergeTemplate 
-      - loads the template file...
-      (- renders placeholders with data (Docxtemplater or Mustache)
-      - optionally converts to PDF (LibreOffice/Puppeteer)
-      - writes the output file
-      - records a  merge job
-      - returns { jobId, filePath }) 
-      
-      B4. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): handoff to merge engine */
+      // B4. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): handoff to merge engine
       const result = await mergeTemplate({
         templateId,
         data,
@@ -299,15 +271,12 @@ router.post(
         // tracks which user initiated manual merges
         userId: req.user?.id,
       });
-      /* responds with 200 OK and the result in JSON on success 
-      
-      B9. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): responses/errors 
+      /* B9. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): responses/errors 
       BLOCK EXECUTION ON MANUAL (JWT, INTERNAL USERS) ROUTE IF VALIDATION ERRORS OR DANGEROUS CONTENT */
       res.status(200).json(result);
       // type-check for normalized Docxtemplater error I created earlier
     } catch (err) {
-      /* ids my domain error, not any random error 
-      err.details - ensures I actually have the structured list of parsing problems to return */
+      // ids my domain error, not any random error
       if (err.message === "TEMPLATE_PARSE_ERROR" && err.details) {
         // early-returns an HTTP 422 Unprocessable Entity with a machine-readable payload
         return res.status(422).json({
@@ -325,10 +294,6 @@ router.post(
 );
 
 /* WEBHOOK MERGE (HMAC) 
-- an event occurs: file uploaded, payment received, merge job complete, etc.
-- the client calls this public URL route on my server when the event occurs
-- the call to this route includes a JSON body describing the event, plus headers for authentication/signing 
-- client computes HMAC over the exact req bytes and sends either raw JSON body or CSV body and the x-signature header 
 - SANITIZES INPUTS ON WEBHOOK (EXTERNAL SYSTEMS) ROUTE
 - STILL HARD-BLOCKS EXECUTION ON CRITICAL VIOLATIONS (E.G. FAILED HMAC, SCHEMA MISMATCH, PATH TRAVERSAL LOGS, ETC.) */
 router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
@@ -352,8 +317,7 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
     /* only after signature verification, middleware parses the body 
     C5c. data from the parsed POST body, payload sent by the webhook caller */
     if (ctype.includes("text/csv")) {
-      /* C6. WEBHOOK DATA INGESTION (SHARED-SECRET HMAC): CSV parsing after verification  
-      - use CSV parser after verification */
+      // C6. WEBHOOK DATA INGESTION (SHARED-SECRET HMAC): CSV parsing after verification
       const csv = raw.toString("utf8");
       rows = parse(csv, {
         columns: true,
@@ -362,8 +326,7 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
       });
       // if data from the parsed POST body is JSON and not csv
     } else if (ctype.includes("application/json")) {
-      /* C6. WEBHOOK DATA INGESTION (SHARED-SECRET HMAC): JSON parsing after verification 
-      - after the signature is verified, webhook route calls JSON.parse(...) */
+      // C6. WEBHOOK DATA INGESTION (SHARED-SECRET HMAC): JSON parsing after verification
       const json = JSON.parse(raw.toString("utf8"));
       // if json is already an array, use it as-is, otherwise, wrap it in an array
       rows = Array.isArray(json) ? json : [json];
@@ -392,8 +355,6 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
       /* mergeTemplate loads the template file, renders placeholders with data, optionally 
         converts, writes the output file, optionally records a merge job, returns 
         { jobId, filePath } 
-        - same merge pipeline and response contract as the manual path 
-        - same mergeTemplate() function handles both JWT and webhook flows 
 
         C7. WEBHOOK DATA INGESTION (SHARED-SECRET HMAC): handoff to merge engine */
       const job = await mergeTemplate({
@@ -413,8 +374,7 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
     }
 
     /* C11. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): response 
-      responds with the result in JSON on success 
-      - includes aggregated warnings if any */
+      responds with the result in JSON on success */
     res.json(
       aggregatedWarnings.length
         ? { count: rows.length, jobs, warnings: aggregatedWarnings }
