@@ -108,7 +108,7 @@ app.use("/api", mergeRouter);
 const PORT = process.env.PORT || 3000;
 
 // STARTS HTTP SERVER
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
 
