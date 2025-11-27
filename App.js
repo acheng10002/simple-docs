@@ -67,7 +67,7 @@ app.use("/api/webhooks", webhookLimiter);
 - before routes, initialize passport so merge.routes.js can authenticate */
 app.use(passport.initialize());
 
-app.get("/heath", async (req, res) => {
+app.get("/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({
@@ -115,7 +115,7 @@ app.listen(PORT, () => {
 async function gracefulShutdown(signal) {
   console.log(`${signal} received, shutting down gracefully...`);
 
-  ServerSideEncryption.close(async () => {
+  server.close(async () => {
     console.log("HTTP server closed");
     await prisma.$disconnect();
     console.log("Database connections closed");
