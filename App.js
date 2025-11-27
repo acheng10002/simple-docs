@@ -11,6 +11,7 @@ const uploadRouter = require("./templateUploadHandler");
 const mergeRouter = require("./merge.routes");
 const rateLimit = require("express-rate-limit");
 const prisma = require("./prisma");
+const addRequestId = require("express-request-id")();
 
 /* ENV CHECK
 - startup validations for required env variables - fails fast if a critical secret/URL is missing */
@@ -28,6 +29,9 @@ if (missing.length > 0) {
 
 // BUILDS AN EXPRESS APP
 const app = express();
+
+// Request ID middleware - adds req.id to every request
+app.use(addRequestId);
 
 // times out long-running merges/conversions
 app.use((req, res, next) => {
@@ -66,9 +70,16 @@ app.use(passport.initialize());
 app.get("/heath", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "healthy", timestamp: new Date().toISOString() });
+    res.json({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+    });
   } catch (err) {
-    res.status(503).json({ status: "unhealthy", error: err.message });
+    res.status(503).json({
+      status: "unhealthy",
+      error: err.message,
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 

@@ -26,6 +26,7 @@
     "docxtemplater": "^3.46.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-request-id": "^3.0.0",
     "file-type": "^16.5.4",
     "jsdom": "^26.1.0",
     "libreoffice-convert": "^1.6.1",
