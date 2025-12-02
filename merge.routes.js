@@ -83,6 +83,7 @@ router.get(
     try {
       // gets templateId path parameter
       const { templateId } = req.params;
+      console.log(`[${req.id}] Download request - template: ${templateId}`);
       // helper that looks up the template by templateId (db)
       const info = await resolveTemplateFile(templateId);
 
@@ -116,7 +117,7 @@ router.get(
       // attaches an error handler to the S3 body stream, if the underlying network/stream fails mid-transfer
       obj.Body.on("error", (err) => {
         // logs the error for diagnostics
-        console.error("S3 stream error:", err);
+        console.error(`[${req.id}] S3 stream error:`, err);
         // if HTTP headers haven't been sent yet, reply with a 500 and end the response
         if (!res.headersSent) res.status(500).end();
         /* otherwise, headers already sent, likely mid-pipe (while a stream is actively piping data from
@@ -127,7 +128,7 @@ router.get(
       obj.Body.pipe(res);
       // catches any other unexpected errors
     } catch (err) {
-      console.error("Download error (S3):", err);
+      console.error(`[${req.id}] Download error (S3):`, err);
       // if I haven't sent headers yet, sends a 500 JSON error
       if (!res.headersSent) res.status(500).end();
       else res.end();
@@ -199,7 +200,9 @@ router.post(
             "No data rows found in CSV. Include a header row and at least one data row.",
         });
       }
-
+      console.log(
+        `[${req.id}] CSV merge started - template: ${templateId}, rows: ${rows.length}`
+      );
       // initializes an array jobs to collect results, and merges each row
       const jobs = [];
       // loops each parsed row
@@ -231,10 +234,13 @@ router.post(
           throw err;
         }
       }
+      console.log(
+        `[${req.id}] CSV merge complete - ${rows.length} rows processed`
+      );
       // sends JSON with the number of processed rows and the list of created jobs
       res.json({ count: rows.length, jobs });
     } catch (err) {
-      console.error("CSV merge error:", err);
+      console.error(`[${req.id}] CSV merge error:`, err);
       // otherwise, send 400 Bad Request with a simple error message
       res.status(400).json({ error: err.message });
     }
@@ -259,7 +265,7 @@ router.post(
 
       // logs the data
       console.log(
-        "merge data keys:",
+        `[${req.id}] Merge request - template: ${templateId}, data keys:`,
         data && typeof data === "object" ? Object.keys(data) : data
       );
 
@@ -271,6 +277,10 @@ router.post(
         // tracks which user initiated manual merges
         userId: req.user?.id,
       });
+
+      console.log(
+        `[${req.id}] Manual merge complete - template: ${templateId}`
+      );
       /* B9. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): responses/errors 
       BLOCK EXECUTION ON MANUAL (JWT, INTERNAL USERS) ROUTE IF VALIDATION ERRORS OR DANGEROUS CONTENT */
       res.status(200).json(result);
@@ -287,7 +297,7 @@ router.post(
         });
       }
       // any other error gets logged and returns 400 bad request with a message if merge engine throws
-      console.error("Merge error:", err);
+      console.error(`[${req.id}] Merge failed:`, err);
       res.status(400).json({ error: err.message });
     }
   }
@@ -301,10 +311,11 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
   /* C5. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): route handler execution
       C5a. templateId from URL */
   const { templateId } = req.params;
-
   // C5b. outputType read from query string
   const outputType = req.query.outputType || "pdf";
-
+  console.log(
+    `[${req.id}] Webhook - template: ${templateId}, outputType: ${outputType}`
+  );
   // gets the request Content-Type (case-insensitive), normalize, and strip parameters (e.g. charset=utf-8)
   const ctype = (req.get("content-type") || "")
     .toLowerCase()
@@ -388,7 +399,7 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
         details: err.details,
       });
     }
-    console.error("Webhook merge error:", err);
+    console.error(`[${req.id}] Webhook merge error:`, err);
     // errors surface as 400 and bad signature returns 401
     res.status(400).json({ error: err.message });
   }
