@@ -125,8 +125,9 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     }
 
     if (declared && declared !== finalMime) {
-      console.warn(
-        `Declared mimetype ${declared} differs from computed ${finalMime}`
+      req.log.warn(
+        { declaredMime: declared, computedMime: finalMime },
+        "MIME type mismatch detected"
       );
     }
 
@@ -143,7 +144,8 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
         requirePrintCss: false,
       });
       // if there are warnings, log them to the server console but continue
-      if (warnings.length) console.warn("HTML template warnings:", warnings);
+      if (warnings.length)
+        req.log.warn({ warnings }, "HTML template has warnings");
       // if there are errors, fail fast, send 422 Unprocessable Entity with details
       if (errors.length) {
         return res.status(422).json({
@@ -244,7 +246,7 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     - catches and logs any unexpected server errors, unexpected issues return 500; validation failures already 
       exited with 400/415 */
   } catch (err) {
-    console.error("Upload error:", err);
+    req.log.error({ err }, "Upload failed");
     res.status(500).send("Internal Server Error");
   }
 });

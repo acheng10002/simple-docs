@@ -83,7 +83,7 @@ router.get(
     try {
       // gets templateId path parameter
       const { templateId } = req.params;
-      console.log(`[${req.id}] Download request - template: ${templateId}`);
+      req.log.info({ templateId }, "Download request started");
       // helper that looks up the template by templateId (db)
       const info = await resolveTemplateFile(templateId);
 
@@ -117,7 +117,7 @@ router.get(
       // attaches an error handler to the S3 body stream, if the underlying network/stream fails mid-transfer
       obj.Body.on("error", (err) => {
         // logs the error for diagnostics
-        console.error(`[${req.id}] S3 stream error:`, err);
+        req.log.error({ err, templateId }, "S3 stream error");
         // if HTTP headers haven't been sent yet, reply with a 500 and end the response
         if (!res.headersSent) res.status(500).end();
         /* otherwise, headers already sent, likely mid-pipe (while a stream is actively piping data from
@@ -128,7 +128,7 @@ router.get(
       obj.Body.pipe(res);
       // catches any other unexpected errors
     } catch (err) {
-      console.error(`[${req.id}] Download error (S3):`, err);
+      req.log.error({ err, templateId }, "Download failed");
       // if I haven't sent headers yet, sends a 500 JSON error
       if (!res.headersSent) res.status(500).end();
       else res.end();
@@ -200,9 +200,7 @@ router.post(
             "No data rows found in CSV. Include a header row and at least one data row.",
         });
       }
-      console.log(
-        `[${req.id}] CSV merge started - template: ${templateId}, rows: ${rows.length}`
-      );
+      req.log.info({ templateId, rowCount: rows.length }, "CSV merge started");
       // initializes an array jobs to collect results, and merges each row
       const jobs = [];
       // loops each parsed row
@@ -234,13 +232,14 @@ router.post(
           throw err;
         }
       }
-      console.log(
-        `[${req.id}] CSV merge complete - ${rows.length} rows processed`
+      req.log.info(
+        { templateId, rowCount: rows.length, jobCount: jobs.length },
+        "CSV merge completed"
       );
       // sends JSON with the number of processed rows and the list of created jobs
       res.json({ count: rows.length, jobs });
     } catch (err) {
-      console.error(`[${req.id}] CSV merge error:`, err);
+      req.log.error({ err, templateId }, "CSV merge failed");
       // otherwise, send 400 Bad Request with a simple error message
       res.status(400).json({ error: err.message });
     }
@@ -264,9 +263,13 @@ router.post(
       const { data = {}, outputType = "docx" } = req.body || {};
 
       // logs the data
-      console.log(
-        `[${req.id}] Merge request - template: ${templateId}, data keys:`,
-        data && typeof data === "object" ? Object.keys(data) : data
+      req.log.info(
+        {
+          templateId,
+          dataKeys: data && typeof data === "object" ? Object.keys(data) : data,
+          outputType,
+        },
+        "Manual merge request started"
       );
 
       // B4. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): handoff to merge engine
@@ -278,9 +281,7 @@ router.post(
         userId: req.user?.id,
       });
 
-      console.log(
-        `[${req.id}] Manual merge complete - template: ${templateId}`
-      );
+      req.log.info({ templateId, outputType }, "Manual merge completed");
       /* B9. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): responses/errors 
       BLOCK EXECUTION ON MANUAL (JWT, INTERNAL USERS) ROUTE IF VALIDATION ERRORS OR DANGEROUS CONTENT */
       res.status(200).json(result);
@@ -297,7 +298,7 @@ router.post(
         });
       }
       // any other error gets logged and returns 400 bad request with a message if merge engine throws
-      console.error(`[${req.id}] Merge failed:`, err);
+      req.log.error({ err, templateId }, "Manual merge failed");
       res.status(400).json({ error: err.message });
     }
   }
@@ -313,9 +314,7 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
   const { templateId } = req.params;
   // C5b. outputType read from query string
   const outputType = req.query.outputType || "pdf";
-  console.log(
-    `[${req.id}] Webhook - template: ${templateId}, outputType: ${outputType}`
-  );
+  req.log.info({ err, templateId, outputType }, "Webhook merge failed");
   // gets the request Content-Type (case-insensitive), normalize, and strip parameters (e.g. charset=utf-8)
   const ctype = (req.get("content-type") || "")
     .toLowerCase()

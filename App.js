@@ -12,6 +12,8 @@ const mergeRouter = require("./merge.routes");
 const rateLimit = require("express-rate-limit");
 const prisma = require("./prisma");
 const addRequestId = require("express-request-id")();
+const logger = require("./logger");
+const pinoHttp = require("pino-http");
 
 /* ENV CHECK
 - startup validations for required env variables - fails fast if a critical secret/URL is missing */
@@ -22,7 +24,7 @@ const missing = requiredEnvVars.filter((k) => process.env[k] == null);
 if (missing.length > 0) {
   /* if at least one required env var is missing, print an err to stderr 
   stderr - where a program writes errors, warnings, progress, and logs */
-  console.error("Missing required environment variables:", missing);
+  logger.error({ missing }, "Missing required environment variables");
   // abort the process with exit code 1, non-zero means failure
   process.exit(1);
 }
@@ -32,6 +34,21 @@ const app = express();
 
 // Request ID middleware - adds req.id to every request
 app.use(addRequestId);
+
+// structured logging middleware - adds req.log to every request
+app.use(
+  pinoHttp({
+    logger: logger,
+    // includes request ID in all logs
+    customProps: (req) => ({
+      requestId: req.id,
+    }),
+    // don't log health check endpoint to reduce noise
+    autoLogging: {
+      ignore: (req) => req.url === "/health",
+    },
+  })
+);
 
 // times out long-running merges/conversions
 app.use((req, res, next) => {
@@ -109,21 +126,21 @@ const PORT = process.env.PORT || 3000;
 
 // STARTS HTTP SERVER
 const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  logger.info({ port: PORT }, `Server running on http://localhost:${PORT}`);
 });
 
 async function gracefulShutdown(signal) {
-  console.log(`${signal} received, shutting down gracefully...`);
+  logger.info({ signal }, "Shutdown signal received, closing gracefully");
 
   server.close(async () => {
-    console.log("HTTP server closed");
+    logger.info("HTTP server closed");
     await prisma.$disconnect();
-    console.log("Database connections closed");
+    logger.info("Database connections closed");
     process.exit(0);
   });
 
   setTimeout(() => {
-    console.error("Forced shutdown after timeout");
+    logger.error("Forced shutdown after timeout");
     process.exit(1);
   }, 10000);
 }

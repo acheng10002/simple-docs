@@ -21,6 +21,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.899.0",
     "@prisma/client": "^6.16.3",
+    "@sentry/node": "^10.28.0",
+    "@sentry/profiling-node": "^10.28.0",
     "bcryptjs": "^3.0.2",
     "csv-parse": "^5.6.0",
     "docxtemplater": "^3.46.0",
@@ -36,6 +38,8 @@
     "parse5": "^6.0.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pino": "^10.1.0",
+    "pino-http": "^11.0.0",
     "pizzip": "^3.1.7",
     "puppeteer": "^24.16.2",
     "soffice": "^1.1.0"
