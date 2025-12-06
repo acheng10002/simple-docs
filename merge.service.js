@@ -27,6 +27,20 @@ const {
   TemplateParseError,
 } = require("./docx-templating.js");
 
+/* TIMEOUT WRAPPER
+wraps any promise with a timeout - rejects if operation takes too long */
+function withTimeout(promise, ms, operation) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${operation} timeout after ${ms}ms`)),
+        ms
+      )
+    ),
+  ]);
+}
+
 const convertAsync = types.isAsyncFunction(libre.convert)
   ? libre.convert
   : promisify(libre.convert);
@@ -164,29 +178,60 @@ function sanitizeHtmlBuffer(htmlBuffer) {
 
 // CONVERTHTMLTOPDFBUFFER - FILLED HTML -> PDF CONVERSION via PUPPETEER, HEADLESS PRINT TO PDF
 async function convertHtmlToPdfBuffer(htmlBuffer) {
-  // launches headless Chromium as a non-root user in Docker
-  const browser = await puppeteer.launch({
-    // uses Chromium's modern headless mode - no GUI
-    headless: "new",
-    /* tells Chromium not use shared memory, helps avoid crashes in containers where shared memory 
-    is tiny by default */
-    args: ["--disable-dev-shm-usage"],
-  });
+  let browser;
   try {
+    // launches browser with 30-second timeout
+    browser = await withTimeout(
+      puppeteer.launch({
+        // uses Chromium's modern headless mode - no GUI
+        headless: "new",
+        /* tells Chromium not use shared memory, helps avoid crashes in containers where shared memory 
+        is tiny by default */
+        args: [
+          "--disable-dev-shm-usage",
+          // safer in containers
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+        ],
+      }),
+      30000,
+      "Puppeteer launch"
+    );
+
     // opens a new tab/creates a page inside the launched browser and loads my HTML
-    const page = await browser.newPage();
-    // loads HTML directly as the page contents
-    await page.setContent(htmlBuffer.toString("utf-8"), {
-      /* networkidle0 waits until no network connections remain, good for when my HTML references 
-      SPA assets/fonts so they finish loading before the PDF render */
-      waitUntil: "networkidle0",
-    });
+    const page = await withTimeout(browser.newPage(), 10000, "Page creation");
+    // loads HTML directly as the page contents with timeout
+    await withTimeout(
+      page.setContent(htmlBuffer.toString("utf-8"), {
+        /* networkidle0 waits until no network connections remain, good for when my HTML references 
+        SPA assets/fonts so they finish loading before the PDF render */
+        waitUntil: "networkidle0",
+        // Puppeteer;s built-in timeout
+        timeout: 20000,
+      }),
+      // wrapper timeout that is slightly longer
+      25000,
+      "Page load"
+    );
+
     /* renders the page in a print layout (US Letter) and returns a PDF buffer since no path is 
-    provided */
-    return await page.pdf({ format: "Letter" });
+    provided with timeout */
+    const pdfBuffer = await withTimeout(
+      page.pdf({ format: "Letter" }),
+      30000,
+      "PDF generation"
+    );
+    return pdfBuffer;
   } finally {
-    // ensures Chromium is closed whether the PDF succeeded or on error
-    await browser.close();
+    // ensures Chromium is closed even on timeout/error
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (err) {
+        // ignores errors during cleanup
+        console.error("Error closing browser:", err.message);
+      }
+    }
   }
 }
 
@@ -201,16 +246,49 @@ function runSoffice(cmd, args, cwd) {
     // initializes string buffers to collect the child's output
     let stderr = "",
       stdout = "";
+    let killed = false;
+
+    // kills process after 45 seconds
+    const killTimer = setTimeout(() => {
+      killed = true;
+      // try graceful shutdown first
+      proc.kill("SIGTERM");
+
+      // forces kill after 5 more seconds if still alive
+      setTimeout(() => {
+        if (!proc.killed) {
+          proc.kill("SIGKILL");
+        }
+      }, 5000);
+
+      reject(
+        new Error(
+          `soffice timeout after 45 seconds\n${stderr || stdout}`.trim()
+        )
+      );
+    }, 45000);
+
     // appends any data written to STDOUT to the stdout buffer
     proc.stdout.on("data", (d) => (stdout += d.toString()));
     // append any data written to STDERR to the stderr buffer
     proc.stderr.on("data", (d) => (stderr += d.toString()));
+
     // if the process fails the start, error event fires
-    proc.once("error", reject);
+    proc.once("error", (e) => {
+      clearTimeout(killTimer);
+      if (!killed) reject(e);
+    });
+
     // close event fires when the process and its stdio streams are finished
     proc.once("close", (code) => {
+      clearTimeout(killTimer);
+
+      // already rejected by timeout
+      if (killed) return;
+
       // if exit code === 0 -> success -> resolve() returns both captured stream
       if (code === 0) return resolve({ stdout, stderr });
+
       // otherwise, construct a detailed error and reject
       const e = new Error(
         // prefer stderr output if present, otherwise stdout

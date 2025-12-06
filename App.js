@@ -1,6 +1,10 @@
 /* APP.JS WIRES EVERYTHING, INCLUDING MIDDLEWARE: PASSPORT -> ROUTES -> BODY PARSERS
 LOADS ENVS WITH DOTENV  */
 require("dotenv").config();
+
+// SENTRY MUST BE FIRST - captures all errors
+const { initSentry, Sentry } = require("./sentry");
+initSentry();
 // SERVER ENTRY POINT - backend framework that handles HTTP requests and response
 const express = require("express");
 // imports the passport property of passport.js
@@ -11,29 +15,103 @@ const uploadRouter = require("./templateUploadHandler");
 const mergeRouter = require("./merge.routes");
 const rateLimit = require("express-rate-limit");
 const prisma = require("./prisma");
-const addRequestId = require("express-request-id")();
+const addRequestId = require("express-request-id").default();
 const logger = require("./logger");
 const pinoHttp = require("pino-http");
 
 /* ENV CHECK
 - startup validations for required env variables - fails fast if a critical secret/URL is missing */
-const requiredEnvVars = ["JWT_SECRET", "WEBHOOK_SECRET", "DATABASE_URL"];
+const requiredEnvVars = [
+  "JWT_SECRET",
+  "WEBHOOK_SECRET",
+  "DATABASE_URL",
+  "DIRECT_URL",
+  "S3_BUCKET",
+  "AWS_REGION",
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+];
+
+// optional environment variables with defaults
+const optionalEnvVars = {
+  PORT: "3000",
+  NODE_ENV: "development",
+  LOG_LEVEL: "info",
+};
+
 /* looks up each required key in process.env/ Node's env var object 
 - keeps any key whose value is null or undefined in missing variable array */
-const missing = requiredEnvVars.filter((k) => process.env[k] == null);
+const missing = requiredEnvVars.filter((k) => !process.env[k]?.trim());
 if (missing.length > 0) {
-  /* if at least one required env var is missing, print an err to stderr 
-  stderr - where a program writes errors, warnings, progress, and logs */
-  logger.error({ missing }, "Missing required environment variables");
+  console.error("Missing required environment variables", missing);
+  console.error("\nRequired variables:");
+  console.error(" JWT_SECRET             - Secret key for JWT token signing");
+  console.error(
+    " WEBHOOK_SECRET         - Shared secret key for webhook HMAC verification"
+  );
+  console.error(
+    " DATABASE_URL           - PostgreSQL connection string (pooled)"
+  );
+  console.error(
+    " DIRECT_URL             - PostgreSQL connection string (direct)"
+  );
+  console.error(" S3_BUCKET              - AWS S3 bucket name");
+  console.error(" AWS_REGION             - AWS region (e.g., us-east-1)");
+  console.error(" AWS_ACCESS_KEY_ID      - AWS access key");
+  console.error(" AWS_SECRET_ACCESS_KEY  - AWS secret key");
   // abort the process with exit code 1, non-zero means failure
   process.exit(1);
 }
+
+// validates S3_BUCKET format (lowercase alphanumeric with dots/hyphens)
+if (!/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(process.env.S3_BUCKET)) {
+  console.error(`❌ Invalid S3_BUCKET format: ${process.env.S3_BUCKET}"`);
+  console.error(
+    "Bucket names must be lowercase alphanumeric with dots/hyphens only"
+  );
+  process.exit(1);
+}
+
+// validates AWS_REGION
+const validRegions = [
+  "us-east-1",
+  "us-east-2",
+  "us-west-1",
+  "us-west-2",
+  "eu-west-1",
+  "eu-west-2",
+  "eu-central-1",
+  "ap-southeast-1",
+  "ap-southeast-2",
+  "ap-northeast-1",
+];
+
+if (!validRegions.includes(process.env.AWS_REGION)) {
+  console.warn(`⚠️ Unusual AWS_REGION: "${process.env.AWS_REGION}"`);
+  console.warn(`Common regions: ${validRegions.slice(0, 4).join(", ")}, ...`);
+}
+
+// sets defaults for optional variables
+Object.entries(optionalEnvVars).forEach(([key, defaultVal]) => {
+  if (!process.env[key]) {
+    process.env[key] = defaultVal;
+    console.log(`Using default ${key}=${defaultVal}`);
+  }
+});
+
+console.log("✅ Environment validation passed");
 
 // BUILDS AN EXPRESS APP
 const app = express();
 
 // Request ID middleware - adds req.id to every request
 app.use(addRequestId);
+
+// Sentry request handler - MUST be before routes
+// app.use(Sentry.Handlers.requestHandler());
+
+// Sentry tracing handler (performance monitoring)
+// app.use(Sentry.Handlers.tracingHandler());
 
 // structured logging middleware - adds req.log to every request
 app.use(
@@ -100,6 +178,11 @@ app.get("/health", async (req, res) => {
   }
 });
 
+// DEBUG: Test route for Sentry error capture (remove in prod)
+app.get("/debug-sentry", (req, res) => {
+  throw new Error("Test error for Sentry!");
+});
+
 // BODY PARSERS (in intentional order)
 const rawJson = express.raw({
   // only requests with these Content-Types will be handled as raw Buffers by this middleware
@@ -121,6 +204,26 @@ app.use("/api", uploadRouter);
 /* POST /api/templates/:templateId/merge, /api/webhooks, etc. - mounts the merge and download routes 
 from ./merge.routes under /api */
 app.use("/api", mergeRouter);
+
+// Sentry error handler - MUST be after routes, before other error handlers
+// app.use(Sentry.Handlers.errorHandler());
+
+Sentry.setupExpressErrorHandler(app);
+
+// custom error handler for user-friendly responses
+app.use((err, req, res, next) => {
+  // Sentry will have already captured this error
+  req.log.error({ err, sentryId: res.sentry }, "Unhandled error");
+
+  res.status(err.status || 500).json({
+    error:
+      process.env.NODE_ENV === "production"
+        ? "Internal server error"
+        : err.message,
+    // gives users this ID for support
+    sentryId: res.sentry,
+  });
+});
 
 const PORT = process.env.PORT || 3000;
 

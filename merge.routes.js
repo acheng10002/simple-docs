@@ -114,18 +114,56 @@ router.get(
           Key: info.s3Key,
         })
       );
-      // attaches an error handler to the S3 body stream, if the underlying network/stream fails mid-transfer
-      obj.Body.on("error", (err) => {
-        // logs the error for diagnostics
+      // S3 stream with timeout and proper cleanup
+      const stream = obj.Body;
+
+      // sets 60-second timeout for downloads
+      const timeout = setTimeout(() => {
+        req.log.warn({ templateId }, "Download timeout - destroying stream");
+        stream.destroy(new Error("Download timeout"));
+        // if HTTP headers haven't been sent yet, reply with a 504 and end the response
+        if (!res.headersSent) {
+          res.status(504).json({ error: "Download timeout" });
+        }
+      }, 60000);
+
+      // handles S3 stream errors
+      stream.on("error", (err) => {
+        clearTimeout(timeout);
         req.log.error({ err, templateId }, "S3 stream error");
-        // if HTTP headers haven't been sent yet, reply with a 500 and end the response
-        if (!res.headersSent) res.status(500).end();
-        /* otherwise, headers already sent, likely mid-pipe (while a stream is actively piping data from
-        a source to a destination), just end the connection to avoid a hung socket or partial garbage */ else
-          res.end();
+
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Download failed" });
+        } else {
+          res.destroy();
+        }
       });
-      // streams the S3 object directly to the HTTP response
-      obj.Body.pipe(res);
+
+      // handles client disconnect
+      res.on("close", () => {
+        if (!res.writableEnded) {
+          clearTimeout(timeout);
+          stream.destroy();
+          req.log.info({ templateId }, "Download cancelled by client");
+        }
+      });
+
+      // handles response errors
+      res.on("error", (err) => {
+        clearTimeout(timeout);
+        stream.destroy();
+        req.log.error({ err, templateId }, "Response stream error");
+      });
+
+      // cleans up on successful completion
+      res.on("finish", () => {
+        clearTimeout(timeout);
+        req.log.info({ templateId }, "Download completed successfully");
+      });
+
+      // starts streaming
+      stream.pipe(res);
+
       // catches any other unexpected errors
     } catch (err) {
       req.log.error({ err, templateId }, "Download failed");
@@ -398,7 +436,7 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
         details: err.details,
       });
     }
-    console.error(`[${req.id}] Webhook merge error:`, err);
+    req.log.error({ err, templateId }, "Webhook merge failed");
     // errors surface as 400 and bad signature returns 401
     res.status(400).json({ error: err.message });
   }
