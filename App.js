@@ -2,9 +2,7 @@
 LOADS ENVS WITH DOTENV  */
 require("dotenv").config();
 
-// SENTRY MUST BE FIRST - captures all errors
-const { initSentry, Sentry } = require("./sentry");
-initSentry();
+const { errorLogger } = require("./error-logger");
 // SERVER ENTRY POINT - backend framework that handles HTTP requests and response
 const express = require("express");
 // imports the passport property of passport.js
@@ -26,10 +24,8 @@ const requiredEnvVars = [
   "WEBHOOK_SECRET",
   "DATABASE_URL",
   "DIRECT_URL",
-  "S3_BUCKET",
-  "AWS_REGION",
-  "AWS_ACCESS_KEY_ID",
-  "AWS_SECRET_ACCESS_KEY",
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
 ];
 
 // optional environment variables with defaults
@@ -55,40 +51,10 @@ if (missing.length > 0) {
   console.error(
     " DIRECT_URL             - PostgreSQL connection string (direct)"
   );
-  console.error(" S3_BUCKET              - AWS S3 bucket name");
-  console.error(" AWS_REGION             - AWS region (e.g., us-east-1)");
-  console.error(" AWS_ACCESS_KEY_ID      - AWS access key");
-  console.error(" AWS_SECRET_ACCESS_KEY  - AWS secret key");
+  console.error(" SUPABASE_URL           - Supabase project URL");
+  console.error(" SUPABASE_SERVICE_ROLE_KEY - Supabase service role key");
   // abort the process with exit code 1, non-zero means failure
   process.exit(1);
-}
-
-// validates S3_BUCKET format (lowercase alphanumeric with dots/hyphens)
-if (!/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(process.env.S3_BUCKET)) {
-  console.error(`❌ Invalid S3_BUCKET format: ${process.env.S3_BUCKET}"`);
-  console.error(
-    "Bucket names must be lowercase alphanumeric with dots/hyphens only"
-  );
-  process.exit(1);
-}
-
-// validates AWS_REGION
-const validRegions = [
-  "us-east-1",
-  "us-east-2",
-  "us-west-1",
-  "us-west-2",
-  "eu-west-1",
-  "eu-west-2",
-  "eu-central-1",
-  "ap-southeast-1",
-  "ap-southeast-2",
-  "ap-northeast-1",
-];
-
-if (!validRegions.includes(process.env.AWS_REGION)) {
-  console.warn(`⚠️ Unusual AWS_REGION: "${process.env.AWS_REGION}"`);
-  console.warn(`Common regions: ${validRegions.slice(0, 4).join(", ")}, ...`);
 }
 
 // sets defaults for optional variables
@@ -106,12 +72,6 @@ const app = express();
 
 // Request ID middleware - adds req.id to every request
 app.use(addRequestId);
-
-// Sentry request handler - MUST be before routes
-// app.use(Sentry.Handlers.requestHandler());
-
-// Sentry tracing handler (performance monitoring)
-// app.use(Sentry.Handlers.tracingHandler());
 
 // structured logging middleware - adds req.log to every request
 app.use(
@@ -178,11 +138,6 @@ app.get("/health", async (req, res) => {
   }
 });
 
-// DEBUG: Test route for Sentry error capture (remove in prod)
-app.get("/debug-sentry", (req, res) => {
-  throw new Error("Test error for Sentry!");
-});
-
 // BODY PARSERS (in intentional order)
 const rawJson = express.raw({
   // only requests with these Content-Types will be handled as raw Buffers by this middleware
@@ -205,25 +160,7 @@ app.use("/api", uploadRouter);
 from ./merge.routes under /api */
 app.use("/api", mergeRouter);
 
-// Sentry error handler - MUST be after routes, before other error handlers
-// app.use(Sentry.Handlers.errorHandler());
-
-Sentry.setupExpressErrorHandler(app);
-
-// custom error handler for user-friendly responses
-app.use((err, req, res, next) => {
-  // Sentry will have already captured this error
-  req.log.error({ err, sentryId: res.sentry }, "Unhandled error");
-
-  res.status(err.status || 500).json({
-    error:
-      process.env.NODE_ENV === "production"
-        ? "Internal server error"
-        : err.message,
-    // gives users this ID for support
-    sentryId: res.sentry,
-  });
-});
+app.use(errorLogger.expressErrorHandler);
 
 const PORT = process.env.PORT || 3000;
 

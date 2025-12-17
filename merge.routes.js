@@ -5,6 +5,7 @@ PUBLIC API SURFACE THAT CALLS INTO SERVICES: MERGE PATHS -> MERGE.SERVICE.JS
   and HMAC-verified webhook API */
 require("dotenv").config();
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 // imports my configured Passport instance with the JWT strategy I wired up to protect routes
 const passport = require("passport");
 /* Node's cryptography module that gives me access to low-level primitives like hashes, HMACs, ciphers, signatures, 
@@ -17,9 +18,30 @@ const { parse } = require("csv-parse/sync");
 const { resolveTemplateFile } = require("./template.service");
 // imports my merge function
 const { mergeTemplate } = require("./merge.service");
-const { s3, GetObjectCommand } = require("./s3");
+const { s3, GetObjectCommand } = require("./supabase-storage");
 
 const router = express.Router();
+
+const mergeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: "Too many merge requests",
+  keyGenerator: (req) => req.user?.id || req.ip,
+});
+
+const csvLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many CSV merge requests",
+  keyGenerator: (req) => req.user?.id || req.ip,
+});
+
+const downloadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: "Too many download requests",
+  keyGenerator: (req) => req.user?.id || req.ip,
+});
 
 /* App.js's express.raw() leaves req.body as a Node buffer, raw bytes, for HMAC 
 - every other route uses express.json() */
@@ -79,11 +101,17 @@ router.get(
   "/templates/:templateId/download",
   // tells Passport not to use server-side sessions, making the route stateless
   passport.authenticate("jwt", { session: false }),
+  downloadLimiter,
   async (req, res) => {
     try {
       // gets templateId path parameter
       const { templateId } = req.params;
       req.log.info({ templateId }, "Download request started");
+
+      if (!/^c[a-z0-9]{24}$/.test(templateId)) {
+        return res.status(400).json({ error: "Invalid template ID format" });
+      }
+
       // helper that looks up the template by templateId (db)
       const info = await resolveTemplateFile(templateId);
 
@@ -179,6 +207,7 @@ router.post(
   "/templates/:templateId/merge-csv",
   // requires a valid JWT, and on success, Passport sets req.user with no server-side sessions
   passport.authenticate("jwt", { session: false }),
+  csvLimiter,
   // multer middleware that expects one uploaded file under the form field name csv
   uploadCsv.single("csv"),
   async (req, res) => {
@@ -187,6 +216,10 @@ router.post(
       const { templateId } = req.params;
       // reads outputType from the JSON body; defaults to "pdf"
       const { outputType = "pdf" } = req.body || {};
+
+      if (!/^c[a-z0-9]{24}$/.test(templateId)) {
+        return res.status(400).json({ error: "Invalid template ID format" });
+      }
 
       // validates outputType early
       if (!["pdf", "docx", "html"].includes(outputType)) {
@@ -236,6 +269,12 @@ router.post(
         return res.status(400).json({
           error:
             "No data rows found in CSV. Include a header row and at least one data row.",
+        });
+      }
+
+      if (rows.length > 1000) {
+        return res.status(413).json({
+          error: "Too many rows. Maximum 1000 rows per CSV.",
         });
       }
       req.log.info({ templateId, rowCount: rows.length }, "CSV merge started");
@@ -291,6 +330,7 @@ router.post(
   "/templates/:templateId/merge",
   // B2b. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): auth middleware
   passport.authenticate("jwt", { session: false }),
+  mergeLimiter,
   async (req, res) => {
     try {
       /* pulls templateId from req.params, selects which stored template to use 
@@ -299,6 +339,23 @@ router.post(
 
       /* B3b & c. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler */
       const { data = {}, outputType = "docx" } = req.body || {};
+
+      if (!/^c[a-z0-9]{24}$/.test(templateId)) {
+        return res.status(400).json({ error: "Invalid template ID format" });
+      }
+
+      if (!["pdf", "docx", "html"].includes(outputType)) {
+        return res.status(400).json({
+          error: "Invalid outputType. Use 'pdf', 'docx', or 'html'.",
+        });
+      }
+
+      // MISSING: data type validation
+      if (typeof data !== "object" || Array.isArray(data)) {
+        return res.status(400).json({
+          error: "Data must be an object with key-value pairs.",
+        });
+      }
 
       // logs the data
       req.log.info(
@@ -352,6 +409,17 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
   const { templateId } = req.params;
   // C5b. outputType read from query string
   const outputType = req.query.outputType || "pdf";
+
+  if (!/^c[a-z0-9]{24}$/.test(templateId)) {
+    return res.status(400).json({ error: "Invalid template ID format" });
+  }
+
+  if (!["pdf", "docx", "html"].includes(outputType)) {
+    return res.status(400).json({
+      error: "Invalid outputType. Use 'pdf', 'docx', or 'html'.",
+    });
+  }
+
   req.log.info({ err, templateId, outputType }, "Webhook merge failed");
   // gets the request Content-Type (case-insensitive), normalize, and strip parameters (e.g. charset=utf-8)
   const ctype = (req.get("content-type") || "")

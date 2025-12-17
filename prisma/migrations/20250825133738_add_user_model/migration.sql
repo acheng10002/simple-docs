@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "public"."UserRole" AS ENUM ('USER', 'ADMIN');
+CREATE TYPE "public"."UserRole" AS ENUM ('user', 'admin');
 
 -- AlterTable
 ALTER TABLE "public"."MergeJob" ADD COLUMN     "userId" TEXT;
@@ -13,7 +13,7 @@ CREATE TABLE "public"."User" (
     "email" TEXT NOT NULL,
     "username" TEXT,
     "password" TEXT NOT NULL,
-    "role" "public"."UserRole" NOT NULL DEFAULT 'USER',
+    "role" "public"."UserRole" NOT NULL DEFAULT 'user',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "firstName" TEXT,
     "lastName" TEXT,

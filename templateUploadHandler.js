@@ -8,6 +8,7 @@ const express = require("express");
 const FileType = require("file-type");
 // module that provides utilities for working with file and directory paths safely
 const path = require("path");
+const { randomUUID } = require("crypto");
 // middleware specific to template upload route
 const { uploadTemplate } = require("./upload.middleware");
 // service functions that produce the db records merge.service.js will read
@@ -20,8 +21,8 @@ const {
 // shared linter utilities
 const { lintDocxBuffer } = require("./docx-templating");
 const { lintHtmlBuffer } = require("./html-lint");
-// s3 instance
-const { s3, PutObjectCommand, withPrefix } = require("./s3");
+// Supabase Storage instance
+const { s3, PutObjectCommand, withPrefix } = require("./supabase-storage");
 
 // creates a new isolated router object
 const router = express.Router();
@@ -181,7 +182,7 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     const baseName = sanitize(file.originalname);
     /* prefixes the sanitized name with the current milliseconds to reduce collisions and orders
     files chronologically */
-    const stamped = `${Date.now()}-${baseName}`;
+    const stamped = `${Date.now()}-${randomUUID()}-${baseName}`;
 
     /* WRITES SANITIZED/TIMESTAMPED FILENAME TO UPLOADS_DIR VIA FS/PROMISES
     A5. TEMPLATE UPLOAD - INGESTION & DISCOVERY: persist original uploaded file 

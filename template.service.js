@@ -14,7 +14,7 @@ const prisma = require("./prisma");
 // path string utilities
 const path = require("path");
 // s3 instance
-const { s3, HeadObjectCommand, withPrefix } = require("./s3");
+const { s3, HeadObjectCommand, withPrefix } = require("./supabase-storage");
 
 // CONTENTTYPEFOR RETURNS DOCX OR HTML MIME
 function contentTypeFor(name) {

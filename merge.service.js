@@ -5,6 +5,7 @@ const fs = require("fs/promises");
 const os = require("os");
 const { spawn } = require("child_process");
 const { promisify, types } = require("util");
+const { randomUUID } = require("crypto");
 
 /* THIRD-PARTY LIBS
 wrapper around LibreOffice (soffice) to convert DOCX -> PDF (and other formats) or HTML -> PDF */
@@ -17,8 +18,14 @@ const Mustache = require("mustache");
 const puppeteer = require("puppeteer");
 // my initalized Prisma client
 const prisma = require("./prisma");
-// gets properties off s3
-const { s3, PutObjectCommand, GetObjectCommand, withPrefix } = require("./s3");
+const logger = require("./logger");
+// gets properties off supabase-storage
+const {
+  s3,
+  PutObjectCommand,
+  GetObjectCommand,
+  withPrefix,
+} = require("./supabase-storage");
 
 /* MY OWN MODULES
 centralized DOCX render with normalized errors */
@@ -72,14 +79,22 @@ async function loadTemplateBuffer(template) {
 /* STORAGE & CONVERSIONS
 FILLED DOCX -> PDF CONVERSION via LIBREOFFICE WITH PROMISIFY WHEN NEEDED */
 async function convertDocxToPdfBuffer(docxBuffer) {
-  return convertAsync(docxBuffer, ".pdf", undefined);
+  return withTimeout(
+    convertAsync(docxBuffer, ".pdf", undefined),
+    45000,
+    "DOCX to PDF conversion"
+  );
 }
 
 // DOCX -> HTML via LibreOffice, with CLI fallback
 async function convertDocxToHtmlBuffer(docxBuffer) {
   // first tries the in-process converter
   try {
-    return await convertAsync(docxBuffer, ".html", undefined);
+    return await withTimeout(
+      convertAsync(docxBuffer, ".html", undefined),
+      45000,
+      "DOCX to HTML conversion"
+    );
     /* if the in-process conversion throws (missing filters, plaform quirks, etc.), fall back to calling the 
     soffice CLI */
   } catch (e) {
@@ -228,8 +243,16 @@ async function convertHtmlToPdfBuffer(htmlBuffer) {
       try {
         await browser.close();
       } catch (err) {
-        // ignores errors during cleanup
-        console.error("Error closing browser:", err.message);
+        // logs browser cleanup errors (rare, non-critical)
+        try {
+          logger.warn(
+            { err },
+            "Error closing Puppeteer browser during cleanup"
+          );
+        } catch (logErr) {
+          // if logger fails, falls back to console (prevents infinite error loop)
+          console.error("Error closing browser:", err.message);
+        }
       }
     }
   }
@@ -493,7 +516,7 @@ async function mergeTemplate({
     - after this, safeBase is fully sanitized and extensionless, safe for creating output files */
     .replace(/\.[^.]+$/, "");
   // unique-ish filename timestamp
-  const stamp = `${safeBase}-${Date.now()}`;
+  const stamp = `${safeBase}-${Date.now()}-${randomUUID().slice(0, 8)}`;
   // destination on disk
   let filePath;
 
