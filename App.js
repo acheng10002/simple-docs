@@ -2,7 +2,7 @@
 LOADS ENVS WITH DOTENV  */
 require("dotenv").config();
 
-const { errorLogger } = require("./error-logger");
+const errorLogger = require("./error-logger");
 // SERVER ENTRY POINT - backend framework that handles HTTP requests and response
 const express = require("express");
 // imports the passport property of passport.js
@@ -11,6 +11,7 @@ const { passport } = require("./passport");
 const uploadRouter = require("./templateUploadHandler");
 // router for merge execution & webhook intake
 const mergeRouter = require("./merge.routes");
+const authRouter = require("./auth.routes");
 const rateLimit = require("express-rate-limit");
 const prisma = require("./prisma");
 const addRequestId = require("express-request-id").default();
@@ -159,6 +160,7 @@ app.use("/api", uploadRouter);
 /* POST /api/templates/:templateId/merge, /api/webhooks, etc. - mounts the merge and download routes 
 from ./merge.routes under /api */
 app.use("/api", mergeRouter);
+app.use("/api", authRouter);
 
 app.use(errorLogger.expressErrorHandler);
 

@@ -14,6 +14,7 @@ const crypto = require("crypto");
 // central Multer config shared across routes
 const { uploadCsv } = require("./upload.middleware");
 const { parse } = require("csv-parse/sync");
+const { sanitizeCsvRows } = require("./csv-sanitizer");
 // helper that looks up the template by templateId (db)
 const { resolveTemplateFile } = require("./template.service");
 // imports my merge function
@@ -26,21 +27,36 @@ const mergeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
   message: "Too many merge requests",
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req, res) => {
+    // Use user ID if authenticated, otherwise fall back to IP
+    if (req.user?.id) return req.user.id;
+    // Use the built-in key generator for proper IPv6 handling
+    return rateLimit.defaultKeyGenerator(req, res);
+  },
 });
 
 const csvLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   message: "Too many CSV merge requests",
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req, res) => {
+    // Use user ID if authenticated, otherwise fall back to IP
+    if (req.user?.id) return req.user.id;
+    // Use the built-in key generator for proper IPv6 handling
+    return rateLimit.defaultKeyGenerator(req, res);
+  },
 });
 
 const downloadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: "Too many download requests",
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req, res) => {
+    // Use user ID if authenticated, otherwise fall back to IP
+    if (req.user?.id) return req.user.id;
+    // Use the built-in key generator for proper IPv6 handling
+    return rateLimit.defaultKeyGenerator(req, res);
+  },
 });
 
 /* App.js's express.raw() leaves req.body as a Node buffer, raw bytes, for HMAC 
@@ -277,6 +293,9 @@ router.post(
           error: "Too many rows. Maximum 1000 rows per CSV.",
         });
       }
+
+      rows = sanitizeCsvRows(rows);
+
       req.log.info({ templateId, rowCount: rows.length }, "CSV merge started");
       // initializes an array jobs to collect results, and merges each row
       const jobs = [];
@@ -458,6 +477,8 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
   if (rows.length > 1000)
     // payload too large
     return res.status(413).json({ error: "Too many rows" });
+
+  rows = sanitizeCsvRows(rows);
 
   try {
     // initializes containers for results and warnings
