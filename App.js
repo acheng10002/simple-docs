@@ -17,6 +17,7 @@ const prisma = require("./prisma");
 const addRequestId = require("express-request-id").default();
 const logger = require("./logger");
 const pinoHttp = require("pino-http");
+const cors = require("cors");
 
 /* ENV CHECK
 - startup validations for required env variables - fails fast if a critical secret/URL is missing */
@@ -98,6 +99,23 @@ app.use((req, res, next) => {
 
 // clients don't need this header, and it leaks stack info, so better for security
 app.disable("x-powered-by");
+
+// CORS configuration - only enabled in development
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    cors({
+      // frontend dev server
+      origin: "http://localhost:5173",
+      // allow cookies/auth headers
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+    })
+  );
+  console.log("CORS enabled for development (localhost:5173)");
+} else {
+  console.log("CORS disabled - production uses same origin");
+}
 
 // RATE-LIMITING - protects upload and webhook endpoints from abuse
 const uploadLimiter = rateLimit({

@@ -22,7 +22,12 @@ const {
 const { lintDocxBuffer } = require("./docx-templating");
 const { lintHtmlBuffer } = require("./html-lint");
 // Supabase Storage instance
-const { s3, PutObjectCommand, withPrefix } = require("./supabase-storage");
+const {
+  s3,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  withPrefix,
+} = require("./supabase-storage");
 
 // creates a new isolated router object
 const router = express.Router();
@@ -223,13 +228,35 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     A7. TEMPLATE UPLOAD - INGESTION & DISCOVERY: extracts placeholders via regex and dedupes */
     const placeholders = extractPlaceholders(text);
 
-    /* persists a new Template record with name = stamped and nested fields, Field[] (creates one Field[] row for 
-       each placeholder)
-    - Prisma call uses include: { fields: true }, so returned template object includes savedTemplate.fields 
+    let savedTemplate;
+    try {
+      /* persists a new Template record with name = stamped and nested fields, Field[] (creates one Field[] row for 
+      each placeholder)
+      - Prisma call uses include: { fields: true }, so returned template object includes savedTemplate.fields 
     
-    PERSIST TEMPLATE + FIELDS VIA PRISMA
-    A8a. TEMPLATE UPLOAD - INGESTION & DISCOVERY: persists template metadata + fields */
-    const savedTemplate = await storeTemplateAndFields(stamped, placeholders);
+      PERSIST TEMPLATE + FIELDS VIA PRISMA
+      A8a. TEMPLATE UPLOAD - INGESTION & DISCOVERY: persists template metadata + fields */
+      savedTemplate = await storeTemplateAndFields(stamped, placeholders);
+    } catch (dbError) {
+      // ROLLBACK: Deletes the S3 file if db save fails
+      req.log.warn({ s3Key }, "Database save failed, cleaning up S3 file");
+      try {
+        await s3.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: s3Key,
+          })
+        );
+        req.log.info({ s3Key }, "S3 file cleanup successful");
+      } catch (cleanupErr) {
+        req.log.error(
+          { cleanupErr, s3Key },
+          "S3 cleanup failed - orphaned file"
+        );
+      }
+      // Re-throws the original database error
+      throw dbError;
+    }
 
     // OUTPUT - JSON 200 returns templateId and deduped field names meaning upload and parse succeeded
     res.status(200).json({

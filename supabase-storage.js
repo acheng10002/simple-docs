@@ -89,6 +89,14 @@ class HeadObjectCommand {
   }
 }
 
+/* DeleteObjectCommand-compatible wrapper for Supabase Storage delete
+- mimics AWS SDK v3 DeleteObjectCommand interface */
+class DeleteObjectCommand {
+  constructor(params) {
+    this.params = params;
+  }
+}
+
 /* Storage client wrapper that mimics S3Client.send() interface
 - executes PutObject, GetObject, and HeadObject operations using Supabase Storage */
 const storageClient = {
@@ -116,7 +124,9 @@ const storageClient = {
       const { Key } = command.params;
       const { bucket, path } = getBucketAndPath(Key);
 
-      const { data, error } = await supabase.storage.from(bucket).download(path);
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .download(path);
 
       if (error) {
         throw new Error(`Supabase Storage download failed: ${error.message}`);
@@ -170,6 +180,21 @@ const storageClient = {
       };
     }
 
+    if (command instanceof DeleteObjectCommand) {
+      // delete operation
+      const { Key } = command.params;
+      const { bucket, path } = getBucketAndPath(Key);
+
+      const { error } = await supabase.storage.from(bucket).remove([path]);
+
+      if (error) {
+        throw new Error(`Supabase Storage delete failed: ${error.message}`);
+      }
+
+      // mimics S3 DeleteObjectCommand response
+      return { DeleteMarker: false, VersionId: null };
+    }
+
     throw new Error(`Unknown command type: ${command.constructor.name}`);
   },
 };
@@ -182,6 +207,7 @@ module.exports = {
   PutObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  DeleteObjectCommand,
   // builds consistent storage paths everywhere
   withPrefix,
   // exposes raw Supabase client for advanced operations

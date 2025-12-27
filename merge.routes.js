@@ -148,6 +148,15 @@ router.get(
         "Content-Disposition",
         `attachment; filename="${info.downloadName}"`
       );
+      // prevents MIME sniffing attacks
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      // add CSP for HTML files to prevent script execution if opened in browser
+      if (info.contentType === "text/html") {
+        res.setHeader(
+          "Content-Security-Policy",
+          "default-src 'none'; style-src 'unsafe-inline';"
+        );
+      }
       // AWS SDK v3, s3.send(...) executes the request
       const obj = await s3.send(
         // builds a GetObject request for...
