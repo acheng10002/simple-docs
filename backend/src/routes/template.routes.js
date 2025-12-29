@@ -9,25 +9,27 @@ const FileType = require("file-type");
 // module that provides utilities for working with file and directory paths safely
 const path = require("path");
 const { randomUUID } = require("crypto");
+const passport = require("passport");
+const prisma = require("../config/prisma");
 // middleware specific to template upload route
-const { uploadTemplate } = require("./upload.middleware");
+const { uploadTemplate } = require("../middleware/upload.middleware");
 // service functions that produce the db records merge.service.js will read
 const {
   extractTextFromBuffer,
   extractPlaceholders,
   storeTemplateAndFields,
-} = require("./template.service.js");
+} = require("../services/template.service");
 
 // shared linter utilities
-const { lintDocxBuffer } = require("./docx-templating");
-const { lintHtmlBuffer } = require("./html-lint");
+const { lintDocxBuffer } = require("../utils/docx-templating");
+const { lintHtmlBuffer } = require("../utils/html-lint");
 // Supabase Storage instance
 const {
   s3,
   PutObjectCommand,
   DeleteObjectCommand,
   withPrefix,
-} = require("./supabase-storage");
+} = require("../storage/supabase-storage");
 
 // creates a new isolated router object
 const router = express.Router();
@@ -278,5 +280,97 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
+/* GET /api/templates
+- lists all active templates for the authenticated user */
+router.get(
+  "/templates",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const templates = await prisma.template.findMany({
+        where: {
+          isActive: true,
+        },
+        include: {
+          fields: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      res.json(templates);
+    } catch (err) {
+      req.log.error({ err }, "Failed to fetch templates");
+      res.status(500).json({ error: "Failed to load templates" });
+    }
+  }
+);
+
+/* GET /api/templates/:id
+- gets a single template by ID */
+router.get(
+  "/templates/:id",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const template = await prisma.template.findUnique({
+        where: { id },
+        include: {
+          fields: true,
+        },
+      });
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(template);
+    } catch (err) {
+      req.log.error({ err, templateId: req.params.id }, "Failed to fetch template");
+      res.status(500).json({ error: "Failed to load template" });
+    }
+  }
+);
+
+/* DELETE /api/templates/:id
+- deactivates a template (soft delete) */
+router.delete(
+  "/templates/:id",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if template exists and is active
+      const template = await prisma.template.findUnique({
+        where: { id },
+      });
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      if (!template.isActive) {
+        return res.status(404).json({ error: "Template already deactivated" });
+      }
+
+      // Deactivate template (soft delete)
+      await prisma.template.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      req.log.info({ templateId: id }, "Template deactivated");
+      res.status(204).send();
+    } catch (err) {
+      req.log.error({ err, templateId: req.params.id }, "Failed to deactivate template");
+      res.status(500).json({ error: "Failed to deactivate template" });
+    }
+  }
+);
 
 module.exports = router;

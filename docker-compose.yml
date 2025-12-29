@@ -1,34 +1,18 @@
 services:
   app:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     image: simple-docs:latest
     container_name: simple-docs-backend
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     ports:
       - "${PORT:-3000}:3000"
     environment:
-      # Node environment
+      # Node environment overrides (everything else from env_file)
       - NODE_ENV=production
-      - PORT=3000
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-
-      # Database (Supabase PostgreSQL)
-      - DATABASE_URL=${DATABASE_URL}
-      - DIRECT_URL=${DIRECT_URL}
-
-      # Authentication
-      - JWT_SECRET=${JWT_SECRET}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
-
-      # Supabase Storage
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-
-      # Optional: Seed user credentials
-      - SEED_USER_EMAIL=${SEED_USER_EMAIL:-u1@example.com}
-      - SEED_USER_PASSWORD=${SEED_USER_PASSWORD:-devpass}
 
     volumes:
       # Mount code for development (comment out for production)

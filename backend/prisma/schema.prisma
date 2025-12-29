@@ -36,6 +36,7 @@ model Template {
     mimeType     String?
     name         String
     uploadedById String?
+    isActive     Boolean    @default(true)
     createdAt    DateTime   @default(now())
     updatedAt    DateTime   @updatedAt
     fields       Field[]
@@ -43,6 +44,7 @@ model Template {
     uploadedBy   User?      @relation("UserTemplates", fields: [uploadedById], references: [id])
 
     @@index([uploadedById])
+    @@index([isActive])
 }
 
 /// *

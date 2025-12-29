@@ -1,8 +1,8 @@
 /* ERROR LOGGING UTILITY
 - logs application errors to PostgreSQL ErrorLog table
 - replacement for Sentry/GlitchTip error tracking */
-const prisma = require("./prisma");
-const logger = require("./logger");
+const prisma = require("../config/prisma");
+const logger = require("../config/logger");
 
 /**
  * Logs an error to the database

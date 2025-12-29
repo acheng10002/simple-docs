@@ -17,22 +17,22 @@ const Mustache = require("mustache");
 // merged HTML -> PDF
 const puppeteer = require("puppeteer");
 // my initalized Prisma client
-const prisma = require("./prisma");
-const logger = require("./logger");
+const prisma = require("../config/prisma");
+const logger = require("../config/logger");
 // gets properties off supabase-storage
 const {
   s3,
   PutObjectCommand,
   GetObjectCommand,
   withPrefix,
-} = require("./supabase-storage");
+} = require("../storage/supabase-storage");
 
 /* MY OWN MODULES
 centralized DOCX render with normalized errors */
 const {
   renderDocxBufferOrThrow,
   TemplateParseError,
-} = require("./docx-templating.js");
+} = require("../utils/docx-templating");
 
 /* TIMEOUT WRAPPER
 wraps any promise with a timeout - rejects if operation takes too long */

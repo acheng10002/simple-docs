@@ -2,20 +2,20 @@
 LOADS ENVS WITH DOTENV  */
 require("dotenv").config();
 
-const errorLogger = require("./error-logger");
+const errorLogger = require("./utils/error-logger");
 // SERVER ENTRY POINT - backend framework that handles HTTP requests and response
 const express = require("express");
 // imports the passport property of passport.js
-const { passport } = require("./passport");
+const { passport } = require("./config/passport");
 // router for template ingestion & discovery
-const uploadRouter = require("./templateUploadHandler");
+const uploadRouter = require("./routes/template.routes");
 // router for merge execution & webhook intake
-const mergeRouter = require("./merge.routes");
-const authRouter = require("./auth.routes");
+const mergeRouter = require("./routes/merge.routes");
+const authRouter = require("./routes/auth.routes");
 const rateLimit = require("express-rate-limit");
-const prisma = require("./prisma");
+const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
-const logger = require("./logger");
+const logger = require("./config/logger");
 const pinoHttp = require("pino-http");
 const cors = require("cors");
 

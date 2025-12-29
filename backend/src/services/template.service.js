@@ -10,11 +10,11 @@ const mammoth = require("mammoth");
 - lets me parse and traverse HTML without a browser */
 const { JSDOM } = require("jsdom");
 // Prisma instance
-const prisma = require("./prisma");
+const prisma = require("../config/prisma");
 // path string utilities
 const path = require("path");
 // s3 instance
-const { s3, HeadObjectCommand, withPrefix } = require("./supabase-storage");
+const { s3, HeadObjectCommand, withPrefix } = require("../storage/supabase-storage");
 
 // CONTENTTYPEFOR RETURNS DOCX OR HTML MIME
 function contentTypeFor(name) {

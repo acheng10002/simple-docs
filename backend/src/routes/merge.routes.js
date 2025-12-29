@@ -8,18 +8,19 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 // imports my configured Passport instance with the JWT strategy I wired up to protect routes
 const passport = require("passport");
-/* Node's cryptography module that gives me access to low-level primitives like hashes, HMACs, ciphers, signatures, 
+/* Node's cryptography module that gives me access to low-level primitives like hashes, HMACs, ciphers, signatures,
 random bytes, and key derivation */
 const crypto = require("crypto");
 // central Multer config shared across routes
-const { uploadCsv } = require("./upload.middleware");
+const { uploadCsv } = require("../middleware/upload.middleware");
 const { parse } = require("csv-parse/sync");
-const { sanitizeCsvRows } = require("./csv-sanitizer");
+const { sanitizeCsvRows } = require("../utils/csv-sanitizer");
 // helper that looks up the template by templateId (db)
-const { resolveTemplateFile } = require("./template.service");
+const { resolveTemplateFile } = require("../services/template.service");
 // imports my merge function
-const { mergeTemplate } = require("./merge.service");
-const { s3, GetObjectCommand } = require("./supabase-storage");
+const { mergeTemplate } = require("../services/merge.service");
+const { s3, GetObjectCommand, withPrefix } = require("../storage/supabase-storage");
+const prisma = require("../config/prisma");
 
 const router = express.Router();
 
@@ -223,6 +224,196 @@ router.get(
       // if I haven't sent headers yet, sends a 500 JSON error
       if (!res.headersSent) res.status(500).end();
       else res.end();
+    }
+  }
+);
+
+/* GET /api/jobs
+- lists all merge jobs for the authenticated user */
+router.get(
+  "/jobs",
+  passport.authenticate("jwt", { session: false }),
+  downloadLimiter,
+  async (req, res) => {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const jobs = await prisma.mergeJob.findMany({
+        where: {
+          userId: userId,
+        },
+        include: {
+          template: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      res.json(jobs);
+    } catch (err) {
+      req.log.error({ err }, "Failed to fetch merge jobs");
+      res.status(500).json({ error: "Failed to load merge jobs" });
+    }
+  }
+);
+
+/* DELETE /api/jobs/:id
+- deletes a merge job and its output file */
+router.delete(
+  "/jobs/:id",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id, 10);
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      if (isNaN(jobId)) {
+        return res.status(400).json({ error: "Invalid job ID" });
+      }
+
+      // Find the job and verify ownership
+      const job = await prisma.mergeJob.findUnique({
+        where: { id: jobId },
+      });
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      if (job.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden - not your job" });
+      }
+
+      // Delete from S3 if file exists
+      if (job.filePath) {
+        try {
+          const s3Key = withPrefix(job.filePath.replace(/^s3:\/\/[^/]+\//, ''));
+          await s3.send(
+            new DeleteObjectCommand({
+              Bucket: process.env.S3_BUCKET,
+              Key: s3Key,
+            })
+          );
+          req.log.info({ jobId, s3Key }, "Deleted S3 output file");
+        } catch (s3Err) {
+          req.log.warn({ s3Err, jobId }, "Failed to delete S3 file, continuing with DB deletion");
+        }
+      }
+
+      // Delete job from database
+      await prisma.mergeJob.delete({
+        where: { id: jobId },
+      });
+
+      req.log.info({ jobId }, "Merge job deleted");
+      res.status(204).send();
+    } catch (err) {
+      req.log.error({ err, jobId: req.params.id }, "Failed to delete merge job");
+      res.status(500).json({ error: "Failed to delete merge job" });
+    }
+  }
+);
+
+/* GET /api/download/:filePath
+- downloads a merge output file from S3 */
+router.get(
+  "/download/:filePath(*)",
+  passport.authenticate("jwt", { session: false }),
+  downloadLimiter,
+  async (req, res) => {
+    try {
+      const { filePath } = req.params;
+
+      if (!filePath) {
+        return res.status(400).json({ error: "File path is required" });
+      }
+
+      req.log.info({ filePath }, "Merge output download request started");
+
+      // Build S3 key with prefix
+      const s3Key = withPrefix(filePath);
+
+      try {
+        const obj = await s3.send(
+          new GetObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: s3Key,
+          })
+        );
+
+        // Determine content type from file extension
+        let contentType = "application/octet-stream";
+        if (filePath.endsWith(".pdf")) {
+          contentType = "application/pdf";
+        } else if (filePath.endsWith(".docx")) {
+          contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        } else if (filePath.endsWith(".html")) {
+          contentType = "text/html";
+        }
+
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Content-Disposition", `attachment; filename="${filePath.split('/').pop()}"`);
+        res.setHeader("X-Content-Type-Options", "nosniff");
+
+        // S3 stream with timeout
+        const stream = obj.Body;
+        const timeout = setTimeout(() => {
+          req.log.warn({ filePath }, "Download timeout - destroying stream");
+          stream.destroy(new Error("Download timeout"));
+          if (!res.headersSent) {
+            res.status(504).json({ error: "Download timeout" });
+          }
+        }, 60000);
+
+        stream.on("error", (err) => {
+          clearTimeout(timeout);
+          req.log.error({ err, filePath }, "S3 stream error");
+          if (!res.headersSent) {
+            res.status(500).json({ error: "Download failed" });
+          } else {
+            res.destroy();
+          }
+        });
+
+        res.on("close", () => {
+          if (!res.writableEnded) {
+            clearTimeout(timeout);
+            stream.destroy();
+            req.log.info({ filePath }, "Download cancelled by client");
+          }
+        });
+
+        res.on("finish", () => {
+          clearTimeout(timeout);
+          req.log.info({ filePath }, "Download completed successfully");
+        });
+
+        stream.pipe(res);
+      } catch (s3Err) {
+        if (s3Err.name === "NoSuchKey") {
+          return res.status(404).json({ error: "File not found" });
+        }
+        throw s3Err;
+      }
+    } catch (err) {
+      req.log.error({ err, filePath: req.params.filePath }, "Download failed");
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Download failed" });
+      }
     }
   }
 );
