@@ -18,6 +18,7 @@ import {
   AppBar,
   Toolbar,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -120,9 +121,9 @@ export default function Outputs() {
           <Typography variant="body2" sx={{ mr: 2 }}>
             {user?.email}
           </Typography>
-          <IconButton color="inherit" onClick={handleLogout}>
-            <LogoutIcon />
-          </IconButton>
+          <Button color="inherit" onClick={handleLogout}>
+            Log Out
+          </Button>
         </Toolbar>
       </AppBar>
 
@@ -169,7 +170,7 @@ export default function Outputs() {
                 <TableBody>
                   {jobs.map((job) => (
                     <TableRow key={job.id || job.jobId}>
-                      <TableCell>{job.template?.name || 'Unknown'}</TableCell>
+                      <TableCell>{job.template?.displayName || 'Unknown'}</TableCell>
                       <TableCell>
                         <Chip
                           label={job.outputType?.toUpperCase() || 'PDF'}
@@ -181,7 +182,11 @@ export default function Outputs() {
                         <Chip
                           label={job.status || 'succeeded'}
                           size="small"
-                          color={getStatusColor(job.status)}
+                          color={job.status === 'succeeded' ? undefined : getStatusColor(job.status)}
+                          sx={job.status === 'succeeded' || !job.status ? {
+                            backgroundColor: '#4caf50',
+                            color: 'white',
+                          } : {}}
                         />
                       </TableCell>
                       <TableCell>
@@ -190,22 +195,27 @@ export default function Outputs() {
                           : 'Unknown'}
                       </TableCell>
                       <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDownload(job.filePath)}
-                          title="Download"
-                          disabled={job.status === 'failed'}
-                        >
-                          <DownloadIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDelete(job.id!, job.template?.name || 'Unknown')}
-                          title="Delete"
-                          color="error"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                        <Tooltip title="Download">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDownload(job.filePath)}
+                              disabled={job.status === 'failed'}
+                              color="success"
+                            >
+                              <DownloadIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDelete(job.id!, job.template?.displayName || 'Unknown')}
+                            color="error"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}

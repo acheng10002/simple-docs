@@ -17,6 +17,7 @@ import {
   CircularProgress,
   AppBar,
   Toolbar,
+  Tooltip,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -62,11 +63,14 @@ export default function Templates() {
 
     // Validate file type
     const validTypes = [
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/html',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'text/html', // .html
+      'application/pdf', // .pdf
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
     ];
     if (!validTypes.includes(file.type)) {
-      setError('Only .docx and .html files are supported');
+      setError('Only .docx, .html, .pdf, .xlsx, and .pptx files are supported');
       return;
     }
 
@@ -169,9 +173,9 @@ export default function Templates() {
           <Typography variant="body2" sx={{ mr: 2 }}>
             {user?.email}
           </Typography>
-          <IconButton color="inherit" onClick={handleLogout}>
-            <LogoutIcon />
-          </IconButton>
+          <Button color="inherit" onClick={handleLogout}>
+            Log Out
+          </Button>
         </Toolbar>
       </AppBar>
 
@@ -192,7 +196,7 @@ export default function Templates() {
               <input
                 type="file"
                 hidden
-                accept=".docx,.html"
+                accept=".docx,.html,.pdf,.xlsx,.pptx"
                 onChange={handleUpload}
                 disabled={uploading}
               />
@@ -229,53 +233,59 @@ export default function Templates() {
                 <TableBody>
                   {templates.map((template) => (
                     <TableRow key={template.id}>
-                      <TableCell>{template.name}</TableCell>
+                      <TableCell>{template.displayName}</TableCell>
                       <TableCell>
                         {template.fields.map((f) => f.name).join(', ')}
                       </TableCell>
                       <TableCell>
-                        {new Date(template.createdAt).toLocaleDateString()}
+                        {template.createdAt
+                          ? new Date(template.createdAt).toLocaleString()
+                          : 'Unknown'}
                       </TableCell>
                       <TableCell align="right">
                         <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleMerge(template.id)}
-                            title="Merge"
-                            color="primary"
-                          >
-                            <MergeIcon />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            component="label"
-                            title="Bulk Merge CSV"
-                            sx={{ color: '#9c27b0' }}
-                          >
-                            <CsvIcon />
-                            <input
-                              type="file"
-                              hidden
-                              accept=".csv"
-                              onChange={(e) => handleCsvMerge(template.id, e)}
-                            />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDownload(template.id, template.name)}
-                            title="Download"
-                            color="success"
-                          >
-                            <DownloadIcon />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeactivate(template.id, template.name)}
-                            title="Deactivate"
-                            color="warning"
-                          >
-                            <ArchiveIcon />
-                          </IconButton>
+                          <Tooltip title="Merge">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleMerge(template.id)}
+                              color="primary"
+                            >
+                              <MergeIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Bulk Merge CSV">
+                            <IconButton
+                              size="small"
+                              component="label"
+                              sx={{ color: '#9c27b0' }}
+                            >
+                              <CsvIcon />
+                              <input
+                                type="file"
+                                hidden
+                                accept=".csv"
+                                onChange={(e) => handleCsvMerge(template.id, e)}
+                              />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Download">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDownload(template.id, template.displayName)}
+                              color="success"
+                            >
+                              <DownloadIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Deactivate">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeactivate(template.id, template.displayName)}
+                              color="warning"
+                            >
+                              <ArchiveIcon />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                       </TableCell>
                     </TableRow>

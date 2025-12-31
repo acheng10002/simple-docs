@@ -30,11 +30,12 @@ model User {
 }
 
 /// *
-///  * Template model - file metadata (name) + relation to Field[] and MergeJob
+///  * Template model - file metadata (display name + storage key) + relation to Field[] and MergeJob
 model Template {
     id           String     @id @default(cuid())
     mimeType     String?
-    name         String
+    displayName  String     // User-friendly name shown in UI (e.g. "sample.docx")
+    storageKey   String     // Unique S3 key with timestamp/UUID (e.g. "1234567890-uuid-sample.docx")
     uploadedById String?
     isActive     Boolean    @default(true)
     createdAt    DateTime   @default(now())
@@ -97,4 +98,19 @@ enum JobStatus {
 enum UserRole {
     user
     admin
+}
+
+/// *
+///  * ErrorLog model - stores application errors for debugging and monitoring
+model ErrorLog {
+    id        String   @id @default(cuid())
+    level     String   // "error", "warn", "info"
+    message   String
+    stack     String?  @db.Text
+    context   Json?    // Request context, user info, error details, etc.
+    createdAt DateTime @default(now())
+
+    @@index([level])
+    @@index([createdAt])
+    @@index([level, createdAt])
 }

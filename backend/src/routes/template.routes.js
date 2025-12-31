@@ -15,8 +15,7 @@ const prisma = require("../config/prisma");
 const { uploadTemplate } = require("../middleware/upload.middleware");
 // service functions that produce the db records merge.service.js will read
 const {
-  extractTextFromBuffer,
-  extractPlaceholders,
+  extractFieldsFromTemplate,
   storeTemplateAndFields,
 } = require("../services/template.service");
 
@@ -37,17 +36,23 @@ const router = express.Router();
 /* MULTER
 A1. TEMPLATE UPLOAD - INGESTION & DISCOVERY: multipart body parsing */
 
-// allowed MIME types - docx and html
+// allowed MIME types - docx, html, pdf, xlsx, pptx
 const ALLOWED_MIME_TYPES = [
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/html",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
+  "text/html", // HTML
+  "application/pdf", // PDF
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // PPTX
 ];
 
 // fallback map from known file exts to their expected MIME types if magic-byte MIME detection fails
 const FALLBACK_MIME_MAP = {
-  ".docx":
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ".html": "text/html",
+  ".htm": "text/html",
+  ".pdf": "application/pdf",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
 
 /* upload route
@@ -178,18 +183,30 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     }
 
     /* PERSIST & PARSE
-    - { recursive: true } creates parents as needed and doesn't error if it already exists; 
+    A4. TEMPLATE UPLOAD - INGESTION & DISCOVERY: prepare filenames
+    - displayName: Original filename as uploaded by user (e.g. "My Invoice.docx")
+    - storageKey: Sanitized, timestamped S3 key (e.g. "1735482000-uuid-My_Invoice.docx") */
 
-    A4. TEMPLATE UPLOAD - INGESTION & DISCOVERY: sanitizes and timestamps user-supplied filename,
-    making it safe 
-    - path.basename(name) strips any directory paths which prevents path traversal 
-    - regex replaces any char not in [A–Z a–z 0–9 _ . - space] with a _, yielding a fs-safe name */
     const sanitize = (name) => path.basename(name).replace(/[^\w.\- ]+/g, "_");
-    // takes the original filename from the upload and sanitizes it
-    const baseName = sanitize(file.originalname);
-    /* prefixes the sanitized name with the current milliseconds to reduce collisions and orders
-    files chronologically */
-    const stamped = `${Date.now()}-${randomUUID()}-${baseName}`;
+
+    // Original filename for display (preserve spaces and special chars)
+    const originalName = path.basename(file.originalname);
+
+    // Sanitized filename for S3 storage
+    const safeName = sanitize(file.originalname);
+    const stamped = `${Date.now()}-${randomUUID()}-${safeName}`;
+
+    // Handle duplicate display names with auto-increment
+    let displayName = originalName;
+    let counter = 1;
+    while (await prisma.template.findFirst({
+      where: { displayName, isActive: true }
+    })) {
+      const ext = path.extname(originalName);
+      const base = path.basename(originalName, ext);
+      displayName = `${base} (${counter})${ext}`;
+      counter++;
+    }
 
     /* WRITES SANITIZED/TIMESTAMPED FILENAME TO UPLOADS_DIR VIA FS/PROMISES
     A5. TEMPLATE UPLOAD - INGESTION & DISCOVERY: persist original uploaded file 
@@ -216,29 +233,26 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
       })
     );
 
-    /* calls appropraite parser to pull plain text out of the uploaded file's binary buffer, using the MIME 
-    type to choose the right parser: Mammoth extracts text from DOCX & JSDOM gets document.body.textContent 
-    from HTML 
-    
-    TEXT EXTRACTION FOR PLACEHOLDER DISCOVERY
-    A6. TEMPLATE UPLOAD - INGESTION & DISCOVERY: extracts plain text for placeholder discovery */
-    const text = await extractTextFromBuffer(file.buffer, fileType.mime);
-    /* runs regex helper to extract all {{...}} placeholders in that text; returns a deduped array of field names
-    - supports dot paths like client.name 
-    
-    IDS & EXTRACTS THE PLACEHOLDERS VIA REG EXP 
-    A7. TEMPLATE UPLOAD - INGESTION & DISCOVERY: extracts placeholders via regex and dedupes */
-    const placeholders = extractPlaceholders(text);
+    /* FIELD EXTRACTION - delegates to format-specific service based on MIME type
+    Extracts placeholders/fields from the template using the appropriate parser:
+    - DOCX: Docxtemplater placeholders
+    - HTML: Mustache placeholders
+    - PDF: Form field names
+    - XLSX: Cell placeholders
+    - PPTX: Slide placeholders
+
+    A6-A7. TEMPLATE UPLOAD - INGESTION & DISCOVERY: extracts fields via format-specific service */
+    const fieldNames = await extractFieldsFromTemplate(file.buffer, finalMime);
 
     let savedTemplate;
     try {
-      /* persists a new Template record with name = stamped and nested fields, Field[] (creates one Field[] row for 
-      each placeholder)
-      - Prisma call uses include: { fields: true }, so returned template object includes savedTemplate.fields 
-    
+      /* persists a new Template record with storageKey (S3 key), displayName (user-friendly), mimeType and nested
+      fields, Field[] (creates one Field[] row for each field)
+      - Prisma call uses include: { fields: true }, so returned template object includes savedTemplate.fields
+
       PERSIST TEMPLATE + FIELDS VIA PRISMA
       A8a. TEMPLATE UPLOAD - INGESTION & DISCOVERY: persists template metadata + fields */
-      savedTemplate = await storeTemplateAndFields(stamped, placeholders);
+      savedTemplate = await storeTemplateAndFields(stamped, displayName, finalMime, fieldNames);
     } catch (dbError) {
       // ROLLBACK: Deletes the S3 file if db save fails
       req.log.warn({ s3Key }, "Database save failed, cleaning up S3 file");

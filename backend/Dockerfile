@@ -27,13 +27,19 @@ COPY . .
 # Stage 2: Production - minimal runtime image
 FROM node:20-slim
 
-# Install LibreOffice and required fonts for document conversion
+# Install LibreOffice, Chromium, and required fonts for document conversion
 RUN apt-get update && apt-get install -y \
     libreoffice \
     libreoffice-writer \
     fonts-liberation \
     fonts-dejavu \
+    chromium \
+    chromium-sandbox \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure Puppeteer to use system Chromium instead of downloading its own
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Create non-root user for security
 RUN useradd -m -u 1001 -s /bin/bash appuser

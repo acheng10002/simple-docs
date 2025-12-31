@@ -9,6 +9,7 @@ import type {
   MergeJob,
   BulkMergeResponse,
   ErrorResponse,
+  OutputType,
 } from '../types/api';
 
 // API base URL - uses Vite proxy in development, direct URL in production
@@ -110,7 +111,7 @@ export const mergeApi = {
   mergeCsv: async (
     templateId: string,
     csvFile: File,
-    outputType: 'pdf' | 'docx' | 'html'
+    outputType: OutputType
   ): Promise<BulkMergeResponse> => {
     const formData = new FormData();
     formData.append('csv', csvFile);

@@ -19,7 +19,16 @@ import {
 } from '@mui/material';
 import { ArrowBack as BackIcon } from '@mui/icons-material';
 import { templatesApi, mergeApi } from '../api/client';
-import type { Template } from '../types/api';
+import type { Template, OutputType } from '../types/api';
+
+// Map of template MIME types to allowed output types
+const ALLOWED_OUTPUTS: Record<string, OutputType[]> = {
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['pdf', 'docx', 'html', 'jpg'], // DOCX
+  'text/html': ['pdf', 'docx', 'html'], // HTML
+  'application/pdf': ['pdf', 'jpg'], // PDF
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx', 'pdf'], // XLSX
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx', 'ppsx', 'pdf', 'jpg'], // PPTX
+};
 
 export default function Merge() {
   const { templateId } = useParams<{ templateId: string }>();
@@ -30,7 +39,7 @@ export default function Merge() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState<Record<string, string>>({});
-  const [outputType, setOutputType] = useState<'pdf' | 'docx' | 'html'>('pdf');
+  const [outputType, setOutputType] = useState<OutputType>('pdf');
 
   useEffect(() => {
     loadTemplate();
@@ -50,6 +59,13 @@ export default function Merge() {
         initialData[field.name] = '';
       });
       setFormData(initialData);
+
+      // Set default output type based on template format
+      const allowedOutputs = data.mimeType ? ALLOWED_OUTPUTS[data.mimeType] : ['pdf'];
+      if (allowedOutputs && allowedOutputs.length > 0) {
+        setOutputType(allowedOutputs[0]);
+      }
+
       setError('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load template');
@@ -144,7 +160,7 @@ export default function Merge() {
             <BackIcon />
           </IconButton>
           <Typography variant="h6" component="div">
-            Merge Template: {template.name}
+            Merge Template: {template.displayName}
           </Typography>
         </Toolbar>
       </AppBar>
@@ -190,11 +206,13 @@ export default function Merge() {
               <Select
                 value={outputType}
                 label="Output Format"
-                onChange={(e) => setOutputType(e.target.value as 'pdf' | 'docx' | 'html')}
+                onChange={(e) => setOutputType(e.target.value as OutputType)}
               >
-                <MenuItem value="pdf">PDF</MenuItem>
-                <MenuItem value="docx">DOCX</MenuItem>
-                <MenuItem value="html">HTML</MenuItem>
+                {(template.mimeType ? ALLOWED_OUTPUTS[template.mimeType] : ['pdf']).map((format) => (
+                  <MenuItem key={format} value={format}>
+                    {format.toUpperCase()}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 

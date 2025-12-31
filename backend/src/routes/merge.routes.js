@@ -22,6 +22,15 @@ const { mergeTemplate } = require("../services/merge.service");
 const { s3, GetObjectCommand, withPrefix } = require("../storage/supabase-storage");
 const prisma = require("../config/prisma");
 
+// Map of allowed output types per template MIME type
+const ALLOWED_OUTPUTS = {
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['pdf', 'docx', 'html', 'jpg'],
+  'text/html': ['pdf', 'docx', 'html'],
+  'application/pdf': ['pdf', 'jpg'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx', 'pdf'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx', 'ppsx', 'pdf', 'jpg'],
+};
+
 const router = express.Router();
 
 const mergeLimiter = rateLimit({
@@ -250,7 +259,8 @@ router.get(
           template: {
             select: {
               id: true,
-              name: true,
+              displayName: true,
+              mimeType: true,
             },
           },
         },
@@ -363,6 +373,14 @@ router.get(
           contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         } else if (filePath.endsWith(".html")) {
           contentType = "text/html";
+        } else if (filePath.endsWith(".xlsx")) {
+          contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        } else if (filePath.endsWith(".pptx")) {
+          contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        } else if (filePath.endsWith(".ppsx")) {
+          contentType = "application/vnd.openxmlformats-officedocument.presentationml.slideshow";
+        } else if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) {
+          contentType = "image/jpeg";
         }
 
         res.setHeader("Content-Type", contentType);
@@ -437,10 +455,20 @@ router.post(
         return res.status(400).json({ error: "Invalid template ID format" });
       }
 
-      // validates outputType early
-      if (!["pdf", "docx", "html"].includes(outputType)) {
+      // Fetch template to validate outputType against its format
+      const template = await prisma.template.findUnique({
+        where: { id: templateId },
+      });
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      // Validate outputType is supported for this template's format
+      const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
+      if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
         return res.status(400).json({
-          error: "Invalid outputType. Use 'pdf', 'docx', or 'html'.",
+          error: `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
         });
       }
 
@@ -535,7 +563,7 @@ router.post(
       // sends JSON with the number of processed rows and the list of created jobs
       res.json({ count: rows.length, jobs });
     } catch (err) {
-      req.log.error({ err, templateId }, "CSV merge failed");
+      req.log.error({ err, templateId: req.params.templateId }, "CSV merge failed");
       // otherwise, send 400 Bad Request with a simple error message
       res.status(400).json({ error: err.message });
     }
@@ -552,7 +580,7 @@ router.post(
   mergeLimiter,
   async (req, res) => {
     try {
-      /* pulls templateId from req.params, selects which stored template to use 
+      /* pulls templateId from req.params, selects which stored template to use
       B3a. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler */
       const { templateId } = req.params;
 
@@ -563,9 +591,20 @@ router.post(
         return res.status(400).json({ error: "Invalid template ID format" });
       }
 
-      if (!["pdf", "docx", "html"].includes(outputType)) {
+      // Fetch template to validate outputType against its format
+      const template = await prisma.template.findUnique({
+        where: { id: templateId },
+      });
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      // Validate outputType is supported for this template's format
+      const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
+      if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
         return res.status(400).json({
-          error: "Invalid outputType. Use 'pdf', 'docx', or 'html'.",
+          error: `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
         });
       }
 
@@ -612,7 +651,7 @@ router.post(
         });
       }
       // any other error gets logged and returns 400 bad request with a message if merge engine throws
-      req.log.error({ err, templateId }, "Manual merge failed");
+      req.log.error({ err, templateId: req.params.templateId }, "Manual merge failed");
       res.status(400).json({ error: err.message });
     }
   }
@@ -633,13 +672,30 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
     return res.status(400).json({ error: "Invalid template ID format" });
   }
 
-  if (!["pdf", "docx", "html"].includes(outputType)) {
+  // Fetch template to validate outputType against its format
+  let template;
+  try {
+    template = await prisma.template.findUnique({
+      where: { id: templateId },
+    });
+  } catch (err) {
+    req.log.error({ err, templateId }, "Failed to fetch template");
+    return res.status(500).json({ error: "Internal server error" });
+  }
+
+  if (!template) {
+    return res.status(404).json({ error: "Template not found" });
+  }
+
+  // Validate outputType is supported for this template's format
+  const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
+  if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
     return res.status(400).json({
-      error: "Invalid outputType. Use 'pdf', 'docx', or 'html'.",
+      error: `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
     });
   }
 
-  req.log.info({ err, templateId, outputType }, "Webhook merge failed");
+  req.log.info({ templateId, outputType }, "Webhook merge started");
   // gets the request Content-Type (case-insensitive), normalize, and strip parameters (e.g. charset=utf-8)
   const ctype = (req.get("content-type") || "")
     .toLowerCase()

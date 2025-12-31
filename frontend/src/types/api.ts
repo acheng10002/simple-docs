@@ -31,7 +31,8 @@ export interface Field {
 
 export interface Template {
   id: string;
-  name: string;
+  displayName: string;  // User-friendly template name (e.g. "My Invoice.docx")
+  mimeType?: string;
   fields: Field[];
   createdAt?: string;
 }
@@ -42,9 +43,11 @@ export interface UploadResponse {
   message: string;
 }
 
+export type OutputType = 'pdf' | 'docx' | 'html' | 'xlsx' | 'pptx' | 'ppsx' | 'jpg';
+
 export interface MergeRequest {
   data: Record<string, string>;
-  outputType: 'pdf' | 'docx' | 'html';
+  outputType: OutputType;
 }
 
 export interface MergeJob {
@@ -53,7 +56,7 @@ export interface MergeJob {
   templateId?: string;
   userId?: string;
   data?: Record<string, any>;
-  outputType?: 'pdf' | 'docx' | 'html';
+  outputType?: OutputType;
   status?: 'queued' | 'processing' | 'succeeded' | 'failed';
   filePath: string;
   error?: string;
@@ -61,7 +64,8 @@ export interface MergeJob {
   updatedAt?: string;
   template?: {
     id: string;
-    name: string;
+    displayName: string;
+    mimeType?: string;
   };
 }
 
