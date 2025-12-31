@@ -53,15 +53,25 @@ const uploadTemplate = makeUpload({
     /* ok:
     - real .docx: correct mimetype + extension
     - some agents send application/zip for .docx: only accept if ext is .docx
-    - html/xhtml 
-    allows .docx and .html MIME types */
+    - html/xhtml
+    - pdf
+    - xlsx
+    - pptx
+    allows .docx, .html, .pdf, .xlsx, and .pptx MIME types */
     const allow =
       (declared ===
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document" &&
         ext === ".docx") ||
       (declared === "application/zip" && ext === ".docx") ||
       declared === "text/html" ||
-      declared === "application/xhtml+xml";
+      declared === "application/xhtml+xml" ||
+      (declared === "application/pdf" && ext === ".pdf") ||
+      (declared ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" &&
+        ext === ".xlsx") ||
+      (declared ===
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" &&
+        ext === ".pptx");
     // checks if the uploaded file's mimeType is in the allow-list; sets ok to true if allowed
     // .includes(file.mimetype);
     /* calls Multer's callback to accept or reject the file 
