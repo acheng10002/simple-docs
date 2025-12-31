@@ -86,6 +86,10 @@ enum OutputType {
     docx
     html
     pdf
+    xlsx
+    pptx
+    ppsx
+    jpg
 }
 
 enum JobStatus {
