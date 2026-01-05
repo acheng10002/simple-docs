@@ -387,4 +387,161 @@ router.delete(
   }
 );
 
+/* PUT /api/templates/:id
+- updates a template's metadata (displayName, defaultOutputType, outputNameFormat)
+- optionally replaces the template file */
+router.put(
+  "/templates/:id",
+  passport.authenticate("jwt", { session: false }),
+  uploadTemplate.single("template"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { displayName, defaultOutputType, outputNameFormat } = req.body;
+      const file = req.file;
+
+      // Check if template exists
+      const existingTemplate = await prisma.template.findUnique({
+        where: { id },
+        include: { fields: true },
+      });
+
+      if (!existingTemplate) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      // Prepare update data
+      const updateData = {};
+
+      // Update displayName if provided
+      if (displayName && displayName.trim()) {
+        updateData.displayName = displayName.trim();
+      }
+
+      // Update defaultOutputType if provided (allow null to clear it)
+      if ('defaultOutputType' in req.body) {
+        updateData.defaultOutputType = defaultOutputType || null;
+      }
+
+      // Update outputNameFormat if provided (allow null to clear it)
+      if ('outputNameFormat' in req.body) {
+        updateData.outputNameFormat = outputNameFormat || null;
+      }
+
+      // If a replacement file is provided, process it
+      if (file) {
+        // MIME detection and validation (same as upload route)
+        const declared = (file.mimetype || "").toLowerCase();
+        const ext = path.extname(file.originalname).toLowerCase();
+
+        let fileType = await FileType.fromBuffer(file.buffer);
+
+        // Extension-based fallback
+        if (!fileType) {
+          if (ext === ".docx") {
+            const ZIP_MAGIC = "504b0304";
+            const isZip = file.buffer.slice(0, 4).toString("hex") === ZIP_MAGIC;
+            if (isZip) {
+              fileType = {
+                ext: "docx",
+                mime: FALLBACK_MIME_MAP[".docx"],
+              };
+            }
+          } else if (ext === ".html" || ext === ".htm") {
+            fileType = {
+              ext: ext.slice(1),
+              mime: FALLBACK_MIME_MAP[".html"],
+            };
+          }
+        }
+
+        const finalMime =
+          fileType?.mime ||
+          (ext === ".docx"
+            ? FALLBACK_MIME_MAP[".docx"]
+            : ext === ".html" || ext === ".htm"
+              ? FALLBACK_MIME_MAP[".html"]
+              : null);
+
+        if (!finalMime || !ALLOWED_MIME_TYPES.includes(finalMime)) {
+          return res.status(415).send("Unsupported or undetectable file type.");
+        }
+
+        // Lint the new file
+        if (fileType.ext === "html" || fileType.mime === "text/html") {
+          const { errors, warnings } = lintHtmlBuffer(file.buffer, {
+            allowRemote: false,
+            requirePrintCss: false,
+          });
+          if (warnings.length)
+            req.log.warn({ warnings }, "HTML template has warnings");
+          if (errors.length) {
+            return res.status(422).json({
+              error: "Template blocked by HTML linter",
+              details: errors,
+            });
+          }
+        }
+
+        if (fileType.ext === "docx") {
+          const lint = lintDocxBuffer(file.buffer);
+          if (lint.length) {
+            return res.status(422).json({
+              error: "Template has invalid Docxtemplater delimiters/tags",
+              details: lint,
+            });
+          }
+        }
+
+        // Upload new file to S3
+        const sanitize = (name) => path.basename(name).replace(/[^\w.\- ]+/g, "_");
+        const safeName = sanitize(file.originalname);
+        const stamped = `${Date.now()}-${randomUUID()}-${safeName}`;
+        const s3Key = withPrefix(`uploads/${stamped}`);
+
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: s3Key,
+            Body: file.buffer,
+            ContentType: fileType.mime,
+          })
+        );
+
+        // Extract fields from new file
+        const fieldNames = await extractFieldsFromTemplate(file.buffer, finalMime);
+
+        // Update template with new file info
+        updateData.storageKey = stamped;
+        updateData.mimeType = finalMime;
+
+        // Delete old fields and create new ones
+        await prisma.field.deleteMany({
+          where: { templateId: id },
+        });
+
+        await prisma.field.createMany({
+          data: fieldNames.map((name) => ({
+            templateId: id,
+            name,
+          })),
+        });
+      }
+
+      // Update template in database
+      const updatedTemplate = await prisma.template.update({
+        where: { id },
+        data: updateData,
+        include: { fields: true },
+      });
+
+      req.log.info({ templateId: id }, "Template updated successfully");
+      res.json(updatedTemplate);
+    } catch (err) {
+      req.log.error({ err, templateId: req.params.id }, "Failed to update template");
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  }
+);
+
 module.exports = router;

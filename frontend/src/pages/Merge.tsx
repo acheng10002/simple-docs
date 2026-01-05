@@ -7,10 +7,6 @@ import {
   Typography,
   TextField,
   Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
   CircularProgress,
   AppBar,
@@ -39,7 +35,6 @@ export default function Merge() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState<Record<string, string>>({});
-  const [outputType, setOutputType] = useState<OutputType>('pdf');
 
   useEffect(() => {
     loadTemplate();
@@ -59,12 +54,6 @@ export default function Merge() {
         initialData[field.name] = '';
       });
       setFormData(initialData);
-
-      // Set default output type based on template format
-      const allowedOutputs = data.mimeType ? ALLOWED_OUTPUTS[data.mimeType] : ['pdf'];
-      if (allowedOutputs && allowedOutputs.length > 0) {
-        setOutputType(allowedOutputs[0]);
-      }
 
       setError('');
     } catch (err: any) {
@@ -97,32 +86,22 @@ export default function Merge() {
       setError('');
       setSuccess('');
 
+      // Determine output type from template default, or fall back to first allowed type or 'pdf'
+      const outputType = template.defaultOutputType ||
+        (template.mimeType && ALLOWED_OUTPUTS[template.mimeType]?.[0]) ||
+        'pdf';
+
       const result = await mergeApi.mergeSingle(templateId, {
         data: formData,
         outputType,
       });
 
-      setSuccess(`Document merged successfully! Job ID: ${result.jobId}`);
+      setSuccess('Document merged successfully! Redirecting to outputs...');
 
-      // Download the merged file
-      const filePath = result.filePath.replace(/^s3:\/\/[^/]+\//, '');
-      const blob = await mergeApi.downloadOutput(filePath);
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `merged-${Date.now()}.${outputType}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      // Reset form
-      const resetData: Record<string, string> = {};
-      template?.fields.forEach((field) => {
-        resetData[field.name] = '';
-      });
-      setFormData(resetData);
+      // Redirect to outputs page after a short delay
+      setTimeout(() => {
+        navigate('/outputs');
+      }, 1500);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Merge failed. Please try again.');
     } finally {
@@ -201,21 +180,6 @@ export default function Merge() {
               />
             ))}
 
-            <FormControl fullWidth margin="normal" sx={{ mt: 3 }}>
-              <InputLabel>Output Format</InputLabel>
-              <Select
-                value={outputType}
-                label="Output Format"
-                onChange={(e) => setOutputType(e.target.value as OutputType)}
-              >
-                {(template.mimeType ? ALLOWED_OUTPUTS[template.mimeType] : ['pdf']).map((format) => (
-                  <MenuItem key={format} value={format}>
-                    {format.toUpperCase()}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
             <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
               <Button
                 type="submit"
@@ -224,7 +188,7 @@ export default function Merge() {
                 disabled={merging}
                 fullWidth
               >
-                {merging ? 'Merging...' : 'Merge & Download'}
+                {merging ? 'Merging...' : 'Merge'}
               </Button>
               <Button
                 variant="outlined"

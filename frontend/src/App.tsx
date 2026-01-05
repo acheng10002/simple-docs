@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Templates from './pages/Templates';
 import Merge from './pages/Merge';
+import EditTemplate from './pages/EditTemplate';
 import Outputs from './pages/Outputs';
 
 // Create Material-UI theme with Google-esque design
@@ -58,6 +59,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Merge />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/templates/:templateId/edit"
+              element={
+                <ProtectedRoute>
+                  <EditTemplate />
                 </ProtectedRoute>
               }
             />

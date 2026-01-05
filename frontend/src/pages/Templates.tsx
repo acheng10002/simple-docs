@@ -26,7 +26,7 @@ import {
   Logout as LogoutIcon,
   TableRows as CsvIcon,
   Folder as OutputsIcon,
-  Archive as ArchiveIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { templatesApi, mergeApi } from '../api/client';
@@ -77,9 +77,10 @@ export default function Templates() {
     try {
       setUploading(true);
       setError('');
-      await templatesApi.upload(file);
-      await loadTemplates(); // Reload list
+      const response = await templatesApi.upload(file);
       event.target.value = ''; // Reset input
+      // Redirect to edit page for the newly uploaded template
+      navigate(`/templates/${response.templateId}/edit`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Upload failed');
     } finally {
@@ -134,8 +135,11 @@ export default function Templates() {
       setError('');
       setUploading(true);
 
-      // Default to PDF for CSV bulk merge
-      const result = await mergeApi.mergeCsv(templateId, file, 'pdf');
+      // Find the template to get its defaultOutputType
+      const template = templates.find(t => t.id === templateId);
+      const outputType = template?.defaultOutputType || 'pdf';
+
+      const result = await mergeApi.mergeCsv(templateId, file, outputType);
 
       // Navigate to outputs page to see all generated files
       navigate('/outputs');
@@ -277,13 +281,13 @@ export default function Templates() {
                               <DownloadIcon />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Deactivate">
+                          <Tooltip title="Edit">
                             <IconButton
                               size="small"
-                              onClick={() => handleDeactivate(template.id, template.displayName)}
-                              color="warning"
+                              onClick={() => navigate(`/templates/${template.id}/edit`)}
+                              sx={{ color: '#B03060' }}
                             >
-                              <ArchiveIcon />
+                              <EditIcon />
                             </IconButton>
                           </Tooltip>
                         </Box>

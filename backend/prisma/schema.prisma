@@ -32,17 +32,19 @@ model User {
 /// *
 ///  * Template model - file metadata (display name + storage key) + relation to Field[] and MergeJob
 model Template {
-    id           String     @id @default(cuid())
-    mimeType     String?
-    displayName  String     // User-friendly name shown in UI (e.g. "sample.docx")
-    storageKey   String     // Unique S3 key with timestamp/UUID (e.g. "1234567890-uuid-sample.docx")
-    uploadedById String?
-    isActive     Boolean    @default(true)
-    createdAt    DateTime   @default(now())
-    updatedAt    DateTime   @updatedAt
-    fields       Field[]
-    jobs         MergeJob[]
-    uploadedBy   User?      @relation("UserTemplates", fields: [uploadedById], references: [id])
+    id                String      @id @default(cuid())
+    mimeType          String?
+    displayName       String      // User-friendly name shown in UI (e.g. "sample.docx")
+    storageKey        String      // Unique S3 key with timestamp/UUID (e.g. "1234567890-uuid-sample.docx")
+    uploadedById      String?
+    isActive          Boolean     @default(true)
+    defaultOutputType OutputType? // Default output format for merges (e.g. pdf, docx)
+    outputNameFormat  String?     // Template for output filename (e.g. "{{firstName}}-{{lastName}}")
+    createdAt         DateTime    @default(now())
+    updatedAt         DateTime    @updatedAt
+    fields            Field[]
+    jobs              MergeJob[]
+    uploadedBy        User?       @relation("UserTemplates", fields: [uploadedById], references: [id])
 
     @@index([uploadedById])
     @@index([isActive])

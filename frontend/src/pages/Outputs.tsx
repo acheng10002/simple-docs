@@ -160,8 +160,8 @@ export default function Outputs() {
               <Table>
                 <TableHead>
                   <TableRow>
+                    <TableCell>Output File Name</TableCell>
                     <TableCell>Template</TableCell>
-                    <TableCell>Output Type</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Created</TableCell>
                     <TableCell align="right">Actions</TableCell>
@@ -170,14 +170,10 @@ export default function Outputs() {
                 <TableBody>
                   {jobs.map((job) => (
                     <TableRow key={job.id || job.jobId}>
-                      <TableCell>{job.template?.displayName || 'Unknown'}</TableCell>
                       <TableCell>
-                        <Chip
-                          label={job.outputType?.toUpperCase() || 'PDF'}
-                          size="small"
-                          variant="outlined"
-                        />
+                        {job.filePath.replace(/^s3:\/\/[^/]+\//, '').split('/').pop() || 'Unknown'}
                       </TableCell>
+                      <TableCell>{job.template?.displayName || 'Unknown'}</TableCell>
                       <TableCell>
                         <Chip
                           label={job.status || 'succeeded'}

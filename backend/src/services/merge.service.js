@@ -232,14 +232,44 @@ async function mergeTemplate({
     // TODO: Implement PPTX to PDF conversion using LibreOffice
   }
 
-  // Generate unique filename based on display name
+  // Generate filename based on template settings
   const safeBase = path
     .basename(template.displayName)
     .replace(/[^\w.\- ]+/g, '_')
     .replace(/\.[^.]+$/, '');
-  const stamp = `${safeBase}-${Date.now()}-${randomUUID().slice(0, 8)}`;
+
+  // outputNameFormat is now required, but check for safety
+  if (!template.outputNameFormat || !data[template.outputNameFormat]) {
+    throw new Error('Template outputNameFormat is not configured or field value is missing');
+  }
+
+  // Use outputNameFormat field value for filename
+  const fieldValue = String(data[template.outputNameFormat])
+    .replace(/[^\w.\- ]+/g, '_')
+    .substring(0, 100); // Limit field value length
+  const baseFilename = `${safeBase}-${fieldValue}`;
   const ext = getExtension(outputType);
-  const filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${stamp}.${ext}`)}`;
+
+  // Check for existing files with same name and add incremental counter if needed
+  let filename = baseFilename;
+  let counter = 0;
+  let isDuplicate = true;
+
+  while (isDuplicate) {
+    const testPath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${filename}.${ext}`)}`;
+    const existing = await prisma.mergeJob.findFirst({
+      where: { filePath: testPath },
+    });
+
+    if (!existing) {
+      isDuplicate = false;
+    } else {
+      counter++;
+      filename = `${baseFilename}-${counter}`;
+    }
+  }
+
+  const filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${filename}.${ext}`)}`;
 
   // Upload to S3
   const s3Key = filePath.replace(/^s3:\/\/[^/]+\//, '');

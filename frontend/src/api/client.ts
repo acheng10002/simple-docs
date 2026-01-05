@@ -87,6 +87,41 @@ export const templatesApi = {
     await apiClient.delete(`/api/templates/${id}`);
   },
 
+  update: async (
+    id: string,
+    data: {
+      displayName?: string;
+      defaultOutputType?: OutputType | null;
+      outputNameFormat?: string | null;
+      file?: File;
+    }
+  ): Promise<Template> => {
+    const formData = new FormData();
+
+    if (data.displayName) {
+      formData.append('displayName', data.displayName);
+    }
+
+    if (data.defaultOutputType !== undefined) {
+      formData.append('defaultOutputType', data.defaultOutputType || '');
+    }
+
+    if (data.outputNameFormat !== undefined) {
+      formData.append('outputNameFormat', data.outputNameFormat || '');
+    }
+
+    if (data.file) {
+      formData.append('template', data.file);
+    }
+
+    const response = await apiClient.put<Template>(`/api/templates/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
   download: async (id: string): Promise<Blob> => {
     const response = await apiClient.get(`/api/templates/${id}/download`, {
       responseType: 'blob',
