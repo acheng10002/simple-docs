@@ -87,6 +87,10 @@ export const templatesApi = {
     await apiClient.delete(`/api/templates/${id}`);
   },
 
+  activate: async (id: string): Promise<void> => {
+    await apiClient.post(`/api/templates/${id}/activate`);
+  },
+
   update: async (
     id: string,
     data: {

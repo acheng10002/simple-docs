@@ -160,11 +160,11 @@ export default function Outputs() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Output File Name</TableCell>
-                    <TableCell>Template</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Created</TableCell>
-                    <TableCell align="right">Actions</TableCell>
+                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Output File</TableCell>
+                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Template</TableCell>
+                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Status</TableCell>
+                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Created</TableCell>
+                    <TableCell align="right" sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5, pr: 3 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>

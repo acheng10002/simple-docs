@@ -47,7 +47,7 @@ const mergeLimiter = rateLimit({
 
 const csvLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 15,
   message: "Too many CSV merge requests",
   keyGenerator: (req, res) => {
     // Use user ID if authenticated, otherwise fall back to IP
@@ -481,7 +481,12 @@ router.post(
       }
 
       // gets the uploaded CSV file's bytes from req.file.buffer, and converts it to a UTF-8 string
-      const csv = req.file?.buffer?.toString("utf8") ?? "";
+      let csv = req.file?.buffer?.toString("utf8") ?? "";
+
+      // Remove BOM (Byte Order Mark) if present - common in Excel exports
+      if (csv.charCodeAt(0) === 0xFEFF) {
+        csv = csv.slice(1);
+      }
 
       // empty text early-out
       if (!csv.trim()) {

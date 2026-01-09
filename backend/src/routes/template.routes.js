@@ -296,16 +296,13 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
 });
 
 /* GET /api/templates
-- lists all active templates for the authenticated user */
+- lists all templates (both active and inactive) for the authenticated user */
 router.get(
   "/templates",
   passport.authenticate("jwt", { session: false }),
   async (req, res) => {
     try {
       const templates = await prisma.template.findMany({
-        where: {
-          isActive: true,
-        },
         include: {
           fields: true,
         },
@@ -383,6 +380,43 @@ router.delete(
     } catch (err) {
       req.log.error({ err, templateId: req.params.id }, "Failed to deactivate template");
       res.status(500).json({ error: "Failed to deactivate template" });
+    }
+  }
+);
+
+/* POST /api/templates/:id/activate
+- reactivates a deactivated template */
+router.post(
+  "/templates/:id/activate",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if template exists and is inactive
+      const template = await prisma.template.findUnique({
+        where: { id },
+      });
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      if (template.isActive) {
+        return res.status(400).json({ error: "Template is already active" });
+      }
+
+      // Activate template
+      await prisma.template.update({
+        where: { id },
+        data: { isActive: true },
+      });
+
+      req.log.info({ templateId: id }, "Template activated");
+      res.status(204).send();
+    } catch (err) {
+      req.log.error({ err, templateId: req.params.id }, "Failed to activate template");
+      res.status(500).json({ error: "Failed to activate template" });
     }
   }
 );

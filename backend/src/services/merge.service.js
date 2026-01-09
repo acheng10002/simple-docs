@@ -240,12 +240,19 @@ async function mergeTemplate({
 
   // outputNameFormat is now required, but check for safety
   if (!template.outputNameFormat || !data[template.outputNameFormat]) {
+    logger.error({
+      templateId: template.id,
+      outputNameFormat: template.outputNameFormat,
+      dataKeys: Object.keys(data),
+      dataValues: data,
+    }, 'outputNameFormat validation failed');
     throw new Error('Template outputNameFormat is not configured or field value is missing');
   }
 
   // Use outputNameFormat field value for filename
   const fieldValue = String(data[template.outputNameFormat])
     .replace(/[^\w.\- ]+/g, '_')
+    .replace(/\.+$/, '') // Remove trailing dots to prevent double-dot issues
     .substring(0, 100); // Limit field value length
   const baseFilename = `${safeBase}-${fieldValue}`;
   const ext = getExtension(outputType);

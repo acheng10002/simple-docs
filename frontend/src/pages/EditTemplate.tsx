@@ -109,6 +109,12 @@ export default function EditTemplate() {
       return;
     }
 
+    // Validate output file type is selected
+    if (!defaultOutputType) {
+      setError('Please select an output file type');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
@@ -137,6 +143,21 @@ export default function EditTemplate() {
 
   const handleCancel = () => {
     navigate('/templates');
+  };
+
+  const handleDeactivate = async () => {
+    if (!templateId || !template) return;
+
+    if (!window.confirm(`Are you sure you want to deactivate the template "${template.displayName}"? This will hide it from your templates list, but all merge outputs will be preserved. You can reactivate it later if needed.`)) {
+      return;
+    }
+
+    try {
+      await templatesApi.delete(templateId);
+      navigate('/templates');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to deactivate template');
+    }
   };
 
   if (loading) {
@@ -209,16 +230,14 @@ export default function EditTemplate() {
             />
 
             {/* Output File Type */}
-            <FormControl fullWidth margin="normal" sx={{ mt: 2 }}>
+            <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
               <InputLabel>Output File Type</InputLabel>
               <Select
                 value={defaultOutputType}
                 label="Output File Type"
                 onChange={(e) => setDefaultOutputType(e.target.value as OutputType)}
+                required
               >
-                <MenuItem value="">
-                  <em>None</em>
-                </MenuItem>
                 {(template.mimeType ? ALLOWED_OUTPUTS[template.mimeType] : ['pdf']).map((type) => (
                   <MenuItem key={type} value={type}>
                     {type.toUpperCase()}
@@ -289,6 +308,23 @@ export default function EditTemplate() {
               >
                 Cancel
               </Button>
+            </Box>
+
+            {/* Deactivate Template Button */}
+            <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
+              <Button
+                variant="outlined"
+                color="error"
+                size="large"
+                onClick={handleDeactivate}
+                disabled={saving}
+                fullWidth
+              >
+                Deactivate Template
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
+                This will hide the template from your list. Merge outputs will be preserved.
+              </Typography>
             </Box>
           </Box>
         </Paper>
