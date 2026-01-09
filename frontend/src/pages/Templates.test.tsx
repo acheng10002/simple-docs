@@ -124,39 +124,7 @@ describe('Templates Page', () => {
     });
   });
 
-  it('should handle template upload successfully', async () => {
-    vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
-    vi.mocked(apiClient.templatesApi.upload).mockResolvedValue({
-      id: '3',
-      name: 'New Template',
-      fields: [],
-      createdAt: '2024-01-03T00:00:00.000Z',
-      updatedAt: '2024-01-03T00:00:00.000Z',
-      uploadedById: 'user1',
-    });
-
-    renderTemplates();
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /upload template/i })).toBeInTheDocument();
-    });
-
-    const uploadButton = screen.getByRole('button', { name: /upload template/i });
-    const fileInput = uploadButton.querySelector('input[type="file"]') as HTMLInputElement;
-
-    const file = new File(['content'], 'test.docx', {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    });
-
-    fireEvent.change(fileInput, { target: { files: [file] } });
-
-    await waitFor(() => {
-      expect(apiClient.templatesApi.upload).toHaveBeenCalledWith(file);
-      expect(apiClient.templatesApi.getAll).toHaveBeenCalledTimes(2); // Initial load + reload after upload
-    });
-  });
-
-  it('should show error for invalid file type on upload', async () => {
+  it('should open upload dialog when upload button is clicked', async () => {
     vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
 
     renderTemplates();
@@ -166,17 +134,11 @@ describe('Templates Page', () => {
     });
 
     const uploadButton = screen.getByRole('button', { name: /upload template/i });
-    const fileInput = uploadButton.querySelector('input[type="file"]') as HTMLInputElement;
-
-    const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
-
-    fireEvent.change(fileInput, { target: { files: [file] } });
+    fireEvent.click(uploadButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/only .docx and .html files are supported/i)).toBeInTheDocument();
+      expect(screen.getByText(/drag and drop your template here/i)).toBeInTheDocument();
     });
-
-    expect(apiClient.templatesApi.upload).not.toHaveBeenCalled();
   });
 
   it('should navigate to merge page when merge button clicked', async () => {
@@ -429,33 +391,6 @@ describe('Templates Page', () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/login');
-    });
-  });
-
-  it('should disable upload button while uploading', async () => {
-    vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
-    vi.mocked(apiClient.templatesApi.upload).mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 1000))
-    );
-
-    renderTemplates();
-
-    await waitFor(() => {
-      expect(screen.getByText('Upload Template')).toBeInTheDocument();
-    });
-
-    const uploadButton = screen.getByText('Upload Template').closest('label') as HTMLLabelElement;
-    const fileInput = uploadButton.querySelector('input[type="file"]') as HTMLInputElement;
-
-    const file = new File(['content'], 'test.docx', {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    });
-
-    fireEvent.change(fileInput, { target: { files: [file] } });
-
-    await waitFor(() => {
-      const uploadingButton = screen.getByText('Uploading...').closest('label');
-      expect(uploadingButton).toHaveAttribute('aria-disabled', 'true');
     });
   });
 });

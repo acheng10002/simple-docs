@@ -36,6 +36,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { templatesApi, mergeApi } from '../api/client';
 import type { Template } from '../types/api';
+import UploadTemplateDialog from '../components/UploadTemplateDialog';
 
 export default function Templates() {
   const navigate = useNavigate();
@@ -43,7 +44,7 @@ export default function Templates() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [csvMerging, setCsvMerging] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<'all' | 'active' | 'inactive'>('all');
@@ -62,37 +63,6 @@ export default function Templates() {
       setError(err.response?.data?.error || 'Failed to load templates');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    const validTypes = [
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'text/html', // .html
-      'application/pdf', // .pdf
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-    ];
-    if (!validTypes.includes(file.type)) {
-      setError('Only .docx, .html, .pdf, .xlsx, and .pptx files are supported');
-      return;
-    }
-
-    try {
-      setUploading(true);
-      setError('');
-      const response = await templatesApi.upload(file);
-      event.target.value = ''; // Reset input
-      // Redirect to edit page for the newly uploaded template
-      navigate(`/templates/${response.templateId}/edit`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Upload failed');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -251,18 +221,10 @@ export default function Templates() {
             </Box>
             <Button
               variant="contained"
-              component="label"
-              startIcon={uploading ? <CircularProgress size={20} /> : <UploadIcon />}
-              disabled={uploading}
+              startIcon={<UploadIcon />}
+              onClick={() => setUploadDialogOpen(true)}
             >
-              {uploading ? 'Uploading...' : 'Upload Template'}
-              <input
-                type="file"
-                hidden
-                accept=".docx,.html,.pdf,.xlsx,.pptx"
-                onChange={handleUpload}
-                disabled={uploading}
-              />
+              Upload Template
             </Button>
           </Box>
 
@@ -447,6 +409,12 @@ export default function Templates() {
           )}
         </Paper>
       </Container>
+
+      {/* Upload Template Dialog */}
+      <UploadTemplateDialog
+        open={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+      />
     </Box>
   );
 }
