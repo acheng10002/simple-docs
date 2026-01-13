@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
-import { AuthProvider } from './context/AuthContext';
+import { SupabaseAuthProvider } from './context/SupabaseAuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -38,7 +38,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
+      <SupabaseAuthProvider>
         <BrowserRouter>
           <Routes>
             {/* Public routes */}
@@ -84,7 +84,7 @@ function App() {
             <Route path="*" element={<Navigate to="/templates" replace />} />
           </Routes>
         </BrowserRouter>
-      </AuthProvider>
+      </SupabaseAuthProvider>
     </ThemeProvider>
   );
 }

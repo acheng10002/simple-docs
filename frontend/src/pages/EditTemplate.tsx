@@ -20,6 +20,7 @@ import {
 import { ArrowBack as BackIcon, CloudUpload as UploadIcon } from '@mui/icons-material';
 import { templatesApi } from '../api/client';
 import type { Template, OutputType } from '../types/api';
+import VersionHistory from '../components/VersionHistory';
 
 // Map of template MIME types to allowed output types
 const ALLOWED_OUTPUTS: Record<string, OutputType[]> = {
@@ -160,6 +161,11 @@ export default function EditTemplate() {
     }
   };
 
+  const handleVersionRevert = async () => {
+    await loadTemplate();
+    setSuccess('Template reverted successfully!');
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -199,7 +205,7 @@ export default function EditTemplate() {
       <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
         <Paper sx={{ p: 4 }}>
           <Typography variant="h5" component="h1" gutterBottom>
-            Edit Template Settings
+            Edit Template
           </Typography>
           <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
             Update template name, default output type, and output filename format
@@ -246,27 +252,39 @@ export default function EditTemplate() {
               </Select>
             </FormControl>
 
-            {/* Field to Append to Output File Name */}
-            <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
-              <InputLabel>Field to Append to Output File Name</InputLabel>
-              <Select
-                value={outputNameFormat}
-                label="Field to Append to Output File Name"
-                onChange={(e) => setOutputNameFormat(e.target.value)}
-                required
-              >
-                {template.fields.map((field) => (
-                  <MenuItem key={field.id} value={field.name}>
-                    {field.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Output files will be named: {(displayName || 'TemplateName').replace(/\.[^.]+$/, '')}-
-              {outputNameFormat ? `{${outputNameFormat}}` : 'fieldValue'}.{'{extension}'}
-              {outputNameFormat && ' (incremental counter added if duplicate)'}
-            </Typography>
+            {/* Output Filename */}
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" color="text.secondary" gutterBottom sx={{ mb: 1, display: 'block', ml: 1.75 }}>
+                Output Filename *
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0, ml: 1.75 }}>
+                <Typography variant="body1">
+                  {(displayName || 'TemplateName').replace(/\.[^.]+$/, '')}-
+                </Typography>
+                <FormControl sx={{ flex: 1 }} required>
+                  <InputLabel>Field to Append</InputLabel>
+                  <Select
+                    value={outputNameFormat}
+                    label="Field to Append"
+                    onChange={(e) => setOutputNameFormat(e.target.value)}
+                    required
+                    displayEmpty
+                  >
+                    {template.fields.map((field) => (
+                      <MenuItem key={field.id} value={field.name}>
+                        {field.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Typography variant="body1">
+                  .{defaultOutputType || 'pdf'}
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, ml: 1.75 }}>
+                {outputNameFormat && '(incremental counter added if duplicate)'}
+              </Typography>
+            </Box>
 
             {/* Replace Template File */}
             <Box sx={{ mt: 3 }}>
@@ -284,7 +302,7 @@ export default function EditTemplate() {
                   onChange={handleFileChange}
                 />
               </Button>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                 Upload a new file to replace the current template. Leave empty to keep the existing file.
               </Typography>
             </Box>
@@ -309,6 +327,14 @@ export default function EditTemplate() {
                 Cancel
               </Button>
             </Box>
+
+            {/* Version History Section */}
+            {templateId && (
+              <VersionHistory
+                templateId={templateId}
+                onRevertSuccess={handleVersionRevert}
+              />
+            )}
 
             {/* Deactivate Template Button */}
             <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>

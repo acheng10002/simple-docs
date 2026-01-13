@@ -6,8 +6,8 @@ PUBLIC API SURFACE THAT CALLS INTO SERVICES: MERGE PATHS -> MERGE.SERVICE.JS
 require("dotenv").config();
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-// imports my configured Passport instance with the JWT strategy I wired up to protect routes
-const passport = require("passport");
+// imports Supabase authentication middleware
+const authenticateSupabase = require("../middleware/supabase-auth");
 /* Node's cryptography module that gives me access to low-level primitives like hashes, HMACs, ciphers, signatures,
 random bytes, and key derivation */
 const crypto = require("crypto");
@@ -126,7 +126,7 @@ function verifyHmac(req, res, next) {
 router.get(
   "/templates/:templateId/download",
   // tells Passport not to use server-side sessions, making the route stateless
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   downloadLimiter,
   async (req, res) => {
     try {
@@ -241,7 +241,7 @@ router.get(
 - lists all merge jobs for the authenticated user */
 router.get(
   "/jobs",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   downloadLimiter,
   async (req, res) => {
     try {
@@ -281,7 +281,7 @@ router.get(
 - deletes a merge job and its output file */
 router.delete(
   "/jobs/:id",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   async (req, res) => {
     try {
       const jobId = parseInt(req.params.id, 10);
@@ -342,7 +342,7 @@ router.delete(
 - downloads a merge output file from S3 */
 router.get(
   "/download/:filePath(*)",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   downloadLimiter,
   async (req, res) => {
     try {
@@ -440,7 +440,7 @@ router.post(
   // POST endpoint that takes a templateId URL param
   "/templates/:templateId/merge-csv",
   // requires a valid JWT, and on success, Passport sets req.user with no server-side sessions
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   csvLimiter,
   // multer middleware that expects one uploaded file under the form field name csv
   uploadCsv.single("csv"),
@@ -581,7 +581,7 @@ router.post(
   // path param :templateId selects which template to merge
   "/templates/:templateId/merge",
   // B2b. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): auth middleware
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   mergeLimiter,
   async (req, res) => {
     try {

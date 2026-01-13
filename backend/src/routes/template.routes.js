@@ -9,7 +9,7 @@ const FileType = require("file-type");
 // module that provides utilities for working with file and directory paths safely
 const path = require("path");
 const { randomUUID } = require("crypto");
-const passport = require("passport");
+const authenticateSupabase = require("../middleware/supabase-auth");
 const prisma = require("../config/prisma");
 // middleware specific to template upload route
 const { uploadTemplate } = require("../middleware/upload.middleware");
@@ -299,7 +299,7 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
 - lists all templates (both active and inactive) for the authenticated user */
 router.get(
   "/templates",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   async (req, res) => {
     try {
       const templates = await prisma.template.findMany({
@@ -319,11 +319,181 @@ router.get(
   }
 );
 
+/* GET /api/templates/:id/versions
+ * Returns all non-expired version history for a template */
+router.get(
+  "/templates/:id/versions",
+  authenticateSupabase,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Verify template exists
+      const template = await prisma.template.findUnique({
+        where: { id },
+      });
+
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      // Get all non-expired versions, ordered by version number descending
+      const versions = await prisma.templateVersion.findMany({
+        where: {
+          templateId: id,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: {
+          versionNumber: "desc",
+        },
+        select: {
+          id: true,
+          versionNumber: true,
+          displayName: true,
+          createdAt: true,
+          mimeType: true,
+          fieldsSnapshot: true,
+        },
+      });
+
+      res.json(versions);
+    } catch (err) {
+      req.log.error(
+        { err, templateId: req.params.id },
+        "Failed to fetch version history"
+      );
+      res.status(500).json({ error: "Failed to load version history" });
+    }
+  }
+);
+
+/* POST /api/templates/:id/versions/:versionId/revert
+ * Reverts template to a specific version */
+router.post(
+  "/templates/:id/versions/:versionId/revert",
+  authenticateSupabase,
+  async (req, res) => {
+    try {
+      const { id, versionId } = req.params;
+
+      // Fetch the version to revert to
+      const version = await prisma.templateVersion.findFirst({
+        where: {
+          id: versionId,
+          templateId: id,
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (!version) {
+        return res.status(404).json({
+          error: "Version not found or has expired",
+        });
+      }
+
+      // Verify the S3 file still exists
+      const s3Key = withPrefix(`uploads/${version.storageKey}`);
+      try {
+        await s3.send(
+          new HeadObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: s3Key,
+          })
+        );
+      } catch (s3Error) {
+        return res.status(404).json({
+          error: "Version file not found in storage. The file may have been deleted.",
+        });
+      }
+
+      // Get current template state
+      const currentTemplate = await prisma.template.findUnique({
+        where: { id },
+        include: { fields: true },
+      });
+
+      // Create version of CURRENT state before reverting
+      const maxVersion = await prisma.templateVersion.findFirst({
+        where: { templateId: id },
+        orderBy: { versionNumber: "desc" },
+        select: { versionNumber: true },
+      });
+
+      const nextVersionNumber = (maxVersion?.versionNumber || 0) + 1;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      await prisma.templateVersion.create({
+        data: {
+          templateId: id,
+          versionNumber: nextVersionNumber,
+          storageKey: currentTemplate.storageKey,
+          mimeType: currentTemplate.mimeType,
+          displayName: currentTemplate.displayName,
+          defaultOutputType: currentTemplate.defaultOutputType,
+          outputNameFormat: currentTemplate.outputNameFormat,
+          fieldsSnapshot: currentTemplate.fields.map((f) => ({
+            id: f.id,
+            name: f.name,
+          })),
+          expiresAt,
+        },
+      });
+
+      // Delete current fields
+      await prisma.field.deleteMany({
+        where: { templateId: id },
+      });
+
+      // Restore fields from version snapshot
+      await prisma.field.createMany({
+        data: version.fieldsSnapshot.map((f) => ({
+          templateId: id,
+          name: f.name,
+        })),
+      });
+
+      // Update template to version state
+      const updatedTemplate = await prisma.template.update({
+        where: { id },
+        data: {
+          storageKey: version.storageKey,
+          mimeType: version.mimeType,
+          displayName: version.displayName,
+          defaultOutputType: version.defaultOutputType,
+          outputNameFormat: version.outputNameFormat,
+        },
+        include: { fields: true },
+      });
+
+      req.log.info(
+        {
+          templateId: id,
+          versionId,
+          versionNumber: version.versionNumber,
+        },
+        "Template reverted to previous version"
+      );
+
+      res.json({
+        message: `Reverted to version ${version.versionNumber}`,
+        template: updatedTemplate,
+      });
+    } catch (err) {
+      req.log.error(
+        { err, templateId: req.params.id },
+        "Failed to revert template"
+      );
+      res.status(500).json({ error: "Failed to revert template" });
+    }
+  }
+);
+
 /* GET /api/templates/:id
 - gets a single template by ID */
 router.get(
   "/templates/:id",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -351,7 +521,7 @@ router.get(
 - deactivates a template (soft delete) */
 router.delete(
   "/templates/:id",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -388,7 +558,7 @@ router.delete(
 - reactivates a deactivated template */
 router.post(
   "/templates/:id/activate",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -426,7 +596,7 @@ router.post(
 - optionally replaces the template file */
 router.put(
   "/templates/:id",
-  passport.authenticate("jwt", { session: false }),
+  authenticateSupabase,
   uploadTemplate.single("template"),
   async (req, res) => {
     try {
@@ -527,6 +697,42 @@ router.put(
           }
         }
 
+        // Create version snapshot of CURRENT state before replacing
+        const maxVersion = await prisma.templateVersion.findFirst({
+          where: { templateId: id },
+          orderBy: { versionNumber: "desc" },
+          select: { versionNumber: true },
+        });
+
+        const nextVersionNumber = (maxVersion?.versionNumber || 0) + 1;
+
+        // Set expiration to 30 days from now
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+
+        // Snapshot CURRENT state before replacing
+        await prisma.templateVersion.create({
+          data: {
+            templateId: id,
+            versionNumber: nextVersionNumber,
+            storageKey: existingTemplate.storageKey,
+            mimeType: existingTemplate.mimeType,
+            displayName: existingTemplate.displayName,
+            defaultOutputType: existingTemplate.defaultOutputType,
+            outputNameFormat: existingTemplate.outputNameFormat,
+            fieldsSnapshot: existingTemplate.fields.map((f) => ({
+              id: f.id,
+              name: f.name,
+            })),
+            expiresAt,
+          },
+        });
+
+        req.log.info(
+          { templateId: id, versionNumber: nextVersionNumber },
+          "Created template version before replacement"
+        );
+
         // Upload new file to S3
         const sanitize = (name) => path.basename(name).replace(/[^\w.\- ]+/g, "_");
         const safeName = sanitize(file.originalname);
@@ -548,6 +754,8 @@ router.put(
         // Update template with new file info
         updateData.storageKey = stamped;
         updateData.mimeType = finalMime;
+        // Reset outputNameFormat since fields have changed
+        updateData.outputNameFormat = null;
 
         // Delete old fields and create new ones
         await prisma.field.deleteMany({

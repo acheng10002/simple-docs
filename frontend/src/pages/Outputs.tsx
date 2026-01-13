@@ -26,7 +26,7 @@ import {
   Delete as DeleteIcon,
   Folder as TemplatesIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SupabaseAuthContext';
 import { jobsApi, mergeApi } from '../api/client';
 import type { MergeJob } from '../types/api';
 

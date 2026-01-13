@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import Templates from './Templates';
-import { AuthProvider } from '../context/AuthContext';
-import * as apiClient from '../api/client';
+import Templates from '../../src/pages/Templates';
+import { AuthProvider } from '../../src/context/AuthContext';
+import * as apiClient from '../../src/api/client';
 
 // Mock the API client
-vi.mock('../api/client', () => ({
+vi.mock('../../src/api/client', () => ({
   templatesApi: {
     getAll: vi.fn(),
     upload: vi.fn(),

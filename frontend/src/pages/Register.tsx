@@ -10,7 +10,7 @@ import {
   Link,
   Alert,
 } from '@mui/material';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SupabaseAuthContext';
 
 export default function Register() {
   const navigate = useNavigate();

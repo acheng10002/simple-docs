@@ -33,7 +33,7 @@ import {
   Edit as EditIcon,
   CheckCircle as ActivateIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SupabaseAuthContext';
 import { templatesApi, mergeApi } from '../api/client';
 import type { Template } from '../types/api';
 import UploadTemplateDialog from '../components/UploadTemplateDialog';

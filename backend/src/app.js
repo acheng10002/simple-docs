@@ -28,6 +28,7 @@ const requiredEnvVars = [
   "DIRECT_URL",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_ANON_KEY",
 ];
 
 // optional environment variables with defaults
@@ -55,6 +56,7 @@ if (missing.length > 0) {
   );
   console.error(" SUPABASE_URL           - Supabase project URL");
   console.error(" SUPABASE_SERVICE_ROLE_KEY - Supabase service role key");
+  console.error(" SUPABASE_ANON_KEY      - Supabase anonymous/public key");
   // abort the process with exit code 1, non-zero means failure
   process.exit(1);
 }

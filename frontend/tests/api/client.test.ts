@@ -1,40 +1,61 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
-import apiClient, { authApi, templatesApi, mergeApi, jobsApi } from './client';
+import apiClient, { authApi, templatesApi, mergeApi, jobsApi } from '../../src/api/client';
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value;
+// Mock Supabase - must create mock inside factory to avoid hoisting issues
+vi.mock('../../src/config/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn(),
+      refreshSession: vi.fn(),
+      signOut: vi.fn(),
     },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-})();
-
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-});
+  },
+}));
 
 // Mock window.location
 delete (window as any).location;
 window.location = { href: '' } as any;
 
+// Import after mock to get mocked version
+import { supabase } from '../../src/config/supabase';
+
 describe('API Client', () => {
   let mock: MockAdapter;
 
+  const mockSession = {
+    access_token: 'test-access-token',
+    refresh_token: 'test-refresh-token',
+    expires_at: Date.now() + 3600000,
+    expires_in: 3600,
+    token_type: 'bearer',
+    user: {
+      id: 'test-user-id',
+      email: 'test@example.com',
+      aud: 'authenticated',
+      role: 'authenticated',
+      app_metadata: {},
+      user_metadata: {},
+      created_at: '2024-01-01T00:00:00.000Z',
+    },
+  };
+
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
-    localStorageMock.clear();
     window.location.href = '';
+    vi.clearAllMocks();
+
+    // Default mock implementations
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
+    vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
+      data: { session: null },
+      error: { message: 'Refresh failed' } as any,
+    });
+    vi.mocked(supabase.auth.signOut).mockResolvedValue({ error: null });
   });
 
   afterEach(() => {
@@ -42,18 +63,26 @@ describe('API Client', () => {
   });
 
   describe('Request Interceptor', () => {
-    it('should add Authorization header when token exists', async () => {
-      localStorageMock.setItem('token', 'test-token');
+    it('should add Authorization header when Supabase session exists', async () => {
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
+        data: { session: mockSession },
+        error: null,
+      });
 
       mock.onGet('/api/test').reply((config) => {
-        expect(config.headers?.Authorization).toBe('Bearer test-token');
+        expect(config.headers?.Authorization).toBe('Bearer test-access-token');
         return [200, { success: true }];
       });
 
       await apiClient.get('/api/test');
     });
 
-    it('should not add Authorization header when token does not exist', async () => {
+    it('should not add Authorization header when no Supabase session exists', async () => {
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
+        data: { session: null },
+        error: null,
+      });
+
       mock.onGet('/api/test').reply((config) => {
         expect(config.headers?.Authorization).toBeUndefined();
         return [200, { success: true }];
@@ -61,12 +90,21 @@ describe('API Client', () => {
 
       await apiClient.get('/api/test');
     });
+
+    // Note: getSession errors are not caught by the interceptor and will cause request to fail
+    // This matches current implementation behavior
   });
 
   describe('Response Interceptor', () => {
-    it('should handle 401 error by clearing storage and redirecting', async () => {
-      localStorageMock.setItem('token', 'test-token');
-      localStorageMock.setItem('user', JSON.stringify({ id: '1', email: 'test@example.com' }));
+    // Note: Full retry flow with token refresh is difficult to test with axios-mock-adapter
+    // due to how axios.request(config) creates new requests. The functionality is verified
+    // through integration tests and manual testing.
+
+    it('should sign out and redirect on 401 when token refresh fails', async () => {
+      vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
+        data: { session: null },
+        error: { message: 'Refresh failed' } as any,
+      });
 
       mock.onGet('/api/test').reply(401, { error: 'Unauthorized' });
 
@@ -76,14 +114,30 @@ describe('API Client', () => {
         // Error is expected
       }
 
-      expect(localStorageMock.getItem('token')).toBeNull();
-      expect(localStorageMock.getItem('user')).toBeNull();
+      expect(supabase.auth.refreshSession).toHaveBeenCalled();
+      expect(supabase.auth.signOut).toHaveBeenCalled();
       expect(window.location.href).toBe('/login');
     });
 
-    it('should not clear storage for non-401 errors', async () => {
-      localStorageMock.setItem('token', 'test-token');
+    it('should sign out and redirect on 401 when refresh returns null session', async () => {
+      vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
+        data: { session: null },
+        error: null,
+      });
 
+      mock.onGet('/api/test').reply(401, { error: 'Unauthorized' });
+
+      try {
+        await apiClient.get('/api/test');
+      } catch (error) {
+        // Error is expected
+      }
+
+      expect(supabase.auth.signOut).toHaveBeenCalled();
+      expect(window.location.href).toBe('/login');
+    });
+
+    it('should not attempt refresh for non-401 errors', async () => {
       mock.onGet('/api/test').reply(500, { error: 'Server Error' });
 
       try {
@@ -92,7 +146,8 @@ describe('API Client', () => {
         // Error is expected
       }
 
-      expect(localStorageMock.getItem('token')).toBe('test-token');
+      expect(supabase.auth.refreshSession).not.toHaveBeenCalled();
+      expect(supabase.auth.signOut).not.toHaveBeenCalled();
       expect(window.location.href).toBe('');
     });
   });
@@ -107,15 +162,17 @@ describe('API Client', () => {
       };
 
       const mockResponse = {
-        token: 'test-token',
+        session: mockSession,
         user: { id: '1', email: 'test@example.com', firstName: 'Test', lastName: 'User' },
       };
 
-      mock.onPost('/api/auth/register', mockRequest).reply(200, mockResponse);
+      mock.onPost('/api/auth/register', mockRequest).reply(201, mockResponse);
 
       const result = await authApi.register(mockRequest);
 
       expect(result).toEqual(mockResponse);
+      expect(result.session).toBeDefined();
+      expect(result.user).toBeDefined();
     });
 
     it('should login a user', async () => {
@@ -125,7 +182,7 @@ describe('API Client', () => {
       };
 
       const mockResponse = {
-        token: 'test-token',
+        session: mockSession,
         user: { id: '1', email: 'test@example.com', firstName: 'Test', lastName: 'User' },
       };
 
@@ -134,6 +191,8 @@ describe('API Client', () => {
       const result = await authApi.login(mockRequest);
 
       expect(result).toEqual(mockResponse);
+      expect(result.session).toBeDefined();
+      expect(result.user).toBeDefined();
     });
 
     it('should handle login error', async () => {
@@ -145,6 +204,19 @@ describe('API Client', () => {
       mock.onPost('/api/auth/login', mockRequest).reply(401, { error: 'Invalid credentials' });
 
       await expect(authApi.login(mockRequest)).rejects.toThrow();
+    });
+
+    it('should handle registration validation errors', async () => {
+      const mockRequest = {
+        email: 'invalid-email',
+        password: 'short',
+        firstName: 'Test',
+        lastName: 'User',
+      };
+
+      mock.onPost('/api/auth/register', mockRequest).reply(400, { error: 'Invalid email format' });
+
+      await expect(authApi.register(mockRequest)).rejects.toThrow();
     });
   });
 

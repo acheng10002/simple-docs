@@ -1,9 +1,12 @@
 import axios, { AxiosError } from 'axios';
+import { supabase } from '../config/supabase';
 import type {
   AuthResponse,
   LoginRequest,
   RegisterRequest,
   Template,
+  TemplateVersion,
+  RevertResponse,
   UploadResponse,
   MergeRequest,
   MergeJob,
@@ -23,24 +26,36 @@ const apiClient = axios.create({
   },
 });
 
-// Add auth token to requests if it exists
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Add Supabase session token to requests
+apiClient.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
   }
+
   return config;
 });
 
-// Handle auth errors globally
+// Handle auth errors globally with token refresh
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<ErrorResponse>) => {
+  async (error: AxiosError<ErrorResponse>) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid - clear auth and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Try to refresh the session
+      const { data: { session }, error: refreshError } =
+        await supabase.auth.refreshSession();
+
+      if (refreshError || !session) {
+        // Refresh failed - sign out and redirect to login
+        await supabase.auth.signOut();
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      } else if (error.config) {
+        // Retry the original request with new token
+        error.config.headers.Authorization = `Bearer ${session.access_token}`;
+        return axios.request(error.config);
+      }
     }
     return Promise.reject(error);
   }
@@ -130,6 +145,23 @@ export const templatesApi = {
     const response = await apiClient.get(`/api/templates/${id}/download`, {
       responseType: 'blob',
     });
+    return response.data;
+  },
+
+  getVersions: async (id: string): Promise<TemplateVersion[]> => {
+    const response = await apiClient.get<TemplateVersion[]>(
+      `/api/templates/${id}/versions`
+    );
+    return response.data;
+  },
+
+  revertToVersion: async (
+    templateId: string,
+    versionId: string
+  ): Promise<RevertResponse> => {
+    const response = await apiClient.post<RevertResponse>(
+      `/api/templates/${templateId}/versions/${versionId}/revert`
+    );
     return response.data;
   },
 };

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import UploadTemplateDialog from './UploadTemplateDialog';
-import { templatesApi } from '../api/client';
+import UploadTemplateDialog from '../../src/components/UploadTemplateDialog';
+import { templatesApi } from '../../src/api/client';
 
 // Mock the API client
-vi.mock('../api/client', () => ({
+vi.mock('../../src/api/client', () => ({
   templatesApi: {
     upload: vi.fn(),
   },

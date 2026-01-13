@@ -37,6 +37,23 @@ export interface Template {
   createdAt?: string;
 }
 
+export interface TemplateVersion {
+  id: string;
+  versionNumber: number;
+  displayName: string;
+  mimeType: string;
+  createdAt: string;
+  fieldsSnapshot: Array<{
+    id: string;
+    name: string;
+  }>;
+}
+
+export interface RevertResponse {
+  message: string;
+  template: Template;
+}
+
 export interface UploadResponse {
   templateId: string;
   fields: string[];

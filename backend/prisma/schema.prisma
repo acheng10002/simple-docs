@@ -9,12 +9,13 @@ datasource db {
 }
 
 /// *
-///  * User model - required for JWT authentication, owner of templates/jobs, with roles, standard fields
+///  * User model - Supabase Auth integration, owner of templates/jobs, with roles, standard fields
 model User {
     id               String     @id @default(cuid())
     email            String     @unique
     username         String?    @unique
-    password         String
+    password         String?    // Nullable - password managed by Supabase Auth
+    supabaseId       String?    @unique // Supabase Auth user ID
     role             UserRole   @default(user)
     isActive         Boolean    @default(true)
     firstName        String?
@@ -27,6 +28,7 @@ model User {
 
     @@index([email])
     @@index([isActive])
+    @@index([supabaseId])
 }
 
 /// *
@@ -40,14 +42,37 @@ model Template {
     isActive          Boolean     @default(true)
     defaultOutputType OutputType? // Default output format for merges (e.g. pdf, docx)
     outputNameFormat  String?     // Template for output filename (e.g. "{{firstName}}-{{lastName}}")
-    createdAt         DateTime    @default(now())
-    updatedAt         DateTime    @updatedAt
+    createdAt         DateTime          @default(now())
+    updatedAt         DateTime          @updatedAt
     fields            Field[]
     jobs              MergeJob[]
-    uploadedBy        User?       @relation("UserTemplates", fields: [uploadedById], references: [id])
+    versions          TemplateVersion[]
+    uploadedBy        User?             @relation("UserTemplates", fields: [uploadedById], references: [id])
 
     @@index([uploadedById])
     @@index([isActive])
+}
+
+/// *
+///  * TemplateVersion model - stores historical versions of templates for version control
+model TemplateVersion {
+    id                String      @id @default(cuid())
+    templateId        String
+    versionNumber     Int         // Auto-incremented per template
+    storageKey        String      // S3 key of the version's file
+    mimeType          String
+    displayName       String
+    defaultOutputType OutputType?
+    outputNameFormat  String?
+    fieldsSnapshot    Json        // Snapshot of fields at version time
+    createdAt         DateTime    @default(now())
+    expiresAt         DateTime    // 30 days from createdAt
+
+    template          Template    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+    @@unique([templateId, versionNumber])
+    @@index([templateId, createdAt])
+    @@index([expiresAt])
 }
 
 /// *
