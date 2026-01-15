@@ -6,9 +6,11 @@ const mockSupabaseClient = {
   auth: {
     getUser: jest.fn(),
     signInWithPassword: jest.fn(),
+    resetPasswordForEmail: jest.fn(),
     admin: {
       createUser: jest.fn(),
       signOut: jest.fn(),
+      updateUserById: jest.fn(),
     },
   },
 };

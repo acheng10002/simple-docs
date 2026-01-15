@@ -4,6 +4,7 @@ import { SupabaseAuthProvider } from './context/SupabaseAuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';
 import Templates from './pages/Templates';
 import Merge from './pages/Merge';
 import EditTemplate from './pages/EditTemplate';
@@ -44,6 +45,7 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Protected routes */}
             <Route

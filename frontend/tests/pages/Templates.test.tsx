@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Templates from '../../src/pages/Templates';
-import { AuthProvider } from '../../src/context/AuthContext';
+import { SupabaseAuthProvider } from '../../src/context/SupabaseAuthContext';
 import * as apiClient from '../../src/api/client';
 
 // Mock the API client
@@ -15,6 +15,23 @@ vi.mock('../../src/api/client', () => ({
   },
   mergeApi: {
     mergeCsv: vi.fn(),
+  },
+  foldersApi: {
+    getAll: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+// Mock Supabase
+vi.mock('../../src/config/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      onAuthStateChange: vi.fn().mockReturnValue({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      }),
+      setSession: vi.fn(),
+      signOut: vi.fn(),
+    },
   },
 }));
 
@@ -40,9 +57,9 @@ global.URL.revokeObjectURL = vi.fn();
 const renderTemplates = () => {
   return render(
     <BrowserRouter>
-      <AuthProvider>
+      <SupabaseAuthProvider>
         <Templates />
-      </AuthProvider>
+      </SupabaseAuthProvider>
     </BrowserRouter>
   );
 };
@@ -91,24 +108,24 @@ describe('Templates Page', () => {
     const mockTemplates = [
       {
         id: '1',
-        name: 'Test Template 1',
+        displayName: 'Test Template 1',
         fields: [
-          { id: '1', name: 'field1', templateId: '1' },
-          { id: '2', name: 'field2', templateId: '1' },
+          { name: 'field1' },
+          { name: 'field2' },
         ],
         createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        uploadedById: 'user1',
+        isActive: true,
+        folderId: null,
       },
       {
         id: '2',
-        name: 'Test Template 2',
+        displayName: 'Test Template 2',
         fields: [
-          { id: '3', name: 'field3', templateId: '2' },
+          { name: 'field3' },
         ],
         createdAt: '2024-01-02T00:00:00.000Z',
-        updatedAt: '2024-01-02T00:00:00.000Z',
-        uploadedById: 'user1',
+        isActive: true,
+        folderId: null,
       },
     ];
 
@@ -145,11 +162,11 @@ describe('Templates Page', () => {
     const mockTemplates = [
       {
         id: 'template1',
-        name: 'Test Template',
+        displayName: 'Test Template',
         fields: [],
         createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        uploadedById: 'user1',
+        isActive: true,
+        folderId: null,
       },
     ];
 
@@ -161,7 +178,9 @@ describe('Templates Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const mergeButton = screen.getByTitle('Merge');
+    // Find merge button by its icon's data-testid
+    const mergeIcon = screen.getByTestId('MergeTypeIcon');
+    const mergeButton = mergeIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(mergeButton);
 
     expect(mockNavigate).toHaveBeenCalledWith('/templates/template1/merge');
@@ -171,11 +190,11 @@ describe('Templates Page', () => {
     const mockTemplates = [
       {
         id: 'template1',
-        name: 'Test Template',
+        displayName: 'Test Template',
         fields: [],
         createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        uploadedById: 'user1',
+        isActive: true,
+        folderId: null,
       },
     ];
 
@@ -188,7 +207,9 @@ describe('Templates Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const csvButton = screen.getByTitle('Bulk Merge CSV');
+    // Find CSV button by its icon's data-testid
+    const csvIcon = screen.getByTestId('TableRowsIcon');
+    const csvButton = csvIcon.closest('label') as HTMLLabelElement;
     const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
 
     const csvFile = new File(['col1,col2\nval1,val2'], 'test.csv', { type: 'text/csv' });
@@ -205,11 +226,11 @@ describe('Templates Page', () => {
     const mockTemplates = [
       {
         id: 'template1',
-        name: 'Test Template',
+        displayName: 'Test Template',
         fields: [],
         createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        uploadedById: 'user1',
+        isActive: true,
+        folderId: null,
       },
     ];
 
@@ -221,7 +242,9 @@ describe('Templates Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const csvButton = screen.getByTitle('Bulk Merge CSV');
+    // Find CSV button by its icon's data-testid
+    const csvIcon = screen.getByTestId('TableRowsIcon');
+    const csvButton = csvIcon.closest('label') as HTMLLabelElement;
     const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
 
     const txtFile = new File(['content'], 'test.txt', { type: 'text/plain' });
@@ -239,11 +262,11 @@ describe('Templates Page', () => {
     const mockTemplates = [
       {
         id: 'template1',
-        name: 'Test Template.docx',
+        displayName: 'Test Template.docx',
         fields: [],
         createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        uploadedById: 'user1',
+        isActive: true,
+        folderId: null,
       },
     ];
 
@@ -273,7 +296,9 @@ describe('Templates Page', () => {
       expect(screen.getByText('Test Template.docx')).toBeInTheDocument();
     });
 
-    const downloadButton = screen.getByTitle('Download');
+    // Find download button by its icon's data-testid
+    const downloadIcon = screen.getByTestId('DownloadIcon');
+    const downloadButton = downloadIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(downloadButton);
 
     await waitFor(() => {
@@ -287,21 +312,19 @@ describe('Templates Page', () => {
     removeChildSpy.mockRestore();
   });
 
-  it('should handle template deactivation with confirmation', async () => {
+  it('should navigate to edit page when edit button clicked', async () => {
     const mockTemplates = [
       {
         id: 'template1',
-        name: 'Test Template',
+        displayName: 'Test Template',
         fields: [],
         createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        uploadedById: 'user1',
+        isActive: true,
+        folderId: null,
       },
     ];
 
     vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
-    vi.mocked(apiClient.templatesApi.delete).mockResolvedValue(undefined);
-    mockConfirm.mockReturnValue(true);
 
     renderTemplates();
 
@@ -309,44 +332,12 @@ describe('Templates Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const deactivateButton = screen.getByTitle('Deactivate');
-    fireEvent.click(deactivateButton);
+    // Find edit button by its icon's data-testid
+    const editIcon = screen.getByTestId('EditIcon');
+    const editButton = editIcon.closest('button') as HTMLButtonElement;
+    fireEvent.click(editButton);
 
-    await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith(
-        expect.stringContaining('Are you sure you want to deactivate the template "Test Template"?')
-      );
-      expect(apiClient.templatesApi.delete).toHaveBeenCalledWith('template1');
-      expect(apiClient.templatesApi.getAll).toHaveBeenCalledTimes(2); // Initial load + reload after deactivate
-    });
-  });
-
-  it('should not deactivate template if confirmation is cancelled', async () => {
-    const mockTemplates = [
-      {
-        id: 'template1',
-        name: 'Test Template',
-        fields: [],
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        uploadedById: 'user1',
-      },
-    ];
-
-    vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
-    mockConfirm.mockReturnValue(false);
-
-    renderTemplates();
-
-    await waitFor(() => {
-      expect(screen.getByText('Test Template')).toBeInTheDocument();
-    });
-
-    const deactivateButton = screen.getByTitle('Deactivate');
-    fireEvent.click(deactivateButton);
-
-    expect(mockConfirm).toHaveBeenCalled();
-    expect(apiClient.templatesApi.delete).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/templates/template1/edit');
   });
 
   it('should display error message on API failure', async () => {
@@ -383,10 +374,10 @@ describe('Templates Page', () => {
     renderTemplates();
 
     await waitFor(() => {
-      expect(screen.getByTestId('LogoutIcon')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
     });
 
-    const logoutButton = screen.getByTestId('LogoutIcon').closest('button') as HTMLButtonElement;
+    const logoutButton = screen.getByRole('button', { name: /log out/i });
     fireEvent.click(logoutButton);
 
     await waitFor(() => {

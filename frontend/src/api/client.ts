@@ -73,6 +73,20 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/api/auth/login', data);
     return response.data;
   },
+
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>('/api/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (password: string, accessToken: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>(
+      '/api/auth/reset-password',
+      { password },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    return response.data;
+  },
 };
 
 // Templates API

@@ -115,11 +115,9 @@ router.post("/auth/register", authLimiter, async (req, res) => {
 router.post("/auth/login", authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log("DEBUG: Login attempt for email:", email);
 
     // validates required fields
     if (!email || !password) {
-      console.log("DEBUG: Missing email or password");
       return res.status(400).json({
         error: "Email and password are required"
       });
@@ -129,7 +127,6 @@ router.post("/auth/login", authLimiter, async (req, res) => {
     const dbUser = await prisma.user.findUnique({
       where: { email }
     });
-    console.log("DEBUG: DB user found:", !!dbUser);
 
     if (!dbUser) {
       return res.status(401).json({
@@ -139,19 +136,16 @@ router.post("/auth/login", authLimiter, async (req, res) => {
 
     // checks if user account is active
     if (!dbUser.isActive) {
-      console.log("DEBUG: User is not active");
       return res.status(403).json({
         error: "Account is disabled. Contact support."
       });
     }
 
     // authenticates with Supabase Auth
-    console.log("DEBUG: Calling Supabase auth...");
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email,
       password,
     });
-    console.log("DEBUG: Supabase response - error:", error?.message, "success:", !!data?.session);
 
     if (error) {
       req.log.warn({ email, error: error.message }, "Supabase login failed");
@@ -182,6 +176,104 @@ router.post("/auth/login", authLimiter, async (req, res) => {
     req.log.error({ err, email: req.body?.email }, "Login failed");
     res.status(500).json({
       error: "Login failed. Please try again."
+    });
+  }
+});
+
+/* POST /api/auth/forgot-password
+- sends password reset email via Supabase Auth
+- always returns success to prevent email enumeration */
+router.post("/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Email is required"
+      });
+    }
+
+    // Always attempt to send reset email - Supabase handles non-existent emails gracefully
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password`,
+    });
+
+    if (error) {
+      // Log error but don't expose to client (prevents email enumeration)
+      req.log.warn({ email, error: error.message }, "Password reset request failed");
+    }
+
+    // Always return success to prevent email enumeration
+    res.json({
+      message: "If an account exists with this email, a password reset link has been sent."
+    });
+  } catch (err) {
+    req.log.error({ err, email: req.body?.email }, "Password reset request failed");
+    // Still return success to prevent enumeration
+    res.json({
+      message: "If an account exists with this email, a password reset link has been sent."
+    });
+  }
+});
+
+/* POST /api/auth/reset-password
+- updates user password after reset email verification
+- requires valid Supabase session from reset link */
+router.post("/auth/reset-password", async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        error: "Password is required"
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        error: "Password must be at least 8 characters"
+      });
+    }
+
+    const authHeader = req.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        error: "Invalid reset session"
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+
+    // Verify the token and get the user
+    const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
+
+    if (verifyError || !user) {
+      return res.status(401).json({
+        error: "Invalid or expired reset link"
+      });
+    }
+
+    // Update the password
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: password
+    });
+
+    if (updateError) {
+      req.log.error({ error: updateError.message, userId: user.id }, "Password update failed");
+      return res.status(500).json({
+        error: "Failed to update password. Please try again."
+      });
+    }
+
+    req.log.info({ userId: user.id, email: user.email }, "Password reset successful");
+
+    res.json({
+      message: "Password has been reset successfully. You can now log in with your new password."
+    });
+  } catch (err) {
+    req.log.error({ err }, "Password reset failed");
+    res.status(500).json({
+      error: "Failed to reset password. Please try again."
     });
   }
 });

@@ -335,6 +335,169 @@ describe("Supabase Auth Routes", () => {
     });
   });
 
+  describe("POST /api/auth/forgot-password", () => {
+    test("should return success message for existing user", async () => {
+      supabaseClient.auth.resetPasswordForEmail.mockResolvedValue({
+        data: {},
+        error: null,
+      });
+
+      const response = await request(app)
+        .post("/api/auth/forgot-password")
+        .send({ email: "test@example.com" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe(
+        "If an account exists with this email, a password reset link has been sent."
+      );
+      expect(supabaseClient.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+        "test@example.com",
+        { redirectTo: expect.stringContaining("/reset-password") }
+      );
+    });
+
+    test("should return same success message for non-existing user (prevents enumeration)", async () => {
+      supabaseClient.auth.resetPasswordForEmail.mockResolvedValue({
+        data: {},
+        error: { message: "User not found" },
+      });
+
+      const response = await request(app)
+        .post("/api/auth/forgot-password")
+        .send({ email: "nonexistent@example.com" });
+
+      // Should still return 200 with same message to prevent email enumeration
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe(
+        "If an account exists with this email, a password reset link has been sent."
+      );
+    });
+
+    test("should return 400 when email is missing", async () => {
+      const response = await request(app)
+        .post("/api/auth/forgot-password")
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Email is required");
+    });
+
+    test("should return success even when Supabase throws an error", async () => {
+      supabaseClient.auth.resetPasswordForEmail.mockRejectedValue(
+        new Error("Network error")
+      );
+
+      const response = await request(app)
+        .post("/api/auth/forgot-password")
+        .send({ email: "test@example.com" });
+
+      // Should still return success to prevent enumeration
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe(
+        "If an account exists with this email, a password reset link has been sent."
+      );
+    });
+  });
+
+  describe("POST /api/auth/reset-password", () => {
+    const validToken = "valid-reset-token";
+    const mockUser = {
+      id: "supabase-123",
+      email: "test@example.com",
+    };
+
+    test("should reset password successfully with valid token", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ password: "newPassword123" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe(
+        "Password has been reset successfully. You can now log in with your new password."
+      );
+      expect(supabaseAdmin.auth.getUser).toHaveBeenCalledWith(validToken);
+      expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(
+        mockUser.id,
+        { password: "newPassword123" }
+      );
+    });
+
+    test("should return 400 when password is missing", async () => {
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Password is required");
+    });
+
+    test("should return 400 when password is too short", async () => {
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ password: "short" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Password must be at least 8 characters");
+    });
+
+    test("should return 401 when Authorization header is missing", async () => {
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .send({ password: "newPassword123" });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe("Invalid reset session");
+    });
+
+    test("should return 401 when token is invalid", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: "Invalid token" },
+      });
+
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .set("Authorization", "Bearer invalid-token")
+        .send({ password: "newPassword123" });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe("Invalid or expired reset link");
+    });
+
+    test("should return 500 when password update fails", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({
+        data: null,
+        error: { message: "Update failed" },
+      });
+
+      const response = await request(app)
+        .post("/api/auth/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ password: "newPassword123" });
+
+      expect(response.status).toBe(500);
+      expect(response.body.error).toBe("Failed to update password. Please try again.");
+    });
+  });
+
   // Note: Rate limiting tests are skipped because express-rate-limit is mocked
   // to prevent interference with other tests. Rate limiting is tested separately
   // in integration tests with the actual rate limiter.

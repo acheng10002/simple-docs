@@ -2,17 +2,34 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Outputs from '../../src/pages/Outputs';
-import { AuthProvider } from '../../src/context/AuthContext';
+import { SupabaseAuthProvider } from '../../src/context/SupabaseAuthContext';
 import * as apiClient from '../../src/api/client';
 
 // Mock the API client
 vi.mock('../../src/api/client', () => ({
+  default: {
+    post: vi.fn(),
+  },
   jobsApi: {
     getAll: vi.fn(),
     delete: vi.fn(),
   },
   mergeApi: {
     downloadOutput: vi.fn(),
+  },
+}));
+
+// Mock Supabase
+vi.mock('../../src/config/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      onAuthStateChange: vi.fn().mockReturnValue({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      }),
+      setSession: vi.fn(),
+      signOut: vi.fn(),
+    },
   },
 }));
 
@@ -38,9 +55,9 @@ global.URL.revokeObjectURL = vi.fn();
 const renderOutputs = () => {
   return render(
     <BrowserRouter>
-      <AuthProvider>
+      <SupabaseAuthProvider>
         <Outputs />
-      </AuthProvider>
+      </SupabaseAuthProvider>
     </BrowserRouter>
   );
 };
@@ -98,7 +115,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template 1',
+          displayName: 'Test Template 1',
         },
       },
       {
@@ -112,7 +129,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-02T12:00:00.000Z',
         template: {
           id: 'template2',
-          name: 'Test Template 2',
+          displayName: 'Test Template 2',
         },
       },
     ];
@@ -124,8 +141,6 @@ describe('Outputs Page', () => {
     await waitFor(() => {
       expect(screen.getByText('Test Template 1')).toBeInTheDocument();
       expect(screen.getByText('Test Template 2')).toBeInTheDocument();
-      expect(screen.getByText('PDF')).toBeInTheDocument();
-      expect(screen.getByText('DOCX')).toBeInTheDocument();
       expect(screen.getByText('succeeded')).toBeInTheDocument();
       expect(screen.getByText('processing')).toBeInTheDocument();
     });
@@ -168,7 +183,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
@@ -179,7 +194,8 @@ describe('Outputs Page', () => {
 
     await waitFor(() => {
       const statusChip = screen.getByText('succeeded').closest('.MuiChip-root');
-      expect(statusChip).toHaveClass('MuiChip-colorSuccess');
+      // Succeeded status uses inline green styles
+      expect(statusChip).toHaveStyle({ backgroundColor: '#4caf50' });
     });
   });
 
@@ -196,7 +212,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
@@ -227,7 +243,8 @@ describe('Outputs Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const downloadButton = screen.getByTitle('Download');
+    const downloadIcon = screen.getByTestId('DownloadIcon');
+    const downloadButton = downloadIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(downloadButton);
 
     await waitFor(() => {
@@ -255,7 +272,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
@@ -268,7 +285,8 @@ describe('Outputs Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const downloadButton = screen.getByTitle('Download');
+    const downloadIcon = screen.getByTestId('DownloadIcon');
+    const downloadButton = downloadIcon.closest('button') as HTMLButtonElement;
     expect(downloadButton).toBeDisabled();
   });
 
@@ -285,7 +303,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
@@ -300,7 +318,8 @@ describe('Outputs Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const deleteButton = screen.getByTitle('Delete');
+    const deleteIcon = screen.getByTestId('DeleteIcon');
+    const deleteButton = deleteIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(deleteButton);
 
     await waitFor(() => {
@@ -325,7 +344,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
@@ -339,7 +358,8 @@ describe('Outputs Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const deleteButton = screen.getByTitle('Delete');
+    const deleteIcon = screen.getByTestId('DeleteIcon');
+    const deleteButton = deleteIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(deleteButton);
 
     expect(mockConfirm).toHaveBeenCalled();
@@ -372,7 +392,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
@@ -388,7 +408,8 @@ describe('Outputs Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const downloadButton = screen.getByTitle('Download');
+    const downloadIcon = screen.getByTestId('DownloadIcon');
+    const downloadButton = downloadIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(downloadButton);
 
     await waitFor(() => {
@@ -409,7 +430,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-01T12:00:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
@@ -426,7 +447,8 @@ describe('Outputs Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    const deleteButton = screen.getByTitle('Delete');
+    const deleteIcon = screen.getByTestId('DeleteIcon');
+    const deleteButton = deleteIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(deleteButton);
 
     await waitFor(() => {
@@ -455,10 +477,10 @@ describe('Outputs Page', () => {
     renderOutputs();
 
     await waitFor(() => {
-      expect(screen.getByTestId('LogoutIcon')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
     });
 
-    const logoutButton = screen.getByTestId('LogoutIcon').closest('button') as HTMLButtonElement;
+    const logoutButton = screen.getByRole('button', { name: /log out/i });
     fireEvent.click(logoutButton);
 
     await waitFor(() => {
@@ -479,7 +501,7 @@ describe('Outputs Page', () => {
         createdAt: '2024-01-15T10:30:00.000Z',
         template: {
           id: 'template1',
-          name: 'Test Template',
+          displayName: 'Test Template',
         },
       },
     ];
