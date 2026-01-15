@@ -115,9 +115,11 @@ router.post("/auth/register", authLimiter, async (req, res) => {
 router.post("/auth/login", authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log("DEBUG: Login attempt for email:", email);
 
     // validates required fields
     if (!email || !password) {
+      console.log("DEBUG: Missing email or password");
       return res.status(400).json({
         error: "Email and password are required"
       });
@@ -127,6 +129,7 @@ router.post("/auth/login", authLimiter, async (req, res) => {
     const dbUser = await prisma.user.findUnique({
       where: { email }
     });
+    console.log("DEBUG: DB user found:", !!dbUser);
 
     if (!dbUser) {
       return res.status(401).json({
@@ -136,16 +139,19 @@ router.post("/auth/login", authLimiter, async (req, res) => {
 
     // checks if user account is active
     if (!dbUser.isActive) {
+      console.log("DEBUG: User is not active");
       return res.status(403).json({
         error: "Account is disabled. Contact support."
       });
     }
 
     // authenticates with Supabase Auth
+    console.log("DEBUG: Calling Supabase auth...");
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email,
       password,
     });
+    console.log("DEBUG: Supabase response - error:", error?.message, "success:", !!data?.session);
 
     if (error) {
       req.log.warn({ email, error: error.message }, "Supabase login failed");

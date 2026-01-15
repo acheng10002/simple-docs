@@ -22,6 +22,7 @@ import {
   RadioGroup,
   FormControlLabel,
   Radio,
+  Divider,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -34,9 +35,17 @@ import {
   CheckCircle as ActivateIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
-import { templatesApi, mergeApi } from '../api/client';
-import type { Template } from '../types/api';
+import { templatesApi, mergeApi, foldersApi } from '../api/client';
+import type { Template, Folder } from '../types/api';
 import UploadTemplateDialog from '../components/UploadTemplateDialog';
+import FolderTree from '../components/FolderTree';
+import {
+  CreateFolderDialog,
+  RenameFolderDialog,
+  MoveFolderDialog,
+  MoveTemplateDialog,
+} from '../components/FolderDialogs';
+import { CreateNewFolder as CreateFolderIcon, DriveFileMove as MoveFolderIcon } from '@mui/icons-material';
 
 export default function Templates() {
   const navigate = useNavigate();
@@ -49,8 +58,21 @@ export default function Templates() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<'all' | 'active' | 'inactive'>('all');
 
+  // Folder state
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set());
+  const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
+  const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
+  const [renameFolderDialog, setRenameFolderDialog] = useState<Folder | null>(null);
+  const [moveFolderDialog, setMoveFolderDialog] = useState<Folder | null>(null);
+  const [moveTemplateDialog, setMoveTemplateDialog] = useState<{ templateId: string; folderId: string | null } | null>(null);
+  const [draggedTemplateId, setDraggedTemplateId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+
   useEffect(() => {
     loadTemplates();
+    loadFolders();
   }, []);
 
   const loadTemplates = async () => {
@@ -144,6 +166,61 @@ export default function Templates() {
     }
   };
 
+  const loadFolders = async () => {
+    try {
+      const data = await foldersApi.getAll();
+      setFolders(data);
+      setExpandedFolderIds(new Set(data.map(f => f.id)));
+    } catch (err: any) {
+      console.error('Failed to load folders:', err);
+    }
+  };
+
+  const handleCreateFolder = () => {
+    setCreateFolderParentId(null);
+    setCreateFolderDialogOpen(true);
+  };
+
+  const handleFolderCreated = () => {
+    loadFolders();
+    loadTemplates();
+  };
+
+  const handleToggleFolder = (folderId: string) => {
+    setExpandedFolderIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDragStart = (templateId: string) => {
+    setDraggedTemplateId(templateId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTemplateId(null);
+    setDragOverFolderId(null);
+  };
+
+  const handleDropOnFolder = async (folderId: string) => {
+    if (!draggedTemplateId) return;
+
+    try {
+      await foldersApi.moveTemplate(draggedTemplateId, { folderId });
+      await loadTemplates();
+      await loadFolders();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to move template');
+    } finally {
+      setDraggedTemplateId(null);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -219,13 +296,22 @@ export default function Templates() {
                 <FormControlLabel value="inactive" control={<Radio size="small" />} label="Inactive" />
               </RadioGroup>
             </Box>
-            <Button
-              variant="contained"
-              startIcon={<UploadIcon />}
-              onClick={() => setUploadDialogOpen(true)}
-            >
-              Upload Template
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<CreateFolderIcon />}
+                onClick={handleCreateFolder}
+              >
+                + Folder
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<UploadIcon />}
+                onClick={() => setUploadDialogOpen(true)}
+              >
+                Upload Template
+              </Button>
+            </Box>
           </Box>
 
           {error && (
@@ -255,13 +341,51 @@ export default function Templates() {
               {/* Active Templates Section */}
               {filteredTemplates.filter(t => t.isActive).length > 0 && (
                 <Box sx={{ mb: 0 }}>
-                  <Box sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', py: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.12)', mb: 2, bgcolor: 'grey.50', px: 2 }}>
+                  <Box sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', py: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.12)', bgcolor: 'grey.200', px: 2 }}>
                     <Typography variant="h6" sx={{ mb: 0 }}>
                       Active Templates
                     </Typography>
                   </Box>
-                  <TableContainer>
-                    <Table sx={{ tableLayout: 'fixed' }}>
+
+                  {/* Folder Tree */}
+                  {folders.length > 0 && (
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', px: 2, bgcolor: 'grey.50', py: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.125rem', mr: 2 }}>
+                          Folders
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          Click, drag, and drop any active template into an existing folder.
+                        </Typography>
+                      </Box>
+                      <Divider />
+                      <FolderTree
+                        folders={folders}
+                        templates={templates}
+                        selectedFolderId={selectedFolderId}
+                        expandedFolderIds={expandedFolderIds}
+                        onSelectFolder={setSelectedFolderId}
+                        onToggleFolder={handleToggleFolder}
+                        onCreateFolder={(parentId) => {
+                          setCreateFolderParentId(parentId);
+                          setCreateFolderDialogOpen(true);
+                        }}
+                        onRenameFolder={setRenameFolderDialog}
+                        onMoveFolder={setMoveFolderDialog}
+                        onRefresh={handleFolderCreated}
+                        onDrop={handleDropOnFolder}
+                        onDragOverChange={setDragOverFolderId}
+                        dragOverFolderId={dragOverFolderId}
+                        onMerge={handleMerge}
+                        onDownload={handleDownload}
+                        onCsvMerge={handleCsvMerge}
+                        onEdit={(templateId) => navigate(`/templates/${templateId}/edit`)}
+                      />
+                      <Divider />
+                    </Box>
+                  )}
+                  <TableContainer sx={{ padding: 0 }}>
+                    <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
                       <colgroup>
                         <col style={{ width: '25%' }} />
                         <col style={{ width: '30%' }} />
@@ -269,26 +393,37 @@ export default function Templates() {
                         <col style={{ width: '20%' }} />
                       </colgroup>
                       <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ pt: 0, pb: 1.5 }}>Name</TableCell>
-                          <TableCell sx={{ pt: 0, pb: 1.5 }}>Fields</TableCell>
-                          <TableCell sx={{ pt: 0, pb: 1.5 }}>Created</TableCell>
-                          <TableCell align="center" sx={{ pt: 0, pb: 1.5 }}>Actions</TableCell>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
+                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
+                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
+                          <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {filteredTemplates.filter(t => t.isActive).map((template) => (
-                          <TableRow key={template.id}>
-                            <TableCell>{template.displayName}</TableCell>
-                            <TableCell>
+                        {filteredTemplates.filter(t => t.isActive && !t.folderId).map((template) => (
+                          <TableRow
+                            key={template.id}
+                            draggable
+                            onDragStart={() => handleDragStart(template.id)}
+                            onDragEnd={handleDragEnd}
+                            sx={{
+                              cursor: 'grab',
+                              '&:active': { cursor: 'grabbing' },
+                              opacity: draggedTemplateId === template.id ? (dragOverFolderId ? 0.3 : 0.5) : 1,
+                              bgcolor: 'white'
+                            }}
+                          >
+                            <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
+                            <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {template.fields.map((f) => f.name).join(', ')}
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ py: 1 }}>
                               {template.createdAt
                                 ? new Date(template.createdAt).toLocaleString()
                                 : 'Unknown'}
                             </TableCell>
-                            <TableCell align="right">
+                            <TableCell align="right" sx={{ py: 1 }}>
                               <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
                                 <Tooltip title="Merge">
                                   <IconButton
@@ -345,13 +480,13 @@ export default function Templates() {
               {/* Inactive Templates Section */}
               {filteredTemplates.filter(t => !t.isActive).length > 0 && (
                 <Box>
-                  <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2, pt: 1, pb: 1, bgcolor: 'grey.50', px: 2 }}>
+                  <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0, pt: 1, pb: 1, bgcolor: 'grey.200', px: 2 }}>
                     <Typography variant="h6" sx={{ mb: 0 }}>
                       Inactive Templates
                     </Typography>
                   </Box>
-                  <TableContainer>
-                    <Table sx={{ tableLayout: 'fixed' }}>
+                  <TableContainer sx={{ padding: 0 }}>
+                    <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
                       <colgroup>
                         <col style={{ width: '25%' }} />
                         <col style={{ width: '30%' }} />
@@ -359,26 +494,26 @@ export default function Templates() {
                         <col style={{ width: '20%' }} />
                       </colgroup>
                       <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ pt: 0, pb: 1.5 }}>Name</TableCell>
-                          <TableCell sx={{ pt: 0, pb: 1.5 }}>Fields</TableCell>
-                          <TableCell sx={{ pt: 0, pb: 1.5 }}>Created</TableCell>
-                          <TableCell align="center" sx={{ pt: 0, pb: 1.5 }}>Actions</TableCell>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
+                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
+                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
+                          <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {filteredTemplates.filter(t => !t.isActive).map((template) => (
-                          <TableRow key={template.id}>
-                            <TableCell sx={{ color: 'text.secondary' }}>{template.displayName}</TableCell>
-                            <TableCell sx={{ color: 'text.secondary' }}>
+                          <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
+                            <TableCell sx={{ color: 'text.secondary', py: 1 }}>{template.displayName}</TableCell>
+                            <TableCell sx={{ color: 'text.secondary', py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {template.fields.map((f) => f.name).join(', ')}
                             </TableCell>
-                            <TableCell sx={{ color: 'text.secondary' }}>
+                            <TableCell sx={{ color: 'text.secondary', py: 1 }}>
                               {template.createdAt
                                 ? new Date(template.createdAt).toLocaleString()
                                 : 'Unknown'}
                             </TableCell>
-                            <TableCell align="center">
+                            <TableCell align="center" sx={{ py: 1 }}>
                               <Tooltip title="Activate">
                                 <IconButton
                                   size="small"
@@ -414,6 +549,38 @@ export default function Templates() {
       <UploadTemplateDialog
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
+      />
+
+      {/* Folder Dialogs */}
+      <CreateFolderDialog
+        open={createFolderDialogOpen}
+        parentId={createFolderParentId}
+        onClose={() => setCreateFolderDialogOpen(false)}
+        onSuccess={handleFolderCreated}
+      />
+
+      <RenameFolderDialog
+        open={renameFolderDialog !== null}
+        folder={renameFolderDialog}
+        onClose={() => setRenameFolderDialog(null)}
+        onSuccess={handleFolderCreated}
+      />
+
+      <MoveFolderDialog
+        open={moveFolderDialog !== null}
+        folder={moveFolderDialog}
+        folders={folders}
+        onClose={() => setMoveFolderDialog(null)}
+        onSuccess={handleFolderCreated}
+      />
+
+      <MoveTemplateDialog
+        open={moveTemplateDialog !== null}
+        templateId={moveTemplateDialog?.templateId || null}
+        currentFolderId={moveTemplateDialog?.folderId || null}
+        folders={folders}
+        onClose={() => setMoveTemplateDialog(null)}
+        onSuccess={handleFolderCreated}
       />
     </Box>
   );

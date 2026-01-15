@@ -29,12 +29,29 @@ export interface Field {
   name: string;
 }
 
+export interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  depth: number;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    templates: number;
+    children: number;
+  };
+}
+
 export interface Template {
   id: string;
   displayName: string;  // User-friendly template name (e.g. "My Invoice.docx")
   mimeType?: string;
   fields: Field[];
   createdAt?: string;
+  isActive?: boolean;
+  folderId?: string | null;
+  folder?: Folder | null;
 }
 
 export interface TemplateVersion {

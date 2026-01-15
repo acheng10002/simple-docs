@@ -12,6 +12,7 @@ const uploadRouter = require("./routes/template.routes");
 // router for merge execution & webhook intake
 const mergeRouter = require("./routes/merge.routes");
 const authRouter = require("./routes/auth.routes");
+const folderRouter = require("./routes/folder.routes");
 const rateLimit = require("express-rate-limit");
 const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
@@ -175,12 +176,15 @@ app.use("/api/webhooks", rawJson);
 B1. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): body parsing */
 app.use(express.json({ limit: "10mb" }));
 
+// Auth routes first - login/register should not require authentication
+app.use("/api", authRouter);
+// Folder routes must come before template routes to match /templates/:id/move before /templates/:id
+app.use("/api", folderRouter);
 // POST /api/upload - mounts the upload routes from ./templateUploadHandler under /api
 app.use("/api", uploadRouter);
-/* POST /api/templates/:templateId/merge, /api/webhooks, etc. - mounts the merge and download routes 
+/* POST /api/templates/:templateId/merge, /api/webhooks, etc. - mounts the merge and download routes
 from ./merge.routes under /api */
 app.use("/api", mergeRouter);
-app.use("/api", authRouter);
 
 app.use(errorLogger.expressErrorHandler);
 

@@ -13,6 +13,7 @@ import type {
   BulkMergeResponse,
   ErrorResponse,
   OutputType,
+  Folder,
 } from '../types/api';
 
 // API base URL - uses Vite proxy in development, direct URL in production
@@ -162,6 +163,38 @@ export const templatesApi = {
     const response = await apiClient.post<RevertResponse>(
       `/api/templates/${templateId}/versions/${versionId}/revert`
     );
+    return response.data;
+  },
+};
+
+// Folders API
+export const foldersApi = {
+  getAll: async (): Promise<Folder[]> => {
+    const response = await apiClient.get<Folder[]>('/api/folders');
+    return response.data;
+  },
+
+  create: async (data: { name: string; parentId?: string | null }): Promise<Folder> => {
+    const response = await apiClient.post<Folder>('/api/folders', data);
+    return response.data;
+  },
+
+  rename: async (id: string, data: { name: string }): Promise<Folder> => {
+    const response = await apiClient.put<Folder>(`/api/folders/${id}`, data);
+    return response.data;
+  },
+
+  move: async (id: string, data: { newParentId: string | null }): Promise<Folder> => {
+    const response = await apiClient.put<Folder>(`/api/folders/${id}/move`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/folders/${id}`);
+  },
+
+  moveTemplate: async (templateId: string, data: { folderId: string | null }): Promise<Template> => {
+    const response = await apiClient.put<Template>(`/api/templates/${templateId}/move`, data);
     return response.data;
   },
 };

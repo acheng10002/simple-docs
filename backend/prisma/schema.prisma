@@ -25,10 +25,33 @@ model User {
     lastLogin        DateTime?
     mergeJobs        MergeJob[] @relation("UserMergeJobs")
     createdTemplates Template[] @relation("UserTemplates")
+    folders          Folder[]   @relation("UserFolders")
 
     @@index([email])
     @@index([isActive])
     @@index([supabaseId])
+}
+
+/// *
+///  * Folder model - hierarchical organization for templates with max depth of 4
+model Folder {
+    id        String   @id @default(cuid())
+    name      String
+    parentId  String?
+    depth     Int
+    userId    String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    parent    Folder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+    children  Folder[]   @relation("FolderHierarchy")
+    templates Template[]
+    user      User       @relation("UserFolders", fields: [userId], references: [id])
+
+    @@unique([userId, parentId, name])
+    @@index([userId])
+    @@index([parentId])
+    @@index([userId, parentId])
 }
 
 /// *
@@ -39,6 +62,7 @@ model Template {
     displayName       String      // User-friendly name shown in UI (e.g. "sample.docx")
     storageKey        String      // Unique S3 key with timestamp/UUID (e.g. "1234567890-uuid-sample.docx")
     uploadedById      String?
+    folderId          String?
     isActive          Boolean     @default(true)
     defaultOutputType OutputType? // Default output format for merges (e.g. pdf, docx)
     outputNameFormat  String?     // Template for output filename (e.g. "{{firstName}}-{{lastName}}")
@@ -48,9 +72,11 @@ model Template {
     jobs              MergeJob[]
     versions          TemplateVersion[]
     uploadedBy        User?             @relation("UserTemplates", fields: [uploadedById], references: [id])
+    folder            Folder?           @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
     @@index([uploadedById])
     @@index([isActive])
+    @@index([folderId])
 }
 
 /// *
