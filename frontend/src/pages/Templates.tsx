@@ -296,7 +296,7 @@ export default function Templates() {
                 <FormControlLabel value="inactive" control={<Radio size="small" />} label="Inactive" />
               </RadioGroup>
             </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 3 }}>
               <Button
                 variant="outlined"
                 startIcon={<CreateFolderIcon />}
