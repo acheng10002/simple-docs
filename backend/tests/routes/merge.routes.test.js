@@ -5,11 +5,11 @@ const jwt = require("jsonwebtoken");
 const { Readable } = require("stream");
 
 // mocks prisma
-jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
-const prisma = require("../../prisma");
+jest.mock("../../src/config/prisma");
+const prisma = require("../../src/config/prisma");
 
 // mocks passport
-jest.mock("../../passport", () => {
+jest.mock("../../src/config/passport", () => {
   const passport = require("passport");
   const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 
@@ -31,46 +31,26 @@ jest.mock("../../passport", () => {
 });
 
 // mocks S3 client
-jest.mock("../../s3", () => {
-  return {
-    s3: { send: jest.fn() },
-    PutObjectCommand: class PutObjectCommand {
-      constructor(input) {
-        this.input = input;
-      }
-    },
-    GetObjectCommand: class GetObjectCommand {
-      constructor(input) {
-        this.input = input;
-      }
-    },
-    HeadObjectCommand: class HeadObjectCommand {
-      constructor(input) {
-        this.input = input;
-      }
-    },
-    withPrefix: (k) => k,
-  };
-});
+jest.mock("../../src/storage/supabase-storage");
 
-const { s3 } = require("../../s3");
+const { s3 } = require("../../src/storage/supabase-storage");
 
 // mocks merge service
-jest.mock("../../merge.service", () => ({
+jest.mock("../../src/services/merge.service", () => ({
   mergeTemplate: jest.fn(),
 }));
 
-const { mergeTemplate } = require("../../merge.service");
+const { mergeTemplate } = require("../../src/services/merge.service");
 
 // mocks template service
-jest.mock("../../template.service", () => ({
+jest.mock("../../src/services/template.service", () => ({
   resolveTemplateFile: jest.fn(),
 }));
 
-const { resolveTemplateFile } = require("../../template.service");
+const { resolveTemplateFile } = require("../../src/services/template.service");
 
 // mocks multer upload middleware
-jest.mock("../../upload.middleware", () => ({
+jest.mock("../../src/middleware/upload.middleware", () => ({
   uploadCsv: {
     single: () => (req, res, next) => {
       if (req.body && req.body._mockFile) {
@@ -98,7 +78,7 @@ describe("Merge Routes", () => {
     app = express();
 
     // initializes passport
-    const { passport } = require("../../passport");
+    const { passport } = require("../../src/config/passport");
     app.use(passport.initialize());
 
     // body parsers
@@ -110,7 +90,7 @@ describe("Merge Routes", () => {
     app.use(express.json({ limit: "10mb" }));
 
     // mount routes
-    const mergeRouter = require("../../merge.routes");
+    const mergeRouter = require("../../src/routes/merge.routes");
     app.use("/api", mergeRouter);
 
     // generate valid JWT token

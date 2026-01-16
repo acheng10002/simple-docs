@@ -12,6 +12,7 @@ vi.mock('../../src/api/client', () => ({
     upload: vi.fn(),
     download: vi.fn(),
     delete: vi.fn(),
+    activate: vi.fn(),
   },
   mergeApi: {
     mergeCsv: vi.fn(),
@@ -382,6 +383,320 @@ describe('Templates Page', () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/login');
+    });
+  });
+
+  describe('Search Functionality', () => {
+    it('should display search input and scope radio buttons', async () => {
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
+
+      renderTemplates();
+
+      // Wait for loading to complete and search input to appear
+      const searchInput = await screen.findByPlaceholderText(/search templates by name or field/i);
+      expect(searchInput).toBeInTheDocument();
+
+      // Check radio buttons exist (they're part of a RadioGroup)
+      await waitFor(() => {
+        expect(screen.getByRole('radiogroup')).toBeInTheDocument();
+        expect(screen.getByRole('radio', { name: /all/i })).toBeInTheDocument();
+        expect(screen.getByRole('radio', { name: /^active$/i })).toBeInTheDocument();
+        expect(screen.getByRole('radio', { name: /^inactive$/i })).toBeInTheDocument();
+      });
+    });
+
+    it('should filter templates by search query matching name', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Invoice Template',
+          fields: [{ name: 'customer_name' }],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+        {
+          id: '2',
+          displayName: 'Report Template',
+          fields: [{ name: 'report_date' }],
+          createdAt: '2024-01-02T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoice Template')).toBeInTheDocument();
+        expect(screen.getByText('Report Template')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText(/search templates by name or field/i);
+      fireEvent.change(searchInput, { target: { value: 'Invoice' } });
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoice Template')).toBeInTheDocument();
+        expect(screen.queryByText('Report Template')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should filter templates by search query matching field name', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Invoice Template',
+          fields: [{ name: 'customer_name' }, { name: 'amount' }],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+        {
+          id: '2',
+          displayName: 'Report Template',
+          fields: [{ name: 'report_date' }],
+          createdAt: '2024-01-02T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoice Template')).toBeInTheDocument();
+        expect(screen.getByText('Report Template')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText(/search templates by name or field/i);
+      fireEvent.change(searchInput, { target: { value: 'customer' } });
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoice Template')).toBeInTheDocument();
+        expect(screen.queryByText('Report Template')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should show no results message when search has no matches', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Invoice Template',
+          fields: [{ name: 'customer_name' }],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoice Template')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText(/search templates by name or field/i);
+      fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/no templates found matching your search/i)).toBeInTheDocument();
+      });
+    });
+
+    it('should filter by active scope', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Active Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+        {
+          id: '2',
+          displayName: 'Inactive Template',
+          fields: [],
+          createdAt: '2024-01-02T00:00:00.000Z',
+          isActive: false,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Active Template')).toBeInTheDocument();
+      });
+
+      const activeRadio = screen.getByRole('radio', { name: /^active$/i });
+      fireEvent.click(activeRadio);
+
+      await waitFor(() => {
+        expect(screen.getByText('Active Template')).toBeInTheDocument();
+        expect(screen.queryByText('Inactive Template')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should filter by inactive scope', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Active Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+        {
+          id: '2',
+          displayName: 'Inactive Template',
+          fields: [],
+          createdAt: '2024-01-02T00:00:00.000Z',
+          isActive: false,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Active Template')).toBeInTheDocument();
+      });
+
+      const inactiveRadio = screen.getByRole('radio', { name: /^inactive$/i });
+      fireEvent.click(inactiveRadio);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Active Template')).not.toBeInTheDocument();
+        expect(screen.getByText('Inactive Template')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Inactive Templates', () => {
+    it('should display inactive templates section', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Active Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+        {
+          id: '2',
+          displayName: 'Inactive Template',
+          fields: [],
+          createdAt: '2024-01-02T00:00:00.000Z',
+          isActive: false,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Active Templates')).toBeInTheDocument();
+        expect(screen.getByText('Inactive Templates')).toBeInTheDocument();
+      });
+    });
+
+    it('should display activate button for inactive templates', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Inactive Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: false,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Inactive Template')).toBeInTheDocument();
+        expect(screen.getByTestId('CheckCircleIcon')).toBeInTheDocument();
+      });
+    });
+
+    it('should call activate API when activate button is clicked and confirmed', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Inactive Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: false,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+      vi.mocked(apiClient.templatesApi.activate).mockResolvedValue(undefined);
+      mockConfirm.mockReturnValue(true);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Inactive Template')).toBeInTheDocument();
+      });
+
+      const activateIcon = screen.getByTestId('CheckCircleIcon');
+      const activateButton = activateIcon.closest('button') as HTMLButtonElement;
+      fireEvent.click(activateButton);
+
+      await waitFor(() => {
+        expect(mockConfirm).toHaveBeenCalledWith(
+          expect.stringContaining('reactivate')
+        );
+        expect(apiClient.templatesApi.activate).toHaveBeenCalledWith('1');
+      });
+    });
+
+    it('should not call activate API when cancelled', async () => {
+      const mockTemplates = [
+        {
+          id: '1',
+          displayName: 'Inactive Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: false,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+      mockConfirm.mockReturnValue(false);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Inactive Template')).toBeInTheDocument();
+      });
+
+      const activateIcon = screen.getByTestId('CheckCircleIcon');
+      const activateButton = activateIcon.closest('button') as HTMLButtonElement;
+      fireEvent.click(activateButton);
+
+      expect(apiClient.templatesApi.activate).not.toHaveBeenCalled();
     });
   });
 });

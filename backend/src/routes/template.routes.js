@@ -27,6 +27,7 @@ const {
   s3,
   PutObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
   withPrefix,
 } = require("../storage/supabase-storage");
 

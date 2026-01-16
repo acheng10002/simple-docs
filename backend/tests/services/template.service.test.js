@@ -1,118 +1,254 @@
-/* tells Jest to replace ../prisma with my mock module in ../_mocks_/prisma 
-- uses a manual mock factory - whatever the require returns becomes the mocked module */
-jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
-// imports the mocked Prism client, because of the jest.mock above
-const prisma = require("../../prisma");
+/**
+ * Unit tests for template.service.js
+ * Tests: contentTypeFor, resolveTemplateFile, extractFieldsFromTemplate, storeTemplateAndFields
+ */
 
-/* 
-// Node's promises fs API
-const fs = require("fs/promises");
-/* tells Jest to auto-mock it 
-- functions like fs.stat are Jest mock functions, I can do mockResolvedValue / mockRejectedValue 
-jest.mock("fs/promises");
+// Mock prisma before requiring any modules that use it
+jest.mock("../../src/config/prisma");
+const prisma = require("../../src/config/prisma");
 
-// absolute path for uploads directory
-const { UPLOADS_DIR } = require("../paths");
-// Node's path utilities (e.g. path.join)
-const path = require("path");
-*/
+// Mock S3 storage client
+jest.mock("../../src/storage/supabase-storage");
+const { s3, HeadObjectCommand } = require("../../src/storage/supabase-storage");
 
-// mock S3 client
-jest.mock("../../s3", () => {
-  return {
-    s3: { send: jest.fn() },
-    PutObjectCommand: class PutObjectCommand {},
-    GetObjectCommand: class GetObjectCommand {},
-    HeadObjectCommand: class HeadObjectCommand {},
-    withPrefix: (k) => k,
-  };
-});
+// Mock format services for extractFieldsFromTemplate
+jest.mock("../../src/services/docxService", () => ({
+  extractDocxFields: jest.fn(),
+}));
+jest.mock("../../src/services/htmlService", () => ({
+  extractHtmlFields: jest.fn(),
+}));
+jest.mock("../../src/services/pdfService", () => ({
+  extractPdfFields: jest.fn(),
+}));
+jest.mock("../../src/services/xlsxService", () => ({
+  extractXlsxFields: jest.fn(),
+}));
+jest.mock("../../src/services/pptxService", () => ({
+  extractPptxFields: jest.fn(),
+}));
 
-const { s3 } = require("../../s3");
+const docxService = require("../../src/services/docxService");
+const htmlService = require("../../src/services/htmlService");
+const pdfService = require("../../src/services/pdfService");
+const xlsxService = require("../../src/services/xlsxService");
+const pptxService = require("../../src/services/pptxService");
 
-// functions under tests from my service module
+// Import functions under test
 const {
+  contentTypeFor,
   resolveTemplateFile,
-  extractTextFromBuffer,
-  extractPlaceholders,
-} = require("../../template.service");
+  extractFieldsFromTemplate,
+  storeTemplateAndFields,
+} = require("../../src/services/template.service");
 
-// starts a Jest test suite
 describe("template.service", () => {
   beforeEach(() => {
-    /* clears call history and restores default mock implementations for all mocks
-    - makes for good test hygiene between tests */
     jest.resetAllMocks();
+    process.env.S3_BUCKET = "test-bucket";
   });
 
-  test("extractPlaceholders dedupes and parses dot paths", () => {
-    // feeds sample text extractPlaceholders
-    const text = "Hello {{name}} and {{client.name}} and {{ name }}";
-    const fields = extractPlaceholders(text);
-    /* asserts it trims whitespace in tags, deduplicates, preserves dot paths like client.name, 
-    and returns exactly those two fields (.sort() is order-insensitive) */
-    expect(fields.sort()).toEqual(["client.name", "name"]);
+  afterEach(() => {
+    delete process.env.S3_BUCKET;
   });
 
-  test("extractTextFromBuffer for HTML returns body text", async () => {
-    /* creates a UTF-8 Buffer for HTML and calls extractTextFromBuffer with MIME text/html
-    UTF-8 - encodes text as bytes, character encoding that maps every Unicode character to 1-4 bytes
-            backward-compatible with ASCII 
-            is the default encoding for the web and most APIs/file today 
-    Base64 - encodes bytes as ASCII-only text, binary-to-text encoding
-             takes arbitrary bytes and represents them using only 64 safe characters 
-             it's for transporting/burying binary data in places that only accept text */
-    const html = Buffer.from(
-      `<html><body><p>hi <b>there</b></p></body></html>`,
-      "utf8"
-    );
-    const text = await extractTextFromBuffer(html, "text/html");
-    /* expects body text to flattent o something containing "hi there" 
-    - HTML parsers normalize whitespace */
-    expect(text).toContain("hi there");
+  describe("contentTypeFor", () => {
+    test("returns correct MIME type for DOCX files", () => {
+      expect(contentTypeFor("document.docx")).toBe(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+    });
+
+    test("returns correct MIME type for HTML files", () => {
+      expect(contentTypeFor("page.html")).toBe("text/html");
+      expect(contentTypeFor("page.htm")).toBe("text/html");
+    });
+
+    test("returns correct MIME type for PDF files", () => {
+      expect(contentTypeFor("document.pdf")).toBe("application/pdf");
+    });
+
+    test("returns correct MIME type for XLSX files", () => {
+      expect(contentTypeFor("spreadsheet.xlsx")).toBe(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+    });
+
+    test("returns correct MIME type for PPTX files", () => {
+      expect(contentTypeFor("presentation.pptx")).toBe(
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      );
+    });
+
+    test("returns octet-stream for unknown file types", () => {
+      expect(contentTypeFor("file.unknown")).toBe("application/octet-stream");
+      expect(contentTypeFor("file.txt")).toBe("application/octet-stream");
+    });
+
+    test("handles uppercase extensions", () => {
+      expect(contentTypeFor("document.DOCX")).toBe(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+    });
   });
 
-  // test("resolveTemplateFile returns metadata when file exists", async () => {
-  test("resolveTemplateFile returns S3 metadata when file exists", async () => {
-    // mocks the db call to return a template record
-    const tpl = { id: "t1", name: "1712345678901-sample.html" };
-    prisma.template.findUnique.mockResolvedValue(tpl);
-    // const abs = path.join(UPLOADS_DIR, tpl.name);
-    // mocks fs.stat to pretend the file exists and has size 123
-    // fs.stat.mockResolvedValue({ size: 123 });
-    // HeadObject success with size
-    s3.send.mockResolvedValueOnce({ ContentLength: 123 });
-    // calls resolveTemplateFile and asserts the returned bundle has...
-    const info = await resolveTemplateFile("t1");
-    // correct absolute path
-    // expect(info.absPath).toBe(abs);
-    // s3Key is uploads/<name>
-    expect(info.s3Key).toBe(`uploads/${tpl.name}`);
-    // file stats, size is from HeadObject
-    expect(info.stat.size).toBe(123);
-    // timestamp-stripped download name (i.e. sample.html)
-    expect(info.downloadName).toBe("sample.html");
-    // content type inferred from extension, mime from name
-    expect(info.contentType).toBe("text/html");
-    // no absPath on S3 flow
-    expect(info.absPath).toBeUndefined();
-    expect(info.missing).toBeUndefined();
+  describe("resolveTemplateFile", () => {
+    test("returns S3 metadata when file exists", async () => {
+      const tpl = {
+        id: "t1",
+        storageKey: "1712345678901-sample.html",
+        displayName: "sample.html",
+      };
+      prisma.template.findUnique.mockResolvedValue(tpl);
+
+      // HeadObject success with size
+      s3.send.mockResolvedValueOnce({
+        ContentLength: 123,
+        ETag: '"abc123"',
+        LastModified: new Date("2024-01-01"),
+      });
+
+      const info = await resolveTemplateFile("t1");
+
+      expect(info.tpl).toBe(tpl);
+      expect(info.s3Key).toBe(`uploads/${tpl.storageKey}`);
+      expect(info.stat.size).toBe(123);
+      expect(info.downloadName).toBe("sample.html");
+      expect(info.contentType).toBe("text/html");
+      expect(info.missing).toBeUndefined();
+    });
+
+    test("returns null when template not found in database", async () => {
+      prisma.template.findUnique.mockResolvedValue(null);
+
+      const info = await resolveTemplateFile("nonexistent");
+
+      expect(info).toBeNull();
+    });
+
+    test("marks missing when file not in S3", async () => {
+      const tpl = {
+        id: "t2",
+        storageKey: "1700000000000-sample.docx",
+        displayName: "sample.docx",
+      };
+      prisma.template.findUnique.mockResolvedValue(tpl);
+
+      // HeadObject fails - file not found
+      const err = new Error("NotFound");
+      err.$metadata = { httpStatusCode: 404 };
+      s3.send.mockRejectedValueOnce(err);
+
+      const info = await resolveTemplateFile("t2");
+
+      expect(info).toEqual({ tpl, missing: true });
+    });
   });
 
-  test("resolveTemplateFile marks missing when file not on disk", async () => {
-    // mocks dv to return a template row
-    const tpl = { id: "t2", name: "1700000000000-sample.docx" };
-    prisma.template.findUnique.mockResolvedValue(tpl);
-    // but fs.stat rejects (file not found)
-    // fs.stat.mockRejectedValue(Object.assign(new Error("nope")));
-    // HeadObject fails -> treated as missing
-    const err = new Error("NotFound");
-    err.$metadata = { httpStatusCode: 404 };
-    s3.send.mockRejectedValueOnce(err);
+  describe("extractFieldsFromTemplate", () => {
+    test("delegates to docxService for DOCX files", async () => {
+      const buffer = Buffer.from("fake docx");
+      const expectedFields = ["name", "address"];
+      docxService.extractDocxFields.mockResolvedValue(expectedFields);
 
-    const info = await resolveTemplateFile("t2");
-    /* asserts the function returns a sentinel { tpl, missing: true } so callers can 
-    send a precise 404 message */
-    expect(info).toEqual({ tpl, missing: true });
+      const fields = await extractFieldsFromTemplate(
+        buffer,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+
+      expect(docxService.extractDocxFields).toHaveBeenCalledWith(buffer);
+      expect(fields).toEqual(expectedFields);
+    });
+
+    test("delegates to htmlService for HTML files", async () => {
+      const buffer = Buffer.from("<html>{{name}}</html>");
+      const expectedFields = ["name", "email"];
+      htmlService.extractHtmlFields.mockResolvedValue(expectedFields);
+
+      const fields = await extractFieldsFromTemplate(buffer, "text/html");
+
+      expect(htmlService.extractHtmlFields).toHaveBeenCalledWith(buffer);
+      expect(fields).toEqual(expectedFields);
+    });
+
+    test("delegates to pdfService for PDF files", async () => {
+      const buffer = Buffer.from("fake pdf");
+      const expectedFields = ["field1", "field2"];
+      pdfService.extractPdfFields.mockResolvedValue(expectedFields);
+
+      const fields = await extractFieldsFromTemplate(buffer, "application/pdf");
+
+      expect(pdfService.extractPdfFields).toHaveBeenCalledWith(buffer);
+      expect(fields).toEqual(expectedFields);
+    });
+
+    test("delegates to xlsxService for XLSX files", async () => {
+      const buffer = Buffer.from("fake xlsx");
+      const expectedFields = ["column1", "column2"];
+      xlsxService.extractXlsxFields.mockResolvedValue(expectedFields);
+
+      const fields = await extractFieldsFromTemplate(
+        buffer,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+
+      expect(xlsxService.extractXlsxFields).toHaveBeenCalledWith(buffer);
+      expect(fields).toEqual(expectedFields);
+    });
+
+    test("delegates to pptxService for PPTX files", async () => {
+      const buffer = Buffer.from("fake pptx");
+      const expectedFields = ["title", "subtitle"];
+      pptxService.extractPptxFields.mockResolvedValue(expectedFields);
+
+      const fields = await extractFieldsFromTemplate(
+        buffer,
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      );
+
+      expect(pptxService.extractPptxFields).toHaveBeenCalledWith(buffer);
+      expect(fields).toEqual(expectedFields);
+    });
+
+    test("throws error for unsupported format", async () => {
+      const buffer = Buffer.from("unknown");
+
+      await expect(
+        extractFieldsFromTemplate(buffer, "application/unknown")
+      ).rejects.toThrow("Unsupported template format: application/unknown");
+    });
+  });
+
+  describe("storeTemplateAndFields", () => {
+    test("creates template with fields in database", async () => {
+      const expectedResult = {
+        id: "new-template-id",
+        storageKey: "1234567890-invoice.docx",
+        displayName: "Invoice Template.docx",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        fields: [{ name: "customer_name" }, { name: "amount" }],
+      };
+      prisma.template.create.mockResolvedValue(expectedResult);
+
+      const result = await storeTemplateAndFields(
+        "1234567890-invoice.docx",
+        "Invoice Template.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ["customer_name", "amount"]
+      );
+
+      expect(prisma.template.create).toHaveBeenCalledWith({
+        data: {
+          storageKey: "1234567890-invoice.docx",
+          displayName: "Invoice Template.docx",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          fields: {
+            create: [{ name: "customer_name" }, { name: "amount" }],
+          },
+        },
+        include: { fields: true },
+      });
+      expect(result).toEqual(expectedResult);
+    });
   });
 });

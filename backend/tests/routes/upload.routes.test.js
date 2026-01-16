@@ -2,22 +2,12 @@ const request = require("supertest");
 const express = require("express");
 
 // mocks prisma
-jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
+jest.mock("../../src/config/prisma");
 
 // mocks S3 client
-jest.mock("../../s3", () => {
-  return {
-    s3: { send: jest.fn() },
-    PutObjectCommand: class PutObjectCommand {
-      constructor(input) {
-        this.input = input;
-      }
-    },
-    withPrefix: (k) => k,
-  };
-});
+jest.mock("../../src/storage/supabase-storage");
 
-const { s3 } = require("../../s3");
+const { s3 } = require("../../src/storage/supabase-storage");
 
 // mocks file-type for MIME detection
 jest.mock("file-type", () => ({
@@ -27,7 +17,7 @@ jest.mock("file-type", () => ({
 const FileType = require("file-type");
 
 // mocks template service functions
-jest.mock("../../template.service", () => ({
+jest.mock("../../src/services/template.service", () => ({
   extractTextFromBuffer: jest.fn(),
   extractPlaceholders: jest.fn(),
   storeTemplateAndFields: jest.fn(),
@@ -37,19 +27,19 @@ const {
   extractTextFromBuffer,
   extractPlaceholders,
   storeTemplateAndFields,
-} = require("../../template.service");
+} = require("../../src/services/template.service");
 
 // mocks linting functions
-jest.mock("../../docx-templating", () => ({
+jest.mock("../../src/utils/docx-templating", () => ({
   lintDocxBuffer: jest.fn(),
 }));
 
-jest.mock("../../html-lint", () => ({
+jest.mock("../../src/utils/html-lint", () => ({
   lintHtmlBuffer: jest.fn(),
 }));
 
-const { lintDocxBuffer } = require("../../docx-templating");
-const { lintHtmlBuffer } = require("../../html-lint");
+const { lintDocxBuffer } = require("../../src/utils/docx-templating");
+const { lintHtmlBuffer } = require("../../src/utils/html-lint");
 
 describe("Upload Routes", () => {
   let app;
@@ -68,7 +58,7 @@ describe("Upload Routes", () => {
     app.use(express.json({ limit: "10mb" }));
 
     // mounts upload router
-    const uploadRouter = require("../../templateUploadHandler");
+    const uploadRouter = require("../../src/routes/template.routes");
     app.use("/api", uploadRouter);
 
     // default mock implementations

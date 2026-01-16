@@ -18,7 +18,7 @@ const {
   lintDocxBuffer,
   renderDocxBufferOrThrow,
   TemplateParseError,
-} = require("../../docx-templating");
+} = require("../../src/utils/docx-templating");
 
 beforeEach(() => {
   /* pre-test cleanup using a helper I attached to the mock 

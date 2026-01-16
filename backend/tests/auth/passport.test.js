@@ -1,8 +1,13 @@
+/**
+ * Unit tests for passport.js JWT strategy
+ * Tests: JWT extraction, verification, and user lookup
+ */
+
 const jwt = require("jsonwebtoken");
 
-// mocks prisma before requiring passport
-jest.mock("../../prisma", () => require("../../__mocks__/prisma"));
-const prisma = require("../../prisma");
+// Mock prisma before requiring passport
+jest.mock("../../src/config/prisma");
+const prisma = require("../../src/config/prisma");
 
 describe("Passport JWT Strategy", () => {
   let passport;
@@ -12,12 +17,12 @@ describe("Passport JWT Strategy", () => {
     process.env.JWT_SECRET = "test-secret";
     process.env.DATABASE_URL = "postgresql://test";
 
-    // clears the module cache to get fresh passport instance
+    // Clear module cache and require fresh passport instance
     jest.resetModules();
-    const passportModule = require("../../passport");
+    const passportModule = require("../../src/config/passport");
     passport = passportModule.passport;
 
-    // extracts the JWT strategy that was configured
+    // Extract the JWT strategy that was configured
     jwtStrategy = passport._strategies.jwt;
   });
 
@@ -30,124 +35,128 @@ describe("Passport JWT Strategy", () => {
     jest.clearAllMocks();
   });
 
-  test("should extract JWT from Authorization Bearer header", () => {
-    const token = jwt.sign({ userId: "user-123" }, process.env.JWT_SECRET);
+  describe("JWT extraction", () => {
+    test("extracts JWT from Authorization Bearer header", () => {
+      const token = jwt.sign({ id: "user-123" }, process.env.JWT_SECRET);
 
-    const mockReq = {
-      headers: {
-        authorization: `Bearer ${token}`,
-      },
-    };
+      const mockReq = {
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      };
 
-    // tests that the extractor function works
-    const extracted = jwtStrategy._jwtFromRequest(mockReq);
-    expect(extracted).toBe(token);
-  });
-
-  test("should verify valid JWT and load user from database", async () => {
-    const userId = "user-456";
-    const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
+      const extracted = jwtStrategy._jwtFromRequest(mockReq);
+      expect(extracted).toBe(token);
     });
 
-    prisma.user.findUnique.mockResolvedValue({
-      id: userId,
-      email: "test@example.com",
-      role: "USER",
+    test("extracts JWT from lowercase bearer header", () => {
+      const token = jwt.sign({ id: "user-123" }, process.env.JWT_SECRET);
+
+      const mockReq = {
+        headers: {
+          authorization: `bearer ${token}`,
+        },
+      };
+
+      const extracted = jwtStrategy._jwtFromRequest(mockReq);
+      expect(extracted).toBe(token);
     });
 
-    // decodes the token to get payload (simulating what passport does)
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-
-    // calls the verify function that passport uses
-    const done = jest.fn();
-    await jwtStrategy._verify(payload, done);
-
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { id: userId },
+    test("returns null when no Authorization header present", () => {
+      const mockReq = { headers: {} };
+      const extracted = jwtStrategy._jwtFromRequest(mockReq);
+      expect(extracted).toBeNull();
     });
 
-    expect(done).toHaveBeenCalledWith(null, {
-      id: userId,
-      email: "test@example.com",
-      role: "USER",
+    test("returns null when Authorization header is malformed", () => {
+      const mockReq = {
+        headers: {
+          authorization: "NotBearer token",
+        },
+      };
+
+      const extracted = jwtStrategy._jwtFromRequest(mockReq);
+      expect(extracted).toBeNull();
     });
   });
 
-  test("should reject JWT with invalid signature", () => {
-    const token = jwt.sign({ userId: "user-123" }, "wrong-secret");
+  describe("JWT verification", () => {
+    test("verifies valid JWT and loads user from database", async () => {
+      const userId = "user-456";
+      const mockUser = {
+        id: userId,
+        email: "test@example.com",
+        role: "USER",
+      };
 
-    expect(() => {
-      jwt.verify(token, process.env.JWT_SECRET);
-    }).toThrow("invalid signature");
+      prisma.user.findUnique.mockResolvedValue(mockUser);
+
+      // Payload uses 'id' field (matching passport.js implementation)
+      const payload = { id: userId };
+      const done = jest.fn();
+
+      await jwtStrategy._verify(payload, done);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: userId },
+      });
+      expect(done).toHaveBeenCalledWith(null, mockUser);
+    });
+
+    test("returns false when user not found in database", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      const payload = { id: "nonexistent-user" };
+      const done = jest.fn();
+
+      await jwtStrategy._verify(payload, done);
+
+      expect(done).toHaveBeenCalledWith(null, false);
+    });
+
+    test("handles database errors gracefully", async () => {
+      const dbError = new Error("Database connection failed");
+      prisma.user.findUnique.mockRejectedValue(dbError);
+
+      const payload = { id: "user-789" };
+      const done = jest.fn();
+
+      await jwtStrategy._verify(payload, done);
+
+      expect(done).toHaveBeenCalledWith(dbError, false);
+    });
   });
 
-  test("should reject expired JWT", () => {
-    const token = jwt.sign(
-      { userId: "user-123" },
-      process.env.JWT_SECRET,
-      // already expired
-      { expiresIn: "-1h" }
-    );
+  describe("Token validation", () => {
+    test("rejects JWT with invalid signature", () => {
+      const token = jwt.sign({ id: "user-123" }, "wrong-secret");
 
-    expect(() => {
-      jwt.verify(token, process.env.JWT_SECRET);
-    }).toThrow("jwt expired");
-  });
+      expect(() => {
+        jwt.verify(token, process.env.JWT_SECRET);
+      }).toThrow("invalid signature");
+    });
 
-  test("should return error when user not found in database", async () => {
-    const userId = "nonexistent-user";
-    const payload = { userId };
+    test("rejects expired JWT", () => {
+      const token = jwt.sign(
+        { id: "user-123" },
+        process.env.JWT_SECRET,
+        { expiresIn: "-1h" } // Already expired
+      );
 
-    prisma.user.findUnique.mockResolvedValue(null);
+      expect(() => {
+        jwt.verify(token, process.env.JWT_SECRET);
+      }).toThrow("jwt expired");
+    });
 
-    const done = jest.fn();
-    await jwtStrategy._verify(payload, done);
+    test("accepts valid JWT within expiration", () => {
+      const token = jwt.sign(
+        { id: "user-123" },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+      );
 
-    expect(done).toHaveBeenCalledWith(null, false);
-  });
-
-  test("should handle database errors gracefully", async () => {
-    const userId = "user-789";
-    const payload = { userId };
-
-    const dbError = new Error("Database connection failed");
-    prisma.user.findUnique.mockResolvedValue(dbError);
-
-    const done = jest.fn();
-    await jwtStrategy._verify(payload, done);
-
-    expect(done).toHaveBeenCalledWith(dbError, false);
-  });
-
-  test("should extract JWT from lowercase authorization header", () => {
-    const token = jwt.sign({ userId: "user-123" }, process.env.JWT_SECRET);
-
-    const mockReq = {
-      headers: {
-        // lowercase 'bearer'
-        authorization: `bearer ${token}`,
-      },
-    };
-
-    const extracted = jwtStrategy._jwtFromRequest(mockReq);
-    expect(extracted).toBe(token);
-  });
-
-  test("should return null when no Authorization header present", () => {
-    const mockReq = { headers: {} };
-    const extracted = jwtStrategy._jwtFromRequest(mockReq);
-    expect(extracted).toBeNull();
-  });
-
-  test("should return null when Authorization header malformed", () => {
-    const mockReq = {
-      headers: {
-        authorization: "NotBearer token",
-      },
-    };
-
-    const extracted = jwtStrategy._jwtFromRequest(mockReq);
-    expect(extracted).toBeNull();
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      expect(decoded.id).toBe("user-123");
+    });
   });
 });

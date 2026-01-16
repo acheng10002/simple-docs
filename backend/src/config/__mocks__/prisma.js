@@ -13,6 +13,15 @@ module.exports = {
     update: jest.fn(),
     updateMany: jest.fn(),
   },
+  templateVersion: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+  },
+  field: {
+    deleteMany: jest.fn(),
+    createMany: jest.fn(),
+  },
   folder: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
