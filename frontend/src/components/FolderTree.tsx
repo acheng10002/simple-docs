@@ -49,6 +49,9 @@ interface FolderTreeProps {
   onDrop: (folderId: string) => void;
   onDragOverChange: (folderId: string | null) => void;
   dragOverFolderId: string | null;
+  draggedTemplateId: string | null;
+  onTemplateDragStart: (templateId: string) => void;
+  onTemplateDragEnd: () => void;
   onMerge: (templateId: string) => void;
   onDownload: (templateId: string, displayName: string) => void;
   onCsvMerge: (templateId: string, event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -69,6 +72,9 @@ export default function FolderTree({
   onDrop,
   onDragOverChange,
   dragOverFolderId,
+  draggedTemplateId,
+  onTemplateDragStart,
+  onTemplateDragEnd,
   onMerge,
   onDownload,
   onCsvMerge,
@@ -104,7 +110,7 @@ export default function FolderTree({
     }
   };
 
-  const handleDragOver = (e: React.DragEvent, folderId: string) => {
+  const handleDragOver = (e: React.DragEvent, _folderId: string) => {
     e.preventDefault();
     e.stopPropagation();
   };
@@ -142,7 +148,6 @@ export default function FolderTree({
     const isExpanded = expandedFolderIds.has(folder.id);
     const isSelected = selectedFolderId === folder.id;
     const hasChildren = childFolders.length > 0;
-    const canAddChild = folder.depth < 4;
     const isDragOver = dragOverFolderId === folder.id;
 
     return (
@@ -209,74 +214,96 @@ export default function FolderTree({
         {/* Templates in this folder */}
         {isSelected && folderTemplates.length > 0 && (
           <Box sx={{ pl: level * 2 + 8.5, py: 0.5 }}>
-            {folderTemplates.map((template) => (
-              <Box
-                key={template.id}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  py: 0.75,
-                  px: 1,
-                  bgcolor: 'white',
-                  '&:hover': { bgcolor: 'action.hover' },
-                }}
-              >
-                <Typography variant="body2" sx={{ flexGrow: 1 }}>
-                  {template.displayName}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                  <Tooltip title="Merge">
-                    <IconButton
-                      size="small"
-                      onClick={() => onMerge(template.id)}
-                      color="primary"
-                    >
-                      <MergeIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Bulk Merge CSV">
-                    <IconButton
-                      size="small"
-                      component="label"
-                      sx={{ color: '#9c27b0' }}
-                    >
-                      <CsvIcon fontSize="small" />
-                      <input
-                        type="file"
-                        hidden
-                        accept=".csv"
-                        onChange={(e) => onCsvMerge(template.id, e)}
-                      />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Download">
-                    <IconButton
-                      size="small"
-                      onClick={() => onDownload(template.id, template.displayName)}
-                      color="success"
-                    >
-                      <DownloadIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Edit">
-                    <IconButton
-                      size="small"
-                      onClick={() => onEdit(template.id)}
-                      sx={{ color: '#B03060' }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+            {folderTemplates.map((template, index) => (
+              <React.Fragment key={template.id}>
+                {index > 0 && <Divider />}
+                <Box
+                  draggable
+                  onDragStart={() => onTemplateDragStart(template.id)}
+                  onDragEnd={onTemplateDragEnd}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    py: 0.75,
+                    px: 1,
+                    bgcolor: 'white',
+                    cursor: 'grab',
+                    '&:active': { cursor: 'grabbing' },
+                    '&:hover': { bgcolor: 'action.hover' },
+                    opacity: draggedTemplateId === template.id ? (dragOverFolderId ? 0.3 : 0.5) : 1,
+                  }}
+                >
+                  <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                    {template.displayName}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Tooltip title="Merge">
+                      <IconButton
+                        size="small"
+                        onClick={() => onMerge(template.id)}
+                        color="primary"
+                      >
+                        <MergeIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Bulk Merge CSV">
+                      <IconButton
+                        size="small"
+                        component="label"
+                        sx={{ color: '#9c27b0' }}
+                      >
+                        <CsvIcon fontSize="small" />
+                        <input
+                          type="file"
+                          hidden
+                          accept=".csv"
+                          onChange={(e) => onCsvMerge(template.id, e)}
+                        />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Download">
+                      <IconButton
+                        size="small"
+                        onClick={() => onDownload(template.id, template.displayName)}
+                        color="success"
+                      >
+                        <DownloadIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Edit">
+                      <IconButton
+                        size="small"
+                        onClick={() => onEdit(template.id)}
+                        sx={{ color: '#B03060' }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </Box>
-              </Box>
+              </React.Fragment>
             ))}
           </Box>
+        )}
+
+        {/* Divider between templates and nested folders */}
+        {isSelected && folderTemplates.length > 0 && hasChildren && (
+          <Divider sx={{ my: 1 }} />
         )}
 
         {/* Children */}
         {hasChildren && (
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-            {childFolders.map((child) => renderFolder(child, level + 1))}
+            {/* Divider between parent folder and first child (only if templates aren't showing) */}
+            {!(isSelected && folderTemplates.length > 0) && (
+              <Divider sx={{ ml: level * 2 + 1 }} />
+            )}
+            {childFolders.map((child, index) => (
+              <React.Fragment key={child.id}>
+                {renderFolder(child, level + 1)}
+                {index < childFolders.length - 1 && <Divider sx={{ ml: (level + 1) * 2 + 1 }} />}
+              </React.Fragment>
+            ))}
           </Collapse>
         )}
       </Box>

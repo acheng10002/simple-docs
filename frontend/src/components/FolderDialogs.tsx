@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -11,7 +11,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Typography,
 } from '@mui/material';
 import type { Folder } from '../types/api';
 import { foldersApi } from '../api/client';

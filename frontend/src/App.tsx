@@ -9,6 +9,7 @@ import Templates from './pages/Templates';
 import Merge from './pages/Merge';
 import EditTemplate from './pages/EditTemplate';
 import Outputs from './pages/Outputs';
+import Settings from './pages/Settings';
 
 // Create Material-UI theme with Google-esque design
 const theme = createTheme({
@@ -77,6 +78,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Outputs />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />

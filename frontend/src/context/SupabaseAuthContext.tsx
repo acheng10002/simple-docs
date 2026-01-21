@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { User, LoginRequest, RegisterRequest } from '../types/api';
 import { supabase } from '../config/supabase';
 import type { Session } from '@supabase/supabase-js';
@@ -28,7 +29,7 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const SupabaseAuthProvider = ({ children }: AuthProviderProps) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);

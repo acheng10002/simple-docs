@@ -338,14 +338,14 @@ router.get(
         return res.status(404).json({ error: "Template not found" });
       }
 
-      // Get all non-expired versions, ordered by version number descending
+      // Get all non-expired versions, ordered by version number ascending (oldest first)
       const versions = await prisma.templateVersion.findMany({
         where: {
           templateId: id,
           expiresAt: { gt: new Date() },
         },
         orderBy: {
-          versionNumber: "desc",
+          versionNumber: "asc",
         },
         select: {
           id: true,
@@ -377,13 +377,42 @@ router.post(
     try {
       const { id, versionId } = req.params;
 
-      // Fetch the version to revert to
-      const version = await prisma.templateVersion.findFirst({
-        where: {
-          id: versionId,
-          templateId: id,
-          expiresAt: { gt: new Date() },
-        },
+      // First, check if the version exists at all
+      const versionCheck = await prisma.templateVersion.findUnique({
+        where: { id: versionId },
+        select: { id: true, templateId: true, expiresAt: true, versionNumber: true },
+      });
+
+      if (!versionCheck) {
+        req.log.warn({ versionId, templateId: id }, "Version ID not found in database");
+        return res.status(404).json({
+          error: "Version not found. It may have been deleted or never existed.",
+        });
+      }
+
+      if (versionCheck.templateId !== id) {
+        req.log.warn(
+          { versionId, requestedTemplateId: id, actualTemplateId: versionCheck.templateId },
+          "Version belongs to different template"
+        );
+        return res.status(404).json({
+          error: "Version not found for this template.",
+        });
+      }
+
+      if (versionCheck.expiresAt <= new Date()) {
+        req.log.warn(
+          { versionId, expiresAt: versionCheck.expiresAt },
+          "Version has expired"
+        );
+        return res.status(404).json({
+          error: "Version has expired and is no longer available.",
+        });
+      }
+
+      // Fetch the full version data
+      const version = await prisma.templateVersion.findUnique({
+        where: { id: versionId },
       });
 
       if (!version) {
@@ -402,6 +431,10 @@ router.post(
           })
         );
       } catch (s3Error) {
+        req.log.error(
+          { s3Key, storageKey: version.storageKey, versionId, s3Error: s3Error.message },
+          "Version file not found in S3"
+        );
         return res.status(404).json({
           error: "Version file not found in storage. The file may have been deleted.",
         });
@@ -433,6 +466,8 @@ router.post(
           displayName: currentTemplate.displayName,
           defaultOutputType: currentTemplate.defaultOutputType,
           outputNameFormat: currentTemplate.outputNameFormat,
+          pageSize: currentTemplate.pageSize,
+          orientation: currentTemplate.orientation,
           fieldsSnapshot: currentTemplate.fields.map((f) => ({
             id: f.id,
             name: f.name,
@@ -463,6 +498,8 @@ router.post(
           displayName: version.displayName,
           defaultOutputType: version.defaultOutputType,
           outputNameFormat: version.outputNameFormat,
+          pageSize: version.pageSize,
+          orientation: version.orientation,
         },
         include: { fields: true },
       });
@@ -602,7 +639,7 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { displayName, defaultOutputType, outputNameFormat } = req.body;
+      const { displayName, defaultOutputType, outputNameFormat, pageSize, orientation } = req.body;
       const file = req.file;
 
       // Check if template exists
@@ -631,6 +668,16 @@ router.put(
       // Update outputNameFormat if provided (allow null to clear it)
       if ('outputNameFormat' in req.body) {
         updateData.outputNameFormat = outputNameFormat || null;
+      }
+
+      // Update pageSize if provided (allow null to clear it)
+      if ('pageSize' in req.body) {
+        updateData.pageSize = pageSize || null;
+      }
+
+      // Update orientation if provided (allow null to clear it)
+      if ('orientation' in req.body) {
+        updateData.orientation = orientation || null;
       }
 
       // If a replacement file is provided, process it
@@ -721,6 +768,8 @@ router.put(
             displayName: existingTemplate.displayName,
             defaultOutputType: existingTemplate.defaultOutputType,
             outputNameFormat: existingTemplate.outputNameFormat,
+            pageSize: existingTemplate.pageSize,
+            orientation: existingTemplate.orientation,
             fieldsSnapshot: existingTemplate.fields.map((f) => ({
               id: f.id,
               name: f.name,

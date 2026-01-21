@@ -57,15 +57,17 @@ model Folder {
 /// *
 ///  * Template model - file metadata (display name + storage key) + relation to Field[] and MergeJob
 model Template {
-    id                String      @id @default(cuid())
+    id                String       @id @default(cuid())
     mimeType          String?
-    displayName       String      // User-friendly name shown in UI (e.g. "sample.docx")
-    storageKey        String      // Unique S3 key with timestamp/UUID (e.g. "1234567890-uuid-sample.docx")
+    displayName       String       // User-friendly name shown in UI (e.g. "sample.docx")
+    storageKey        String       // Unique S3 key with timestamp/UUID (e.g. "1234567890-uuid-sample.docx")
     uploadedById      String?
     folderId          String?
-    isActive          Boolean     @default(true)
-    defaultOutputType OutputType? // Default output format for merges (e.g. pdf, docx)
-    outputNameFormat  String?     // Template for output filename (e.g. "{{firstName}}-{{lastName}}")
+    isActive          Boolean      @default(true)
+    defaultOutputType OutputType?  // Default output format for merges (e.g. pdf, docx)
+    outputNameFormat  String?      // Template for output filename (e.g. "{{firstName}}-{{lastName}}")
+    pageSize          PageSize?    // Page size for output (e.g. letter, a4)
+    orientation       Orientation? // Page orientation (portrait or landscape)
     createdAt         DateTime          @default(now())
     updatedAt         DateTime          @updatedAt
     fields            Field[]
@@ -82,19 +84,21 @@ model Template {
 /// *
 ///  * TemplateVersion model - stores historical versions of templates for version control
 model TemplateVersion {
-    id                String      @id @default(cuid())
+    id                String       @id @default(cuid())
     templateId        String
-    versionNumber     Int         // Auto-incremented per template
-    storageKey        String      // S3 key of the version's file
+    versionNumber     Int          // Auto-incremented per template
+    storageKey        String       // S3 key of the version's file
     mimeType          String
     displayName       String
     defaultOutputType OutputType?
     outputNameFormat  String?
-    fieldsSnapshot    Json        // Snapshot of fields at version time
-    createdAt         DateTime    @default(now())
-    expiresAt         DateTime    // 30 days from createdAt
+    pageSize          PageSize?
+    orientation       Orientation?
+    fieldsSnapshot    Json         // Snapshot of fields at version time
+    createdAt         DateTime     @default(now())
+    expiresAt         DateTime     // 30 days from createdAt
 
-    template          Template    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+    template          Template     @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
     @@unique([templateId, versionNumber])
     @@index([templateId, createdAt])
@@ -134,7 +138,7 @@ model MergeJob {
 }
 
 /// *
-///  * ENUM for OutputType, JobStatus, UserRole - fixed list of allowed values for a field
+///  * ENUM for OutputType, JobStatus, UserRole, PageSize, Orientation - fixed list of allowed values for a field
 enum OutputType {
     docx
     html
@@ -143,6 +147,19 @@ enum OutputType {
     pptx
     ppsx
     jpg
+}
+
+enum PageSize {
+    letter
+    legal
+    a4
+    a3
+    tabloid
+}
+
+enum Orientation {
+    portrait
+    landscape
 }
 
 enum JobStatus {

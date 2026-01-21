@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { ArrowBack as BackIcon, CloudUpload as UploadIcon } from '@mui/icons-material';
 import { templatesApi } from '../api/client';
-import type { Template, OutputType } from '../types/api';
+import type { Template, OutputType, PageSize, Orientation } from '../types/api';
 import VersionHistory from '../components/VersionHistory';
 
 // Map of template MIME types to allowed output types
@@ -44,6 +44,8 @@ export default function EditTemplate() {
   const [displayName, setDisplayName] = useState('');
   const [defaultOutputType, setDefaultOutputType] = useState<OutputType | ''>('');
   const [outputNameFormat, setOutputNameFormat] = useState('');
+  const [pageSize, setPageSize] = useState<PageSize | ''>('');
+  const [orientation, setOrientation] = useState<Orientation>('portrait');
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
 
   useEffect(() => {
@@ -62,6 +64,8 @@ export default function EditTemplate() {
       setDisplayName(data.displayName);
       setDefaultOutputType(data.defaultOutputType || '');
       setOutputNameFormat(data.outputNameFormat || '');
+      setPageSize(data.pageSize || '');
+      setOrientation(data.orientation || 'portrait');
 
       setError('');
     } catch (err: any) {
@@ -116,16 +120,24 @@ export default function EditTemplate() {
       return;
     }
 
+    // Validate page size is selected
+    if (!pageSize) {
+      setError('Please select a page size');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
       setSuccess('');
 
-      // Call update API (we'll implement this next)
+      // Call update API
       await templatesApi.update(templateId, {
         displayName: displayName.trim(),
         defaultOutputType: defaultOutputType || null,
         outputNameFormat: outputNameFormat || null,
+        pageSize: pageSize || null,
+        orientation: orientation || null,
         file: replacementFile || undefined,
       });
 
@@ -249,6 +261,37 @@ export default function EditTemplate() {
                     {type.toUpperCase()}
                   </MenuItem>
                 ))}
+              </Select>
+            </FormControl>
+
+            {/* Page Size */}
+            <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
+              <InputLabel>Page Size</InputLabel>
+              <Select
+                value={pageSize}
+                label="Page Size"
+                onChange={(e) => setPageSize(e.target.value as PageSize)}
+                required
+              >
+                <MenuItem value="letter">Letter (8.5" x 11")</MenuItem>
+                <MenuItem value="legal">Legal (8.5" x 14")</MenuItem>
+                <MenuItem value="a4">A4 (210mm x 297mm)</MenuItem>
+                <MenuItem value="a3">A3 (297mm x 420mm)</MenuItem>
+                <MenuItem value="tabloid">Tabloid (11" x 17")</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Orientation */}
+            <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
+              <InputLabel>Orientation</InputLabel>
+              <Select
+                value={orientation}
+                label="Orientation"
+                onChange={(e) => setOrientation(e.target.value as Orientation)}
+                required
+              >
+                <MenuItem value="portrait">Portrait</MenuItem>
+                <MenuItem value="landscape">Landscape</MenuItem>
               </Select>
             </FormControl>
 

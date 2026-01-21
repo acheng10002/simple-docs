@@ -72,7 +72,7 @@ export default function Merge() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!templateId) return;
+    if (!templateId || !template) return;
 
     // Validate all fields are filled
     const emptyFields = Object.entries(formData).filter(([_, value]) => !value.trim());
@@ -91,7 +91,7 @@ export default function Merge() {
         (template.mimeType && ALLOWED_OUTPUTS[template.mimeType]?.[0]) ||
         'pdf';
 
-      const result = await mergeApi.mergeSingle(templateId, {
+      await mergeApi.mergeSingle(templateId, {
         data: formData,
         outputType,
       });
@@ -169,7 +169,7 @@ export default function Merge() {
           <Box component="form" onSubmit={handleSubmit}>
             {template.fields.map((field) => (
               <TextField
-                key={field.id}
+                key={field.id || field.name}
                 fullWidth
                 margin="normal"
                 label={field.name}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -22,9 +22,9 @@ import {
 } from '@mui/material';
 import {
   Download as DownloadIcon,
-  Logout as LogoutIcon,
   Delete as DeleteIcon,
   Folder as TemplatesIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { jobsApi, mergeApi } from '../api/client';
@@ -117,6 +117,14 @@ export default function Outputs() {
             sx={{ mr: 2 }}
           >
             Templates
+          </Button>
+          <Button
+            color="inherit"
+            startIcon={<SettingsIcon />}
+            onClick={() => navigate('/settings')}
+            sx={{ mr: 2 }}
+          >
+            Settings
           </Button>
           <Typography variant="body2" sx={{ mr: 2 }}>
             {user?.email}

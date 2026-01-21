@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -28,11 +28,11 @@ import {
   Download as DownloadIcon,
   MergeType as MergeIcon,
   CloudUpload as UploadIcon,
-  Logout as LogoutIcon,
   TableRows as CsvIcon,
   Folder as OutputsIcon,
   Edit as EditIcon,
   CheckCircle as ActivateIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { templatesApi, mergeApi, foldersApi } from '../api/client';
@@ -45,7 +45,7 @@ import {
   MoveFolderDialog,
   MoveTemplateDialog,
 } from '../components/FolderDialogs';
-import { CreateNewFolder as CreateFolderIcon, DriveFileMove as MoveFolderIcon } from '@mui/icons-material';
+import { CreateNewFolder as CreateFolderIcon } from '@mui/icons-material';
 
 export default function Templates() {
   const navigate = useNavigate();
@@ -68,11 +68,27 @@ export default function Templates() {
   const [moveFolderDialog, setMoveFolderDialog] = useState<Folder | null>(null);
   const [moveTemplateDialog, setMoveTemplateDialog] = useState<{ templateId: string; folderId: string | null } | null>(null);
   const [draggedTemplateId, setDraggedTemplateId] = useState<string | null>(null);
+  const folderTreeRef = useRef<HTMLDivElement>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   useEffect(() => {
     loadTemplates();
     loadFolders();
+  }, []);
+
+  // Collapse folders when clicking outside the folder tree
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderTreeRef.current && !folderTreeRef.current.contains(event.target as Node)) {
+        setExpandedFolderIds(new Set());
+        setSelectedFolderId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const loadTemplates = async () => {
@@ -85,19 +101,6 @@ export default function Templates() {
       setError(err.response?.data?.error || 'Failed to load templates');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDeactivate = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to deactivate the template "${name}"? All merge outputs will be preserved. You can reactivate it later if needed.`)) {
-      return;
-    }
-
-    try {
-      await templatesApi.delete(id); // API call stays the same, just sets isActive=false
-      await loadTemplates();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Deactivate failed');
     }
   };
 
@@ -152,7 +155,7 @@ export default function Templates() {
       const template = templates.find(t => t.id === templateId);
       const outputType = template?.defaultOutputType || 'pdf';
 
-      const result = await mergeApi.mergeCsv(templateId, file, outputType);
+      await mergeApi.mergeCsv(templateId, file, outputType);
 
       // Navigate to outputs page to see all generated files
       navigate('/outputs');
@@ -256,6 +259,14 @@ export default function Templates() {
           >
             Outputs
           </Button>
+          <Button
+            color="inherit"
+            startIcon={<SettingsIcon />}
+            onClick={() => navigate('/settings')}
+            sx={{ mr: 2 }}
+          >
+            Settings
+          </Button>
           <Typography variant="body2" sx={{ mr: 2 }}>
             {user?.email}
           </Typography>
@@ -349,7 +360,7 @@ export default function Templates() {
 
                   {/* Folder Tree */}
                   {folders.length > 0 && (
-                    <Box>
+                    <Box ref={folderTreeRef}>
                       <Box sx={{ display: 'flex', alignItems: 'baseline', px: 2, bgcolor: 'grey.50', py: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.125rem', mr: 2 }}>
                           Folders
@@ -376,6 +387,9 @@ export default function Templates() {
                         onDrop={handleDropOnFolder}
                         onDragOverChange={setDragOverFolderId}
                         dragOverFolderId={dragOverFolderId}
+                        draggedTemplateId={draggedTemplateId}
+                        onTemplateDragStart={handleDragStart}
+                        onTemplateDragEnd={handleDragEnd}
                         onMerge={handleMerge}
                         onDownload={handleDownload}
                         onCsvMerge={handleCsvMerge}

@@ -13,6 +13,8 @@ import type {
   BulkMergeResponse,
   ErrorResponse,
   OutputType,
+  PageSize,
+  Orientation,
   Folder,
 } from '../types/api';
 
@@ -87,6 +89,22 @@ export const authApi = {
     );
     return response.data;
   },
+
+  updateEmail: async (email: string): Promise<{ message: string }> => {
+    const response = await apiClient.put<{ message: string }>(
+      '/api/auth/update-email',
+      { email }
+    );
+    return response.data;
+  },
+
+  updatePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await apiClient.put<{ message: string }>(
+      '/api/auth/update-password',
+      { currentPassword, newPassword }
+    );
+    return response.data;
+  },
 };
 
 // Templates API
@@ -127,6 +145,8 @@ export const templatesApi = {
       displayName?: string;
       defaultOutputType?: OutputType | null;
       outputNameFormat?: string | null;
+      pageSize?: PageSize | null;
+      orientation?: Orientation | null;
       file?: File;
     }
   ): Promise<Template> => {
@@ -142,6 +162,14 @@ export const templatesApi = {
 
     if (data.outputNameFormat !== undefined) {
       formData.append('outputNameFormat', data.outputNameFormat || '');
+    }
+
+    if (data.pageSize !== undefined) {
+      formData.append('pageSize', data.pageSize || '');
+    }
+
+    if (data.orientation !== undefined) {
+      formData.append('orientation', data.orientation || '');
     }
 
     if (data.file) {

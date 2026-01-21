@@ -26,6 +26,7 @@ export interface AuthResponse {
 }
 
 export interface Field {
+  id?: string;
   name: string;
 }
 
@@ -43,6 +44,9 @@ export interface Folder {
   };
 }
 
+export type PageSize = 'letter' | 'legal' | 'a4' | 'a3' | 'tabloid';
+export type Orientation = 'portrait' | 'landscape';
+
 export interface Template {
   id: string;
   displayName: string;  // User-friendly template name (e.g. "My Invoice.docx")
@@ -52,6 +56,10 @@ export interface Template {
   isActive?: boolean;
   folderId?: string | null;
   folder?: Folder | null;
+  defaultOutputType?: OutputType | null;
+  outputNameFormat?: string | null;
+  pageSize?: PageSize | null;
+  orientation?: Orientation | null;
 }
 
 export interface TemplateVersion {

@@ -278,6 +278,168 @@ router.post("/auth/reset-password", async (req, res) => {
   }
 });
 
+/* PUT /api/auth/update-email
+- updates user email in Supabase Auth and database
+- requires valid Supabase session */
+router.put("/auth/update-email", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Email is required"
+      });
+    }
+
+    // validates email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        error: "Invalid email format"
+      });
+    }
+
+    const authHeader = req.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        error: "Authentication required"
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+
+    // Verify the token and get the current user
+    const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
+
+    if (verifyError || !user) {
+      return res.status(401).json({
+        error: "Invalid session"
+      });
+    }
+
+    // Check if the new email is already in use
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser && existingUser.supabaseId !== user.id) {
+      return res.status(409).json({
+        error: "Email is already in use"
+      });
+    }
+
+    // Update email in Supabase Auth
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      email: email,
+      email_confirm: true
+    });
+
+    if (updateError) {
+      req.log.error({ error: updateError.message, userId: user.id }, "Email update in Supabase failed");
+      return res.status(500).json({
+        error: "Failed to update email. Please try again."
+      });
+    }
+
+    // Update email in database
+    await prisma.user.update({
+      where: { supabaseId: user.id },
+      data: { email }
+    });
+
+    req.log.info({ userId: user.id, oldEmail: user.email, newEmail: email }, "Email updated successfully");
+
+    res.json({
+      message: "Email updated successfully"
+    });
+  } catch (err) {
+    req.log.error({ err }, "Email update failed");
+    res.status(500).json({
+      error: "Failed to update email. Please try again."
+    });
+  }
+});
+
+/* PUT /api/auth/update-password
+- updates user password in Supabase Auth
+- requires valid current password verification */
+router.put("/auth/update-password", async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword) {
+      return res.status(400).json({
+        error: "Current password is required"
+      });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({
+        error: "New password is required"
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        error: "New password must be at least 8 characters"
+      });
+    }
+
+    const authHeader = req.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        error: "Authentication required"
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+
+    // Verify the token and get the current user
+    const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
+
+    if (verifyError || !user) {
+      return res.status(401).json({
+        error: "Invalid session"
+      });
+    }
+
+    // Verify current password by attempting to sign in
+    const { error: signInError } = await supabaseClient.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+
+    if (signInError) {
+      return res.status(401).json({
+        error: "Current password is incorrect"
+      });
+    }
+
+    // Update password in Supabase Auth
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: newPassword
+    });
+
+    if (updateError) {
+      req.log.error({ error: updateError.message, userId: user.id }, "Password update failed");
+      return res.status(500).json({
+        error: "Failed to update password. Please try again."
+      });
+    }
+
+    req.log.info({ userId: user.id, email: user.email }, "Password updated successfully");
+
+    res.json({
+      message: "Password updated successfully"
+    });
+  } catch (err) {
+    req.log.error({ err }, "Password update failed");
+    res.status(500).json({
+      error: "Failed to update password. Please try again."
+    });
+  }
+});
+
 /* POST /api/auth/logout
 - signs out user from Supabase Auth */
 router.post("/auth/logout", async (req, res) => {

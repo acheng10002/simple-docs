@@ -103,6 +103,55 @@ function getContentType(outputType) {
 }
 
 /**
+ * Add test watermark footer to PDF buffer
+ * Uses pdf-lib to add "TEST - NOT FOR PRODUCTION" footer to each page
+ */
+async function addTestFooterToPdf(pdfBuffer) {
+  const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const pages = pdfDoc.getPages();
+
+  const footerText = 'TEST - NOT FOR PRODUCTION';
+  const fontSize = 10;
+
+  for (const page of pages) {
+    const { width } = page.getSize();
+    const textWidth = helveticaFont.widthOfTextAtSize(footerText, fontSize);
+
+    // Draw footer centered at bottom of page
+    page.drawText(footerText, {
+      x: (width - textWidth) / 2,
+      y: 20,
+      size: fontSize,
+      font: helveticaFont,
+      color: rgb(0.5, 0.5, 0.5), // Gray color
+    });
+  }
+
+  return Buffer.from(await pdfDoc.save());
+}
+
+/**
+ * Add test watermark footer to HTML buffer
+ */
+function addTestFooterToHtml(htmlBuffer) {
+  const html = htmlBuffer.toString('utf-8');
+  const footerHtml = `
+    <div style="position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 10px; color: gray; font-family: sans-serif;">
+      TEST - NOT FOR PRODUCTION
+    </div>
+  `;
+
+  // Insert before </body> if exists, otherwise append
+  if (html.includes('</body>')) {
+    return Buffer.from(html.replace('</body>', footerHtml + '</body>'));
+  }
+  return Buffer.from(html + footerHtml);
+}
+
+/**
  * Main merge orchestrator
  * Delegates to format-specific services based on template MIME type
  */
@@ -112,6 +161,7 @@ async function mergeTemplate({
   outputType,
   userId = null,
   fromWebhook = false,
+  testMode = false,
 }) {
   // Fetch template with fields
   const template = await prisma.template.findUnique({
