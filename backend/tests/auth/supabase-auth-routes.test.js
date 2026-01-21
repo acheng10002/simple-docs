@@ -43,7 +43,7 @@ describe("Supabase Auth Routes", () => {
   describe("POST /api/auth/register", () => {
     const validRegistration = {
       email: "newuser@example.com",
-      password: "password123",
+      password: "Password123!",
       firstName: "New",
       lastName: "User",
     };
@@ -492,6 +492,377 @@ describe("Supabase Auth Routes", () => {
         .post("/api/auth/reset-password")
         .set("Authorization", `Bearer ${validToken}`)
         .send({ password: "newPassword123" });
+
+      expect(response.status).toBe(500);
+      expect(response.body.error).toBe("Failed to update password. Please try again.");
+    });
+  });
+
+  describe("PUT /api/auth/update-email", () => {
+    const validToken = "valid-session-token";
+    const mockUser = {
+      id: "supabase-123",
+      email: "current@example.com",
+    };
+
+    test("should update email successfully", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      prisma.user.findUnique.mockResolvedValue(null); // New email not in use
+
+      supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({
+        data: { user: { ...mockUser, email: "new@example.com" } },
+        error: null,
+      });
+
+      prisma.user.update.mockResolvedValue({
+        id: "db-123",
+        email: "new@example.com",
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ email: "new@example.com" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("Email updated successfully");
+      expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(
+        mockUser.id,
+        { email: "new@example.com", email_confirm: true }
+      );
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { supabaseId: mockUser.id },
+        data: { email: "new@example.com" },
+      });
+    });
+
+    test("should return 400 when email is missing", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Email is required");
+    });
+
+    test("should return 400 for invalid email format", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ email: "invalid-email" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Invalid email format");
+    });
+
+    test("should return 401 when Authorization header is missing", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .send({ email: "new@example.com" });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe("Authentication required");
+    });
+
+    test("should return 401 when token is invalid", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: "Invalid token" },
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .set("Authorization", "Bearer invalid-token")
+        .send({ email: "new@example.com" });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe("Invalid session");
+    });
+
+    test("should return 409 when email is already in use by another user", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      prisma.user.findUnique.mockResolvedValue({
+        id: "other-user",
+        supabaseId: "other-supabase-id",
+        email: "new@example.com",
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ email: "new@example.com" });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe("Email is already in use");
+    });
+
+    test("should allow updating to same email (no conflict with self)", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      prisma.user.findUnique.mockResolvedValue({
+        id: "db-123",
+        supabaseId: mockUser.id, // Same user
+        email: "current@example.com",
+      });
+
+      supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      prisma.user.update.mockResolvedValue({
+        id: "db-123",
+        email: "current@example.com",
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ email: "current@example.com" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("Email updated successfully");
+    });
+
+    test("should return 500 when Supabase update fails", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({
+        data: null,
+        error: { message: "Update failed" },
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-email")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ email: "new@example.com" });
+
+      expect(response.status).toBe(500);
+      expect(response.body.error).toBe("Failed to update email. Please try again.");
+    });
+  });
+
+  describe("PUT /api/auth/update-password", () => {
+    const validToken = "valid-session-token";
+    const mockUser = {
+      id: "supabase-123",
+      email: "test@example.com",
+    };
+
+    test("should update password successfully", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      supabaseClient.auth.signInWithPassword.mockResolvedValue({
+        data: { session: {}, user: mockUser },
+        error: null,
+      });
+
+      supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "NewPassword1!",
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe("Password updated successfully");
+      expect(supabaseClient.auth.signInWithPassword).toHaveBeenCalledWith({
+        email: mockUser.email,
+        password: "OldPassword1!",
+      });
+      expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(
+        mockUser.id,
+        { password: "NewPassword1!" }
+      );
+    });
+
+    test("should return 400 when current password is missing", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ newPassword: "NewPassword1!" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Current password is required");
+    });
+
+    test("should return 400 when new password is missing", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ currentPassword: "OldPassword1!" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("New password is required");
+    });
+
+    test("should return 400 when new password is too short", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "Short1!",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain("at least 8 characters");
+    });
+
+    test("should return 400 when new password lacks uppercase", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "newpassword1!",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain("uppercase");
+    });
+
+    test("should return 400 when new password lacks lowercase", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "NEWPASSWORD1!",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain("lowercase");
+    });
+
+    test("should return 400 when new password lacks number", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "NewPassword!",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain("number");
+    });
+
+    test("should return 400 when new password lacks special character", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "NewPassword1",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain("special character");
+    });
+
+    test("should return 401 when Authorization header is missing", async () => {
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "NewPassword1!",
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe("Authentication required");
+    });
+
+    test("should return 401 when token is invalid", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: "Invalid token" },
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", "Bearer invalid-token")
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "NewPassword1!",
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe("Invalid session");
+    });
+
+    test("should return 401 when current password is incorrect", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      supabaseClient.auth.signInWithPassword.mockResolvedValue({
+        data: { session: null, user: null },
+        error: { message: "Invalid credentials" },
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "WrongPassword1!",
+          newPassword: "NewPassword1!",
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe("Current password is incorrect");
+    });
+
+    test("should return 500 when password update fails", async () => {
+      supabaseAdmin.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      supabaseClient.auth.signInWithPassword.mockResolvedValue({
+        data: { session: {}, user: mockUser },
+        error: null,
+      });
+
+      supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({
+        data: null,
+        error: { message: "Update failed" },
+      });
+
+      const response = await request(app)
+        .put("/api/auth/update-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({
+          currentPassword: "OldPassword1!",
+          newPassword: "NewPassword1!",
+        });
 
       expect(response.status).toBe(500);
       expect(response.body.error).toBe("Failed to update password. Please try again.");

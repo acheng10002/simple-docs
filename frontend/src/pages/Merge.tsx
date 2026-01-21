@@ -32,6 +32,7 @@ export default function Merge() {
   const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [merging, setMerging] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -109,6 +110,49 @@ export default function Merge() {
     }
   };
 
+  const handleTestMerge = async () => {
+    if (!templateId || !template) return;
+
+    // Validate all fields are filled
+    const emptyFields = Object.entries(formData).filter(([_, value]) => !value.trim());
+    if (emptyFields.length > 0) {
+      setError(`Please fill in all fields: ${emptyFields.map(([key]) => key).join(', ')}`);
+      return;
+    }
+
+    try {
+      setTesting(true);
+      setError('');
+      setSuccess('');
+
+      // Determine output type from template default
+      const outputType = template.defaultOutputType ||
+        (template.mimeType && ALLOWED_OUTPUTS[template.mimeType]?.[0]) ||
+        'pdf';
+
+      const { blob, filename } = await mergeApi.testMerge(templateId, {
+        data: formData,
+        outputType,
+      });
+
+      // Trigger download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setSuccess('Test document downloaded! This document includes a "TEST - NOT FOR PRODUCTION" footer.');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Test merge failed. Please try again.');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -182,11 +226,20 @@ export default function Merge() {
 
             <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
               <Button
+                variant="contained"
+                size="large"
+                onClick={handleTestMerge}
+                disabled={merging || testing}
+                sx={{ flex: 1 }}
+              >
+                {testing ? 'Testing...' : 'Test Merge'}
+              </Button>
+              <Button
                 type="submit"
                 variant="contained"
                 size="large"
-                disabled={merging}
-                fullWidth
+                disabled={merging || testing}
+                sx={{ flex: 1 }}
               >
                 {merging ? 'Merging...' : 'Merge'}
               </Button>
@@ -194,10 +247,14 @@ export default function Merge() {
                 variant="outlined"
                 size="large"
                 onClick={() => navigate('/templates')}
+                disabled={merging || testing}
               >
                 Cancel
               </Button>
             </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              Test Merge downloads a watermarked document without saving to Outputs.
+            </Typography>
           </Box>
         </Paper>
       </Container>

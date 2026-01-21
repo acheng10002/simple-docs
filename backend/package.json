@@ -56,6 +56,7 @@
     "pptxgenjs": "^4.0.1",
     "prisma": "^6.19.1",
     "puppeteer": "^24.16.2",
+    "sharp": "^0.34.5",
     "soffice": "^1.1.0"
   },
   "devDependencies": {

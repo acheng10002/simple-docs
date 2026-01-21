@@ -590,7 +590,7 @@ router.post(
       const { templateId } = req.params;
 
       /* B3b & c. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler */
-      const { data = {}, outputType = "docx" } = req.body || {};
+      const { data = {}, outputType = "docx", testMode = false } = req.body || {};
 
       if (!/^c[a-z0-9]{24}$/.test(templateId)) {
         return res.status(400).json({ error: "Invalid template ID format" });
@@ -637,10 +637,20 @@ router.post(
         outputType,
         // tracks which user initiated manual merges
         userId: req.user?.id,
+        testMode: testMode === true || testMode === 'true',
       });
 
-      req.log.info({ templateId, outputType }, "Manual merge completed");
-      /* B9. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): responses/errors 
+      req.log.info({ templateId, outputType, testMode }, "Manual merge completed");
+
+      // If test mode, return the file directly for download
+      if (result.testMode) {
+        res.setHeader('Content-Type', result.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.send(result.buffer);
+      }
+
+      /* B9. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): responses/errors
       BLOCK EXECUTION ON MANUAL (JWT, INTERNAL USERS) ROUTE IF VALIDATION ERRORS OR DANGEROUS CONTENT */
       res.status(200).json(result);
       // type-check for normalized Docxtemplater error I created earlier

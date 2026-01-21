@@ -8,6 +8,17 @@ const { supabaseAdmin, supabaseClient } = require("../config/supabase-auth");
 
 const router = express.Router();
 
+// Password strength validation
+function validatePasswordStrength(password) {
+  const errors = [];
+  if (password.length < 8) errors.push('at least 8 characters');
+  if (!/[A-Z]/.test(password)) errors.push('at least one uppercase letter');
+  if (!/[a-z]/.test(password)) errors.push('at least one lowercase letter');
+  if (!/[0-9]/.test(password)) errors.push('at least one number');
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('at least one special character');
+  return errors;
+}
+
 // Rate limiting for auth routes (prevent brute force attacks)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -39,10 +50,11 @@ router.post("/auth/register", authLimiter, async (req, res) => {
       });
     }
 
-    // validates password strength (minimum 8 characters)
-    if (password.length < 8) {
+    // validates password strength
+    const passwordErrors = validatePasswordStrength(password);
+    if (passwordErrors.length > 0) {
       return res.status(400).json({
-        error: "Password must be at least 8 characters"
+        error: `Password must contain ${passwordErrors.join(', ')}`
       });
     }
 
@@ -229,9 +241,10 @@ router.post("/auth/reset-password", async (req, res) => {
       });
     }
 
-    if (password.length < 8) {
+    const passwordErrors = validatePasswordStrength(password);
+    if (passwordErrors.length > 0) {
       return res.status(400).json({
-        error: "Password must be at least 8 characters"
+        error: `Password must contain ${passwordErrors.join(', ')}`
       });
     }
 
@@ -379,9 +392,10 @@ router.put("/auth/update-password", async (req, res) => {
       });
     }
 
-    if (newPassword.length < 8) {
+    const passwordErrors = validatePasswordStrength(newPassword);
+    if (passwordErrors.length > 0) {
       return res.status(400).json({
-        error: "New password must be at least 8 characters"
+        error: `New password must contain ${passwordErrors.join(', ')}`
       });
     }
 

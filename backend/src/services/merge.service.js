@@ -152,6 +152,198 @@ function addTestFooterToHtml(htmlBuffer) {
 }
 
 /**
+ * Add test watermark footer to DOCX buffer
+ * Uses pizzip and docxtemplater to add footer to document
+ */
+async function addTestFooterToDocx(docxBuffer) {
+  const PizZip = require('pizzip');
+  const zip = new PizZip(docxBuffer);
+
+  // Footer XML content with "TEST - NOT FOR PRODUCTION" text
+  const footerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:pPr>
+      <w:jc w:val="center"/>
+    </w:pPr>
+    <w:r>
+      <w:rPr>
+        <w:color w:val="808080"/>
+        <w:sz w:val="20"/>
+      </w:rPr>
+      <w:t>TEST - NOT FOR PRODUCTION</w:t>
+    </w:r>
+  </w:p>
+</w:ftr>`;
+
+  // Add footer file to the zip
+  zip.file('word/footer1.xml', footerXml);
+
+  // Update document.xml.rels to reference the footer
+  const relsPath = 'word/_rels/document.xml.rels';
+  if (zip.file(relsPath)) {
+    let relsContent = zip.file(relsPath).asText();
+
+    // Check if footer relationship already exists
+    if (!relsContent.includes('footer1.xml')) {
+      // Find the highest rId number
+      const rIdMatches = relsContent.match(/rId(\d+)/g) || [];
+      const maxRId = rIdMatches.reduce((max, rId) => {
+        const num = parseInt(rId.replace('rId', ''), 10);
+        return num > max ? num : max;
+      }, 0);
+      const newRId = `rId${maxRId + 1}`;
+
+      // Add footer relationship before closing tag
+      const footerRel = `<Relationship Id="${newRId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>`;
+      relsContent = relsContent.replace('</Relationships>', footerRel + '</Relationships>');
+      zip.file(relsPath, relsContent);
+
+      // Update document.xml to reference the footer
+      const docPath = 'word/document.xml';
+      if (zip.file(docPath)) {
+        let docContent = zip.file(docPath).asText();
+
+        // Add footer reference to sectPr if it exists
+        if (docContent.includes('<w:sectPr')) {
+          // Add footerReference before the closing sectPr tag
+          const footerRef = `<w:footerReference w:type="default" r:id="${newRId}"/>`;
+          docContent = docContent.replace(/<w:sectPr([^>]*)>/, `<w:sectPr$1>${footerRef}`);
+          zip.file(docPath, docContent);
+        }
+      }
+
+      // Update [Content_Types].xml to include footer content type
+      const contentTypesPath = '[Content_Types].xml';
+      if (zip.file(contentTypesPath)) {
+        let contentTypes = zip.file(contentTypesPath).asText();
+        if (!contentTypes.includes('footer1.xml')) {
+          const footerOverride = '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>';
+          contentTypes = contentTypes.replace('</Types>', footerOverride + '</Types>');
+          zip.file(contentTypesPath, contentTypes);
+        }
+      }
+    }
+  }
+
+  return Buffer.from(zip.generate({ type: 'nodebuffer' }));
+}
+
+/**
+ * Add test watermark footer to XLSX buffer
+ * Uses exceljs to add header/footer to print settings
+ */
+async function addTestFooterToXlsx(xlsxBuffer) {
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(xlsxBuffer);
+
+  // Add footer to each worksheet
+  workbook.eachSheet((worksheet) => {
+    worksheet.headerFooter = {
+      ...worksheet.headerFooter,
+      oddFooter: '&C&8&K808080TEST - NOT FOR PRODUCTION',
+      evenFooter: '&C&8&K808080TEST - NOT FOR PRODUCTION',
+    };
+  });
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+/**
+ * Add test watermark to PPTX buffer
+ * Adds text box with watermark to each slide
+ */
+async function addTestFooterToPptx(pptxBuffer) {
+  const PizZip = require('pizzip');
+  const zip = new PizZip(pptxBuffer);
+
+  // Get list of slide files
+  const slideFiles = Object.keys(zip.files).filter(name =>
+    name.match(/^ppt\/slides\/slide\d+\.xml$/)
+  );
+
+  // Add watermark text box to each slide
+  for (const slidePath of slideFiles) {
+    let slideContent = zip.file(slidePath).asText();
+
+    // Create a text box shape for the watermark
+    const watermarkShape = `
+      <p:sp>
+        <p:nvSpPr>
+          <p:cNvPr id="99999" name="TestWatermark"/>
+          <p:cNvSpPr txBox="1"/>
+          <p:nvPr/>
+        </p:nvSpPr>
+        <p:spPr>
+          <a:xfrm>
+            <a:off x="0" y="6400000"/>
+            <a:ext cx="9144000" cy="300000"/>
+          </a:xfrm>
+          <a:prstGeom prst="rect"/>
+        </p:spPr>
+        <p:txBody>
+          <a:bodyPr wrap="square" anchor="ctr"/>
+          <a:lstStyle/>
+          <a:p>
+            <a:pPr algn="ctr"/>
+            <a:r>
+              <a:rPr lang="en-US" sz="1000">
+                <a:solidFill>
+                  <a:srgbClr val="808080"/>
+                </a:solidFill>
+              </a:rPr>
+              <a:t>TEST - NOT FOR PRODUCTION</a:t>
+            </a:r>
+          </a:p>
+        </p:txBody>
+      </p:sp>`;
+
+    // Insert the watermark shape before the closing spTree tag
+    if (slideContent.includes('</p:spTree>')) {
+      slideContent = slideContent.replace('</p:spTree>', watermarkShape + '</p:spTree>');
+      zip.file(slidePath, slideContent);
+    }
+  }
+
+  return Buffer.from(zip.generate({ type: 'nodebuffer' }));
+}
+
+/**
+ * Add test watermark to JPG buffer
+ * Uses sharp to add text overlay
+ */
+async function addTestFooterToJpg(jpgBuffer) {
+  // Dynamic import for sharp (if available) or fallback
+  try {
+    const sharp = require('sharp');
+
+    const image = sharp(jpgBuffer);
+    const metadata = await image.metadata();
+    const width = metadata.width || 800;
+    const height = metadata.height || 600;
+
+    // Create SVG text overlay
+    const svgText = `
+      <svg width="${width}" height="${height}">
+        <rect x="0" y="${height - 30}" width="${width}" height="30" fill="rgba(255,255,255,0.8)"/>
+        <text x="${width / 2}" y="${height - 10}" font-family="sans-serif" font-size="12" fill="#808080" text-anchor="middle">
+          TEST - NOT FOR PRODUCTION
+        </text>
+      </svg>`;
+
+    return await image
+      .composite([{ input: Buffer.from(svgText), top: 0, left: 0 }])
+      .jpeg()
+      .toBuffer();
+  } catch {
+    // If sharp is not available, return original buffer with a warning
+    logger.warn('Sharp not available for JPG watermark, returning original image');
+    return jpgBuffer;
+  }
+}
+
+/**
  * Main merge orchestrator
  * Delegates to format-specific services based on template MIME type
  */
@@ -327,6 +519,44 @@ async function mergeTemplate({
   }
 
   const filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${filename}.${ext}`)}`;
+
+  // Test mode: add footer, return buffer directly without saving
+  if (testMode) {
+    let testBuffer = outputBuffer;
+
+    // Add test footer based on output type
+    switch (outputType) {
+      case 'pdf':
+        testBuffer = await addTestFooterToPdf(outputBuffer);
+        break;
+      case 'html':
+        testBuffer = addTestFooterToHtml(outputBuffer);
+        break;
+      case 'docx':
+        testBuffer = await addTestFooterToDocx(outputBuffer);
+        break;
+      case 'xlsx':
+        testBuffer = await addTestFooterToXlsx(outputBuffer);
+        break;
+      case 'pptx':
+      case 'ppsx':
+        testBuffer = await addTestFooterToPptx(outputBuffer);
+        break;
+      case 'jpg':
+        testBuffer = await addTestFooterToJpg(outputBuffer);
+        break;
+      default:
+        // For any other format, use original buffer
+        logger.warn({ outputType }, 'No test watermark implementation for this format');
+    }
+
+    return {
+      testMode: true,
+      buffer: testBuffer,
+      filename: `${filename}.${ext}`,
+      contentType: getContentType(outputType),
+    };
+  }
 
   // Upload to S3
   const s3Key = filePath.replace(/^s3:\/\/[^/]+\//, '');

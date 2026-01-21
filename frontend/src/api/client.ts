@@ -254,6 +254,27 @@ export const mergeApi = {
     return response.data;
   },
 
+  testMerge: async (
+    templateId: string,
+    request: MergeRequest
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const response = await apiClient.post(
+      `/api/templates/${templateId}/merge`,
+      { ...request, testMode: true },
+      { responseType: 'blob' }
+    );
+    // Extract filename from Content-Disposition header
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'test-output';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="(.+)"/);
+      if (match) {
+        filename = match[1];
+      }
+    }
+    return { blob: response.data, filename };
+  },
+
   mergeCsv: async (
     templateId: string,
     csvFile: File,
