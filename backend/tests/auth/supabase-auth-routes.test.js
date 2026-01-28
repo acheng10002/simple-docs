@@ -139,13 +139,13 @@ describe("Supabase Auth Routes", () => {
       expect(response.body.error).toBe("Invalid email format");
     });
 
-    test("should return 400 when password is too short", async () => {
+    test("should return 400 when password does not meet requirements", async () => {
       const response = await request(app)
         .post("/api/auth/register")
         .send({ email: "test@example.com", password: "short" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Password must be at least 8 characters");
+      expect(response.body.error).toContain("Password must contain");
     });
 
     test("should return 409 when user already exists", async () => {
@@ -420,7 +420,7 @@ describe("Supabase Auth Routes", () => {
       const response = await request(app)
         .post("/api/auth/reset-password")
         .set("Authorization", `Bearer ${validToken}`)
-        .send({ password: "newPassword123" });
+        .send({ password: "NewPassword123!" });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe(
@@ -429,7 +429,7 @@ describe("Supabase Auth Routes", () => {
       expect(supabaseAdmin.auth.getUser).toHaveBeenCalledWith(validToken);
       expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(
         mockUser.id,
-        { password: "newPassword123" }
+        { password: "NewPassword123!" }
       );
     });
 
@@ -443,20 +443,20 @@ describe("Supabase Auth Routes", () => {
       expect(response.body.error).toBe("Password is required");
     });
 
-    test("should return 400 when password is too short", async () => {
+    test("should return 400 when password does not meet requirements", async () => {
       const response = await request(app)
         .post("/api/auth/reset-password")
         .set("Authorization", `Bearer ${validToken}`)
         .send({ password: "short" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Password must be at least 8 characters");
+      expect(response.body.error).toContain("Password must contain");
     });
 
     test("should return 401 when Authorization header is missing", async () => {
       const response = await request(app)
         .post("/api/auth/reset-password")
-        .send({ password: "newPassword123" });
+        .send({ password: "NewPassword123!" });
 
       expect(response.status).toBe(401);
       expect(response.body.error).toBe("Invalid reset session");
@@ -471,7 +471,7 @@ describe("Supabase Auth Routes", () => {
       const response = await request(app)
         .post("/api/auth/reset-password")
         .set("Authorization", "Bearer invalid-token")
-        .send({ password: "newPassword123" });
+        .send({ password: "NewPassword123!" });
 
       expect(response.status).toBe(401);
       expect(response.body.error).toBe("Invalid or expired reset link");
@@ -491,7 +491,7 @@ describe("Supabase Auth Routes", () => {
       const response = await request(app)
         .post("/api/auth/reset-password")
         .set("Authorization", `Bearer ${validToken}`)
-        .send({ password: "newPassword123" });
+        .send({ password: "NewPassword123!" });
 
       expect(response.status).toBe(500);
       expect(response.body.error).toBe("Failed to update password. Please try again.");
