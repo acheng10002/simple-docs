@@ -141,8 +141,10 @@ router.get(
       // helper that looks up the template by templateId (db)
       const info = await resolveTemplateFile(templateId);
 
-      // if the db record doesn't exist, respond 404
-      if (!info) return res.status(404).json({ error: "Template not found" });
+      // if the db record doesn't exist or doesn't belong to user, respond 404
+      if (!info || info.tpl.uploadedById !== req.user.id) {
+        return res.status(404).json({ error: "Template not found" });
+      }
       // if the db record exists but the file doesn't, also 404 with a clear message
       if (info.missing)
         return res
@@ -352,6 +354,18 @@ router.get(
         return res.status(400).json({ error: "File path is required" });
       }
 
+      // Verify the user owns a merge job with this file path
+      const job = await prisma.mergeJob.findFirst({
+        where: {
+          filePath: { contains: filePath },
+          userId: req.user.id,
+        },
+      });
+
+      if (!job) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
       req.log.info({ filePath }, "Merge output download request started");
 
       // Build S3 key with prefix
@@ -455,12 +469,13 @@ router.post(
         return res.status(400).json({ error: "Invalid template ID format" });
       }
 
-      // Fetch template to validate outputType against its format
+      // Fetch template to validate outputType against its format and ownership
       const template = await prisma.template.findUnique({
         where: { id: templateId },
       });
 
-      if (!template) {
+      // Check template exists and belongs to user
+      if (!template || template.uploadedById !== req.user.id) {
         return res.status(404).json({ error: "Template not found" });
       }
 
@@ -596,12 +611,13 @@ router.post(
         return res.status(400).json({ error: "Invalid template ID format" });
       }
 
-      // Fetch template to validate outputType against its format
+      // Fetch template to validate outputType against its format and ownership
       const template = await prisma.template.findUnique({
         where: { id: templateId },
       });
 
-      if (!template) {
+      // Check template exists and belongs to user
+      if (!template || template.uploadedById !== req.user.id) {
         return res.status(404).json({ error: "Template not found" });
       }
 

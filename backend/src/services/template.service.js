@@ -92,12 +92,13 @@ async function extractFieldsFromTemplate(buffer, mimeType) {
  * Store template and its fields in database
  * Creates Template + Field[] rows via Prisma
  */
-async function storeTemplateAndFields(storageKey, displayName, mimeType, fieldNames) {
+async function storeTemplateAndFields(storageKey, displayName, mimeType, fieldNames, uploadedById) {
   return await prisma.template.create({
     data: {
       storageKey,
       displayName,
       mimeType,
+      uploadedById,
       fields: {
         create: fieldNames.map((name) => ({ name })),
       },

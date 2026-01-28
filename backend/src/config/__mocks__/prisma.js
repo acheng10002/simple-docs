@@ -9,11 +9,14 @@ module.exports = {
   },
   template: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
+    create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
   },
   templateVersion: {
+    findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
@@ -31,7 +34,11 @@ module.exports = {
     delete: jest.fn(),
   },
   mergeJob: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
+    delete: jest.fn(),
   },
   $disconnect: jest.fn(),
 };

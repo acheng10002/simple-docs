@@ -64,7 +64,7 @@ const FALLBACK_MIME_MAP = {
 --- req.file.buffer - raw file bytes, Buffer
 --- req.file.originalname - e.g. sample.html
 --- req.file.mimetype - e.g. text/html */
-router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
+router.post("/upload", authenticateSupabase, uploadTemplate.single("template"), async (req, res) => {
   try {
     /* gets the uploaded file from the request, and responds with 400 Bad Request if no file found 
     
@@ -197,11 +197,11 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
     const safeName = sanitize(file.originalname);
     const stamped = `${Date.now()}-${randomUUID()}-${safeName}`;
 
-    // Handle duplicate display names with auto-increment
+    // Handle duplicate display names with auto-increment (per user)
     let displayName = originalName;
     let counter = 1;
     while (await prisma.template.findFirst({
-      where: { displayName, isActive: true }
+      where: { displayName, isActive: true, uploadedById: req.user.id }
     })) {
       const ext = path.extname(originalName);
       const base = path.basename(originalName, ext);
@@ -253,7 +253,7 @@ router.post("/upload", uploadTemplate.single("template"), async (req, res) => {
 
       PERSIST TEMPLATE + FIELDS VIA PRISMA
       A8a. TEMPLATE UPLOAD - INGESTION & DISCOVERY: persists template metadata + fields */
-      savedTemplate = await storeTemplateAndFields(stamped, displayName, finalMime, fieldNames);
+      savedTemplate = await storeTemplateAndFields(stamped, displayName, finalMime, fieldNames, req.user.id);
     } catch (dbError) {
       // ROLLBACK: Deletes the S3 file if db save fails
       req.log.warn({ s3Key }, "Database save failed, cleaning up S3 file");
@@ -304,6 +304,9 @@ router.get(
   async (req, res) => {
     try {
       const templates = await prisma.template.findMany({
+        where: {
+          uploadedById: req.user.id,
+        },
         include: {
           fields: true,
         },
@@ -329,12 +332,12 @@ router.get(
     try {
       const { id } = req.params;
 
-      // Verify template exists
+      // Verify template exists and belongs to user
       const template = await prisma.template.findUnique({
         where: { id },
       });
 
-      if (!template) {
+      if (!template || template.uploadedById !== req.user.id) {
         return res.status(404).json({ error: "Template not found" });
       }
 
@@ -440,11 +443,15 @@ router.post(
         });
       }
 
-      // Get current template state
+      // Get current template state and verify ownership
       const currentTemplate = await prisma.template.findUnique({
         where: { id },
         include: { fields: true },
       });
+
+      if (!currentTemplate || currentTemplate.uploadedById !== req.user.id) {
+        return res.status(404).json({ error: "Template not found" });
+      }
 
       // Create version of CURRENT state before reverting
       const maxVersion = await prisma.templateVersion.findFirst({
@@ -543,7 +550,8 @@ router.get(
         },
       });
 
-      if (!template) {
+      // Check template exists and belongs to user
+      if (!template || template.uploadedById !== req.user.id) {
         return res.status(404).json({ error: "Template not found" });
       }
 
@@ -564,12 +572,12 @@ router.delete(
     try {
       const { id } = req.params;
 
-      // Check if template exists and is active
+      // Check if template exists, belongs to user, and is active
       const template = await prisma.template.findUnique({
         where: { id },
       });
 
-      if (!template) {
+      if (!template || template.uploadedById !== req.user.id) {
         return res.status(404).json({ error: "Template not found" });
       }
 
@@ -601,12 +609,12 @@ router.post(
     try {
       const { id } = req.params;
 
-      // Check if template exists and is inactive
+      // Check if template exists, belongs to user, and is inactive
       const template = await prisma.template.findUnique({
         where: { id },
       });
 
-      if (!template) {
+      if (!template || template.uploadedById !== req.user.id) {
         return res.status(404).json({ error: "Template not found" });
       }
 
@@ -642,13 +650,13 @@ router.put(
       const { displayName, defaultOutputType, outputNameFormat, pageSize, orientation } = req.body;
       const file = req.file;
 
-      // Check if template exists
+      // Check if template exists and belongs to user
       const existingTemplate = await prisma.template.findUnique({
         where: { id },
         include: { fields: true },
       });
 
-      if (!existingTemplate) {
+      if (!existingTemplate || existingTemplate.uploadedById !== req.user.id) {
         return res.status(404).json({ error: "Template not found" });
       }
 

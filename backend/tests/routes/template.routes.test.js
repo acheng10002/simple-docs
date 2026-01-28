@@ -50,13 +50,14 @@ describe("Template Routes", () => {
   });
 
   describe("GET /api/templates", () => {
-    test("should return list of templates", async () => {
+    test("should return list of templates for authenticated user only", async () => {
       const mockTemplates = [
         {
           id: "template-1",
           displayName: "Invoice Template",
           mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           isActive: true,
+          uploadedById: "user-123",
           fields: [{ id: "field-1", name: "customer_name" }],
         },
       ];
@@ -67,6 +68,12 @@ describe("Template Routes", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockTemplates);
+      // Verify query filters by user
+      expect(prisma.template.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { uploadedById: "user-123" },
+        })
+      );
     });
 
     test("should return 500 on database error", async () => {
@@ -80,10 +87,11 @@ describe("Template Routes", () => {
   });
 
   describe("GET /api/templates/:id", () => {
-    test("should return a single template by ID", async () => {
+    test("should return a single template by ID when user owns it", async () => {
       const mockTemplate = {
         id: "template-1",
         displayName: "Invoice Template",
+        uploadedById: "user-123",
         fields: [{ id: "field-1", name: "customer_name" }],
       };
 
@@ -103,14 +111,31 @@ describe("Template Routes", () => {
       expect(response.status).toBe(404);
       expect(response.body.error).toBe("Template not found");
     });
+
+    test("should return 404 when template belongs to different user (tenant isolation)", async () => {
+      const mockTemplate = {
+        id: "template-1",
+        displayName: "Invoice Template",
+        uploadedById: "other-user-456", // Different user
+        fields: [{ id: "field-1", name: "customer_name" }],
+      };
+
+      prisma.template.findUnique.mockResolvedValue(mockTemplate);
+
+      const response = await request(app).get("/api/templates/template-1");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("Template not found");
+    });
   });
 
   describe("DELETE /api/templates/:id (Deactivate)", () => {
-    test("should deactivate an active template", async () => {
+    test("should deactivate an active template owned by user", async () => {
       const mockTemplate = {
         id: "template-1",
         displayName: "Invoice Template",
         isActive: true,
+        uploadedById: "user-123",
       };
 
       prisma.template.findUnique.mockResolvedValue(mockTemplate);
@@ -134,11 +159,29 @@ describe("Template Routes", () => {
       expect(response.body.error).toBe("Template not found");
     });
 
+    test("should return 404 when template belongs to different user (tenant isolation)", async () => {
+      const mockTemplate = {
+        id: "template-1",
+        displayName: "Invoice Template",
+        isActive: true,
+        uploadedById: "other-user-456", // Different user
+      };
+
+      prisma.template.findUnique.mockResolvedValue(mockTemplate);
+
+      const response = await request(app).delete("/api/templates/template-1");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("Template not found");
+      expect(prisma.template.update).not.toHaveBeenCalled();
+    });
+
     test("should return 404 when template already deactivated", async () => {
       const mockTemplate = {
         id: "template-1",
         displayName: "Invoice Template",
         isActive: false,
+        uploadedById: "user-123",
       };
 
       prisma.template.findUnique.mockResolvedValue(mockTemplate);
@@ -150,7 +193,7 @@ describe("Template Routes", () => {
     });
 
     test("should return 500 on database error", async () => {
-      prisma.template.findUnique.mockResolvedValue({ id: "template-1", isActive: true });
+      prisma.template.findUnique.mockResolvedValue({ id: "template-1", isActive: true, uploadedById: "user-123" });
       prisma.template.update.mockRejectedValue(new Error("Database error"));
 
       const response = await request(app).delete("/api/templates/template-1");
@@ -161,11 +204,12 @@ describe("Template Routes", () => {
   });
 
   describe("POST /api/templates/:id/activate", () => {
-    test("should activate an inactive template", async () => {
+    test("should activate an inactive template owned by user", async () => {
       const mockTemplate = {
         id: "template-1",
         displayName: "Invoice Template",
         isActive: false,
+        uploadedById: "user-123",
       };
 
       prisma.template.findUnique.mockResolvedValue(mockTemplate);
@@ -189,11 +233,29 @@ describe("Template Routes", () => {
       expect(response.body.error).toBe("Template not found");
     });
 
+    test("should return 404 when template belongs to different user (tenant isolation)", async () => {
+      const mockTemplate = {
+        id: "template-1",
+        displayName: "Invoice Template",
+        isActive: false,
+        uploadedById: "other-user-456", // Different user
+      };
+
+      prisma.template.findUnique.mockResolvedValue(mockTemplate);
+
+      const response = await request(app).post("/api/templates/template-1/activate");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("Template not found");
+      expect(prisma.template.update).not.toHaveBeenCalled();
+    });
+
     test("should return 400 when template already active", async () => {
       const mockTemplate = {
         id: "template-1",
         displayName: "Invoice Template",
         isActive: true,
+        uploadedById: "user-123",
       };
 
       prisma.template.findUnique.mockResolvedValue(mockTemplate);
@@ -205,7 +267,7 @@ describe("Template Routes", () => {
     });
 
     test("should return 500 on database error", async () => {
-      prisma.template.findUnique.mockResolvedValue({ id: "template-1", isActive: false });
+      prisma.template.findUnique.mockResolvedValue({ id: "template-1", isActive: false, uploadedById: "user-123" });
       prisma.template.update.mockRejectedValue(new Error("Database error"));
 
       const response = await request(app).post("/api/templates/template-1/activate");
@@ -216,8 +278,8 @@ describe("Template Routes", () => {
   });
 
   describe("GET /api/templates/:id/versions", () => {
-    test("should return version history for a template", async () => {
-      const mockTemplate = { id: "template-1" };
+    test("should return version history for a template owned by user", async () => {
+      const mockTemplate = { id: "template-1", uploadedById: "user-123" };
       const mockVersions = [
         {
           id: "version-1",
@@ -256,8 +318,20 @@ describe("Template Routes", () => {
       expect(response.body.error).toBe("Template not found");
     });
 
+    test("should return 404 when template belongs to different user (tenant isolation)", async () => {
+      const mockTemplate = { id: "template-1", uploadedById: "other-user-456" };
+
+      prisma.template.findUnique.mockResolvedValue(mockTemplate);
+
+      const response = await request(app).get("/api/templates/template-1/versions");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("Template not found");
+      expect(prisma.templateVersion.findMany).not.toHaveBeenCalled();
+    });
+
     test("should return empty array when no versions exist", async () => {
-      prisma.template.findUnique.mockResolvedValue({ id: "template-1" });
+      prisma.template.findUnique.mockResolvedValue({ id: "template-1", uploadedById: "user-123" });
       prisma.templateVersion.findMany.mockResolvedValue([]);
 
       const response = await request(app).get("/api/templates/template-1/versions");
@@ -267,7 +341,7 @@ describe("Template Routes", () => {
     });
 
     test("should return 500 on database error", async () => {
-      prisma.template.findUnique.mockResolvedValue({ id: "template-1" });
+      prisma.template.findUnique.mockResolvedValue({ id: "template-1", uploadedById: "user-123" });
       prisma.templateVersion.findMany.mockRejectedValue(new Error("Database error"));
 
       const response = await request(app).get("/api/templates/template-1/versions");
@@ -278,7 +352,7 @@ describe("Template Routes", () => {
   });
 
   describe("POST /api/templates/:id/versions/:versionId/revert", () => {
-    test("should revert template to a previous version", async () => {
+    test("should revert template to a previous version when user owns it", async () => {
       const mockVersion = {
         id: "version-1",
         templateId: "template-1",
@@ -297,10 +371,11 @@ describe("Template Routes", () => {
         storageKey: "current-storage-key",
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         displayName: "Current Name",
+        uploadedById: "user-123",
         fields: [{ id: "field-2", name: "invoice_date" }],
       };
 
-      prisma.templateVersion.findFirst.mockResolvedValue(mockVersion);
+      prisma.templateVersion.findUnique.mockResolvedValue(mockVersion);
       prisma.template.findUnique.mockResolvedValue(mockCurrentTemplate);
       prisma.templateVersion.findFirst.mockImplementation((args) => {
         if (args.orderBy?.versionNumber === "desc") {
@@ -327,12 +402,37 @@ describe("Template Routes", () => {
     });
 
     test("should return 404 when version not found", async () => {
-      prisma.templateVersion.findFirst.mockResolvedValue(null);
+      prisma.templateVersion.findUnique.mockResolvedValue(null);
 
       const response = await request(app).post("/api/templates/template-1/versions/nonexistent/revert");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Version not found or has expired");
+    });
+
+    test("should return 404 when template belongs to different user (tenant isolation)", async () => {
+      const mockVersion = {
+        id: "version-1",
+        templateId: "template-1",
+        versionNumber: 1,
+        storageKey: "old-storage-key",
+        expiresAt: new Date(Date.now() + 86400000),
+      };
+
+      const mockCurrentTemplate = {
+        id: "template-1",
+        uploadedById: "other-user-456", // Different user
+        fields: [],
+      };
+
+      prisma.templateVersion.findUnique.mockResolvedValue(mockVersion);
+      prisma.template.findUnique.mockResolvedValue(mockCurrentTemplate);
+      s3.send.mockResolvedValue({});
+
+      const response = await request(app).post("/api/templates/template-1/versions/version-1/revert");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("Template not found");
+      expect(prisma.templateVersion.create).not.toHaveBeenCalled();
     });
 
     test("should return 404 when S3 file not found", async () => {
@@ -344,7 +444,7 @@ describe("Template Routes", () => {
         expiresAt: new Date(Date.now() + 86400000),
       };
 
-      prisma.templateVersion.findFirst.mockResolvedValue(mockVersion);
+      prisma.templateVersion.findUnique.mockResolvedValue(mockVersion);
       s3.send.mockRejectedValue(new Error("Not found"));
 
       const response = await request(app).post("/api/templates/template-1/versions/version-1/revert");
@@ -361,7 +461,7 @@ describe("Template Routes", () => {
         expiresAt: new Date(Date.now() + 86400000),
       };
 
-      prisma.templateVersion.findFirst.mockResolvedValue(mockVersion);
+      prisma.templateVersion.findUnique.mockResolvedValue(mockVersion);
       s3.send.mockResolvedValue({});
       prisma.template.findUnique.mockRejectedValue(new Error("Database error"));
 
