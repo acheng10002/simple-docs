@@ -9,7 +9,7 @@ const prisma = require("../../src/config/prisma");
 
 // Mock S3 storage client
 jest.mock("../../src/storage/supabase-storage");
-const { s3, HeadObjectCommand } = require("../../src/storage/supabase-storage");
+const { s3, HeadObjectCommand, withPrefix } = require("../../src/storage/supabase-storage");
 
 // Mock format services for extractFieldsFromTemplate
 jest.mock("../../src/services/docxService", () => ({
@@ -46,6 +46,8 @@ describe("template.service", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     process.env.S3_BUCKET = "test-bucket";
+    // Re-setup withPrefix mock after resetAllMocks clears it
+    withPrefix.mockImplementation((key) => key);
   });
 
   afterEach(() => {
