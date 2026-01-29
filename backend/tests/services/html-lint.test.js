@@ -34,7 +34,7 @@ describe("html-lint", () => {
   // *** JAVASCRIPT: URL AND REMOTE REF
   test("flags javascript: links and remote refs when allowRemote=false", () => {
     /* constructs HTML with an anchor using a javascript: URL (error) and an image sourced from a
-    remote URL (warning if remote references are not allowed) */
+    remote URL (error - SSRF risk when remote references are not allowed) */
     const html = Buffer.from(
       `<html><body>
             <a href="javascript:void(0)">bad</a>
@@ -48,12 +48,14 @@ describe("html-lint", () => {
     const { errors, warnings } = lintHtmlBuffer(html, { allowRemote: false });
     // checks that javascript:URL was flagged as an error
     expect(errors).toEqual(expect.arrayContaining(["javascript: URL on <a>"]));
-    // remote URLs should trigger warnings, checks that the remote src produced a warning
-    expect(warnings).toEqual(
+    // remote URLs are now errors (SSRF protection), not warnings
+    expect(errors).toEqual(
       expect.arrayContaining([
-        'Remote ref: src="https://cdn.example.com/p.png"',
+        'Remote URL not allowed (SSRF risk): src="https://cdn.example.com/p.png"',
       ])
     );
+    // no warnings expected
+    expect(warnings).toEqual([]);
   });
 
   // *** MISSING PRINT CSS WARNING

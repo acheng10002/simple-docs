@@ -28,9 +28,9 @@ function walk(node, issues, allowRemote) {
       // href="javascript:..." -> error
       if (a.name === "href" && JS_URL.test(a.value))
         issues.errors.push(`javascript: URL on <${tag}>`);
-      // if allowRemote is false and attribute value looks remote (http(s)://) -> warning
+      // if allowRemote is false and attribute value looks remote (http(s)://) -> ERROR (SSRF risk)
       if (!allowRemote && REMOTE.test(a.value))
-        issues.warnings.push(`Remote ref: ${a.name}="${a.value}"`);
+        issues.errors.push(`Remote URL not allowed (SSRF risk): ${a.name}="${a.value}"`);
     }
   }
   // recurses into all children to lint the whole tree

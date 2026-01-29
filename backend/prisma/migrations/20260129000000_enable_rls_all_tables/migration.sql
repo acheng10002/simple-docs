@@ -1,5 +1,7 @@
 -- Enable Row Level Security on all public tables
 -- Backend uses service_role which bypasses RLS, so this blocks direct PostgREST access
+-- Note: When RLS is enabled, access is denied by default if no policy matches.
+-- We only need policies for service_role; anon/authenticated are denied automatically.
 
 -- =====================
 -- User table
@@ -13,13 +15,6 @@ TO service_role
 USING (true)
 WITH CHECK (true);
 
-CREATE POLICY "Deny public access to User"
-ON "User"
-FOR ALL
-TO authenticated, anon
-USING (false)
-WITH CHECK (false);
-
 -- =====================
 -- Folder table
 -- =====================
@@ -31,13 +26,6 @@ FOR ALL
 TO service_role
 USING (true)
 WITH CHECK (true);
-
-CREATE POLICY "Deny public access to Folder"
-ON "Folder"
-FOR ALL
-TO authenticated, anon
-USING (false)
-WITH CHECK (false);
 
 -- =====================
 -- Template table
@@ -51,13 +39,6 @@ TO service_role
 USING (true)
 WITH CHECK (true);
 
-CREATE POLICY "Deny public access to Template"
-ON "Template"
-FOR ALL
-TO authenticated, anon
-USING (false)
-WITH CHECK (false);
-
 -- =====================
 -- TemplateVersion table
 -- =====================
@@ -69,13 +50,6 @@ FOR ALL
 TO service_role
 USING (true)
 WITH CHECK (true);
-
-CREATE POLICY "Deny public access to TemplateVersion"
-ON "TemplateVersion"
-FOR ALL
-TO authenticated, anon
-USING (false)
-WITH CHECK (false);
 
 -- =====================
 -- Field table
@@ -89,13 +63,6 @@ TO service_role
 USING (true)
 WITH CHECK (true);
 
-CREATE POLICY "Deny public access to Field"
-ON "Field"
-FOR ALL
-TO authenticated, anon
-USING (false)
-WITH CHECK (false);
-
 -- =====================
 -- MergeJob table
 -- =====================
@@ -107,10 +74,3 @@ FOR ALL
 TO service_role
 USING (true)
 WITH CHECK (true);
-
-CREATE POLICY "Deny public access to MergeJob"
-ON "MergeJob"
-FOR ALL
-TO authenticated, anon
-USING (false)
-WITH CHECK (false);

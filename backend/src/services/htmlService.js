@@ -108,9 +108,20 @@ async function convertHtmlToPdf(htmlBuffer) {
 
     const page = await withTimeout(browser.newPage(), 10000, 'Page creation');
 
+    // SSRF protection: Block all network requests (defense-in-depth)
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      // Only allow data: URLs (inline content), block everything else
+      if (request.url().startsWith('data:')) {
+        request.continue();
+      } else {
+        request.abort('blockedbyclient');
+      }
+    });
+
     await withTimeout(
       page.setContent(htmlBuffer.toString('utf-8'), {
-        waitUntil: 'networkidle0',
+        waitUntil: 'domcontentloaded', // Changed from networkidle0 since we block network
         timeout: 20000,
       }),
       25000,

@@ -78,11 +78,22 @@ async function convertPdfToJpg(pdfBuffer, puppeteerInstance) {
   try {
     const page = await puppeteerInstance.newPage();
 
+    // SSRF protection: Block all network requests (defense-in-depth)
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      // Only allow data: URLs (inline content), block everything else
+      if (request.url().startsWith('data:')) {
+        request.continue();
+      } else {
+        request.abort('blockedbyclient');
+      }
+    });
+
     // Convert PDF buffer to base64
     const pdfBase64 = pdfBuffer.toString('base64');
     const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
 
-    await page.goto(dataUrl, { waitUntil: 'networkidle0' });
+    await page.goto(dataUrl, { waitUntil: 'domcontentloaded' });
 
     // Take screenshot of the first page
     const screenshot = await page.screenshot({

@@ -49,12 +49,23 @@ async function convertHtmlToJpg(htmlContent) {
   const page = await browser.newPage();
 
   try {
+    // SSRF protection: Block all network requests (defense-in-depth)
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      // Only allow data: URLs (inline content), block everything else
+      if (request.url().startsWith('data:')) {
+        request.continue();
+      } else {
+        request.abort('blockedbyclient');
+      }
+    });
+
     const html = Buffer.isBuffer(htmlContent)
       ? htmlContent.toString('utf-8')
       : htmlContent;
 
     await withTimeout(
-      page.setContent(html, { waitUntil: 'networkidle0' }),
+      page.setContent(html, { waitUntil: 'domcontentloaded' }), // Changed from networkidle0
       25000,
       'HTML page load'
     );
@@ -95,12 +106,23 @@ async function convertPdfToJpg(pdfBuffer) {
   const page = await browser.newPage();
 
   try {
+    // SSRF protection: Block all network requests (defense-in-depth)
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      // Only allow data: URLs (inline content), block everything else
+      if (request.url().startsWith('data:')) {
+        request.continue();
+      } else {
+        request.abort('blockedbyclient');
+      }
+    });
+
     // Convert PDF buffer to base64 data URL
     const pdfBase64 = pdfBuffer.toString('base64');
     const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
 
     await withTimeout(
-      page.goto(dataUrl, { waitUntil: 'networkidle0' }),
+      page.goto(dataUrl, { waitUntil: 'domcontentloaded' }),
       25000,
       'PDF page load'
     );
