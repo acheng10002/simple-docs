@@ -257,7 +257,14 @@ router.get(
         where: {
           userId: userId,
         },
-        include: {
+        select: {
+          id: true,
+          templateId: true,
+          outputType: true,
+          status: true,
+          filePath: true,
+          createdAt: true,
+          // Explicitly exclude 'data' field to prevent PII exposure
           template: {
             select: {
               id: true,

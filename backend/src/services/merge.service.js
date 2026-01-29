@@ -570,10 +570,11 @@ async function mergeTemplate({
   );
 
   // Create MergeJob record
+  // Note: We don't store raw merge data to avoid PII exposure
   const job = await prisma.mergeJob.create({
     data: {
       templateId: template.id,
-      data,
+      data: null,
       outputType,
       status: 'succeeded',
       filePath,

@@ -122,7 +122,7 @@ model MergeJob {
     id         Int        @id @default(autoincrement())
     templateId String
     userId     String?
-    data       Json
+    data       Json?
     outputType OutputType
     status     JobStatus  @default(queued)
     filePath   String
