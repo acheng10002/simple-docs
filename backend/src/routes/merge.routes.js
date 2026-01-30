@@ -5,7 +5,7 @@ PUBLIC API SURFACE THAT CALLS INTO SERVICES: MERGE PATHS -> MERGE.SERVICE.JS
   and HMAC-verified webhook API */
 require("dotenv").config();
 const express = require("express");
-const rateLimit = require("express-rate-limit");
+const { createUserRateLimiter } = require("../middleware/rate-limiter");
 // imports Supabase authentication middleware
 const authenticateSupabase = require("../middleware/supabase-auth");
 /* Node's cryptography module that gives me access to low-level primitives like hashes, HMACs, ciphers, signatures,
@@ -33,41 +33,24 @@ const ALLOWED_OUTPUTS = {
 
 const router = express.Router();
 
-const mergeLimiter = rateLimit({
+// PostgreSQL-backed rate limiters for multi-instance support
+const mergeLimiter = createUserRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 50,
   message: "Too many merge requests",
-  keyGenerator: (req, res) => {
-    // Use user ID if authenticated, otherwise fall back to IP
-    if (req.user?.id) return req.user.id;
-    // Use the built-in key generator for proper IPv6 handling
-    return rateLimit.defaultKeyGenerator(req, res);
-  },
-});
+}, "merge");
 
-const csvLimiter = rateLimit({
+const csvLimiter = createUserRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 15,
   message: "Too many CSV merge requests",
-  keyGenerator: (req, res) => {
-    // Use user ID if authenticated, otherwise fall back to IP
-    if (req.user?.id) return req.user.id;
-    // Use the built-in key generator for proper IPv6 handling
-    return rateLimit.defaultKeyGenerator(req, res);
-  },
-});
+}, "csv_merge");
 
-const downloadLimiter = rateLimit({
+const downloadLimiter = createUserRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: "Too many download requests",
-  keyGenerator: (req, res) => {
-    // Use user ID if authenticated, otherwise fall back to IP
-    if (req.user?.id) return req.user.id;
-    // Use the built-in key generator for proper IPv6 handling
-    return rateLimit.defaultKeyGenerator(req, res);
-  },
-});
+}, "download");
 
 /* App.js's express.raw() leaves req.body as a Node buffer, raw bytes, for HMAC 
 - every other route uses express.json() */

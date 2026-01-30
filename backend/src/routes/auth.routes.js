@@ -3,7 +3,7 @@
 - manages Supabase Auth sessions and database user records */
 const express = require("express");
 const prisma = require("../config/prisma");
-const rateLimit = require("express-rate-limit");
+const { createRateLimiter } = require("../middleware/rate-limiter");
 const { supabaseAdmin, supabaseClient } = require("../config/supabase-auth");
 
 const router = express.Router();
@@ -19,14 +19,12 @@ function validatePasswordStrength(password) {
   return errors;
 }
 
-// Rate limiting for auth routes (prevent brute force attacks)
-const authLimiter = rateLimit({
+// Rate limiting for auth routes (prevent brute force attacks) - PostgreSQL-backed
+const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 attempts per window per IP
   message: "Too many authentication attempts, please try again later",
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+}, "auth");
 
 /* POST /api/auth/register
 - creates new user in Supabase Auth and database

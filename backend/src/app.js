@@ -13,7 +13,8 @@ const uploadRouter = require("./routes/template.routes");
 const mergeRouter = require("./routes/merge.routes");
 const authRouter = require("./routes/auth.routes");
 const folderRouter = require("./routes/folder.routes");
-const rateLimit = require("express-rate-limit");
+const adminRouter = require("./routes/admin.routes");
+const { createRateLimiter } = require("./middleware/rate-limiter");
 const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
 const logger = require("./config/logger");
@@ -25,6 +26,7 @@ const cors = require("cors");
 const requiredEnvVars = [
   "JWT_SECRET",
   "WEBHOOK_SECRET",
+  "CLEANUP_SECRET",
   "DATABASE_URL",
   "DIRECT_URL",
   "SUPABASE_URL",
@@ -37,6 +39,7 @@ const optionalEnvVars = {
   PORT: "3000",
   NODE_ENV: "development",
   LOG_LEVEL: "info",
+  OUTPUT_RETENTION_DAYS: "30",
 };
 
 /* looks up each required key in process.env/ Node's env var object 
@@ -48,6 +51,9 @@ if (missing.length > 0) {
   console.error(" JWT_SECRET             - Secret key for JWT token signing");
   console.error(
     " WEBHOOK_SECRET         - Shared secret key for webhook HMAC verification"
+  );
+  console.error(
+    " CLEANUP_SECRET         - Secret key for scheduled cleanup endpoint"
   );
   console.error(
     " DATABASE_URL           - PostgreSQL connection string (pooled)"
@@ -120,22 +126,22 @@ if (process.env.NODE_ENV !== "production") {
   console.log("CORS disabled - production uses same origin");
 }
 
-// RATE-LIMITING - protects upload and webhook endpoints from abuse
-const uploadLimiter = rateLimit({
+// RATE-LIMITING - protects upload and webhook endpoints from abuse (PostgreSQL-backed for multi-instance)
+const uploadLimiter = createRateLimiter({
   // 15 minutes
   windowMs: 15 * 60 * 1000,
   // limit each IP to 10 uploads per window
   max: 10,
   message: "Too many uploads, please try again later",
-});
+}, "upload");
 
-const webhookLimiter = rateLimit({
+const webhookLimiter = createRateLimiter({
   // 15 minutes
   windowMs: 15 * 60 * 1000,
   // webhooks might have a higher volume
   max: 100,
   message: "Too many webhook requests, please try again later",
-});
+}, "webhook");
 
 app.use("/api/upload", uploadLimiter);
 app.use("/api/webhooks", webhookLimiter);
@@ -185,6 +191,8 @@ app.use("/api", uploadRouter);
 /* POST /api/templates/:templateId/merge, /api/webhooks, etc. - mounts the merge and download routes
 from ./merge.routes under /api */
 app.use("/api", mergeRouter);
+// Admin routes for scheduled tasks (cleanup, etc.)
+app.use("/api", adminRouter);
 
 app.use(errorLogger.expressErrorHandler);
 

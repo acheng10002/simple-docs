@@ -3,6 +3,13 @@ const express = require("express");
 const crypto = require("crypto");
 const { Readable } = require("stream");
 
+// Mock rate limiter to avoid database connection during tests
+jest.mock("../../src/middleware/rate-limiter", () => ({
+  createRateLimiter: () => (req, res, next) => next(),
+  createUserRateLimiter: () => (req, res, next) => next(),
+  createWeightedLimiter: () => () => (req, res, next) => next(),
+}));
+
 // mocks prisma
 jest.mock("../../src/config/prisma");
 const prisma = require("../../src/config/prisma");

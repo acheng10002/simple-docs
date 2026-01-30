@@ -2,10 +2,12 @@
 jest.mock("../../src/config/supabase-auth");
 jest.mock("../../src/config/prisma");
 
-// Mock rate limiter to prevent 429 errors in tests
-jest.mock("express-rate-limit", () => {
-  return jest.fn(() => (req, res, next) => next());
-});
+// Mock rate limiter to avoid database connection during tests
+jest.mock("../../src/middleware/rate-limiter", () => ({
+  createRateLimiter: () => (req, res, next) => next(),
+  createUserRateLimiter: () => (req, res, next) => next(),
+  createWeightedLimiter: () => () => (req, res, next) => next(),
+}));
 
 const request = require("supertest");
 const express = require("express");
