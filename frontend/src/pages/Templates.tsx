@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -68,27 +68,12 @@ export default function Templates() {
   const [moveFolderDialog, setMoveFolderDialog] = useState<Folder | null>(null);
   const [moveTemplateDialog, setMoveTemplateDialog] = useState<{ templateId: string; folderId: string | null } | null>(null);
   const [draggedTemplateId, setDraggedTemplateId] = useState<string | null>(null);
-  const folderTreeRef = useRef<HTMLDivElement>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [dragOverTable, setDragOverTable] = useState(false);
 
   useEffect(() => {
     loadTemplates();
     loadFolders();
-  }, []);
-
-  // Collapse folders when clicking outside the folder tree
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (folderTreeRef.current && !folderTreeRef.current.contains(event.target as Node)) {
-        setExpandedFolderIds(new Set());
-        setSelectedFolderId(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
   }, []);
 
   const loadTemplates = async () => {
@@ -208,6 +193,7 @@ export default function Templates() {
   const handleDragEnd = () => {
     setDraggedTemplateId(null);
     setDragOverFolderId(null);
+    setDragOverTable(false);
   };
 
   const handleDropOnFolder = async (folderId: string) => {
@@ -221,6 +207,29 @@ export default function Templates() {
       setError(err.response?.data?.error || 'Failed to move template');
     } finally {
       setDraggedTemplateId(null);
+    }
+  };
+
+  const handleDropOnTable = async () => {
+    if (!draggedTemplateId) return;
+
+    // Check if the template is already unfiled
+    const template = templates.find(t => t.id === draggedTemplateId);
+    if (!template?.folderId) {
+      setDraggedTemplateId(null);
+      setDragOverTable(false);
+      return;
+    }
+
+    try {
+      await foldersApi.moveTemplate(draggedTemplateId, { folderId: null });
+      await loadTemplates();
+      await loadFolders();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to remove template from folder');
+    } finally {
+      setDraggedTemplateId(null);
+      setDragOverTable(false);
     }
   };
 
@@ -360,7 +369,7 @@ export default function Templates() {
 
                   {/* Folder Tree */}
                   {folders.length > 0 && (
-                    <Box ref={folderTreeRef}>
+                    <Box>
                       <Box sx={{ display: 'flex', alignItems: 'baseline', px: 2, bgcolor: 'grey.50', py: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.125rem', mr: 2 }}>
                           Folders
@@ -398,7 +407,41 @@ export default function Templates() {
                       <Divider />
                     </Box>
                   )}
-                  <TableContainer sx={{ padding: 0 }}>
+                  <TableContainer
+                    sx={{
+                      padding: 0,
+                      bgcolor: dragOverTable ? 'primary.light' : 'transparent',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedTemplateId) {
+                        setDragOverTable(true);
+                        setDragOverFolderId(null);
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      if (draggedTemplateId) {
+                        setDragOverTable(true);
+                        setDragOverFolderId(null);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      // Only set to false if leaving the container entirely
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = e.clientX;
+                      const y = e.clientY;
+                      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                        setDragOverTable(false);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropOnTable();
+                    }}
+                  >
                     <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
                       <colgroup>
                         <col style={{ width: '25%' }} />
@@ -407,7 +450,7 @@ export default function Templates() {
                         <col style={{ width: '20%' }} />
                       </colgroup>
                       <TableHead>
-                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                        <TableRow sx={{ bgcolor: dragOverTable ? 'primary.light' : 'grey.50' }}>
                           <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
                           <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
                           <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
