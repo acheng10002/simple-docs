@@ -137,3 +137,7 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Generated outputs and uploads (use S3 in production)
+backend/outputs/
+backend/uploads/
