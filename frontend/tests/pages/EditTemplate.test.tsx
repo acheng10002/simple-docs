@@ -71,6 +71,8 @@ const mockTemplate: Template = {
   folderId: null,
   defaultOutputType: 'pdf',
   outputNameFormat: 'customer_name',
+  pageSize: 'letter',
+  orientation: 'portrait',
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 

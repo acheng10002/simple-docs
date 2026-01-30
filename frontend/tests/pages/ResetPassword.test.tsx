@@ -126,13 +126,14 @@ describe('ResetPassword Page', () => {
       });
     });
 
-    it('should show error when password is too short', async () => {
+    it('should show error when password does not meet requirements', async () => {
       renderResetPassword('#access_token=valid-token&type=recovery');
 
       await waitFor(() => {
         expect(getPasswordInput()).toBeInTheDocument();
       });
 
+      // 'short' doesn't meet any of the password criteria
       fireEvent.change(getPasswordInput(), { target: { value: 'short' } });
       fireEvent.change(getConfirmPasswordInput(), { target: { value: 'short' } });
 
@@ -140,7 +141,7 @@ describe('ResetPassword Page', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/password must be at least 8 characters/i)).toBeInTheDocument();
+        expect(screen.getByText(/password does not meet all requirements/i)).toBeInTheDocument();
       });
     });
 
@@ -155,14 +156,19 @@ describe('ResetPassword Page', () => {
         expect(getPasswordInput()).toBeInTheDocument();
       });
 
-      fireEvent.change(getPasswordInput(), { target: { value: 'newPassword123' } });
-      fireEvent.change(getConfirmPasswordInput(), { target: { value: 'newPassword123' } });
+      // Password must meet all criteria: 8+ chars, uppercase, lowercase, number, special char
+      const validPassword = 'NewPassword123!';
+      fireEvent.change(getPasswordInput(), { target: { value: validPassword } });
+      fireEvent.change(getConfirmPasswordInput(), { target: { value: validPassword } });
 
       const submitButton = screen.getByRole('button', { name: /reset password/i });
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(authApi.resetPassword).toHaveBeenCalledWith('newPassword123', 'valid-token');
+        expect(authApi.resetPassword).toHaveBeenCalledWith(validPassword, 'valid-token');
+      });
+
+      await waitFor(() => {
         expect(screen.getByText(/password has been reset successfully/i)).toBeInTheDocument();
       });
     });
@@ -179,8 +185,10 @@ describe('ResetPassword Page', () => {
         expect(getPasswordInput()).toBeInTheDocument();
       });
 
-      fireEvent.change(getPasswordInput(), { target: { value: 'newPassword123' } });
-      fireEvent.change(getConfirmPasswordInput(), { target: { value: 'newPassword123' } });
+      // Password must meet all criteria
+      const validPassword = 'NewPassword123!';
+      fireEvent.change(getPasswordInput(), { target: { value: validPassword } });
+      fireEvent.change(getConfirmPasswordInput(), { target: { value: validPassword } });
 
       const submitButton = screen.getByRole('button', { name: /reset password/i });
       fireEvent.click(submitButton);
@@ -201,8 +209,10 @@ describe('ResetPassword Page', () => {
         expect(getPasswordInput()).toBeInTheDocument();
       });
 
-      fireEvent.change(getPasswordInput(), { target: { value: 'newPassword123' } });
-      fireEvent.change(getConfirmPasswordInput(), { target: { value: 'newPassword123' } });
+      // Password must meet all criteria
+      const validPassword = 'NewPassword123!';
+      fireEvent.change(getPasswordInput(), { target: { value: validPassword } });
+      fireEvent.change(getConfirmPasswordInput(), { target: { value: validPassword } });
 
       const submitButton = screen.getByRole('button', { name: /reset password/i });
       fireEvent.click(submitButton);

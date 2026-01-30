@@ -3,12 +3,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Login from '../../src/pages/Login';
 import { SupabaseAuthProvider } from '../../src/context/SupabaseAuthContext';
-import * as apiClient from '../../src/api/client';
 
 // Use vi.hoisted to create mocks that can be used in vi.mock factory
-const { mockPost, mockForgotPassword } = vi.hoisted(() => ({
+const { mockPost, mockForgotPassword, mockGetSession, mockSetSession } = vi.hoisted(() => ({
   mockPost: vi.fn(),
   mockForgotPassword: vi.fn(),
+  mockGetSession: vi.fn(),
+  mockSetSession: vi.fn(),
 }));
 
 // Mock the API client
@@ -26,11 +27,11 @@ vi.mock('../../src/api/client', () => ({
 vi.mock('../../src/config/supabase', () => ({
   supabase: {
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      getSession: mockGetSession,
       onAuthStateChange: vi.fn().mockReturnValue({
         data: { subscription: { unsubscribe: vi.fn() } },
       }),
-      setSession: vi.fn(),
+      setSession: mockSetSession,
       signOut: vi.fn(),
     },
   },
@@ -46,14 +47,19 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-const renderLogin = () => {
-  return render(
+const renderLogin = async () => {
+  const result = render(
     <BrowserRouter>
       <SupabaseAuthProvider>
         <Login />
       </SupabaseAuthProvider>
     </BrowserRouter>
   );
+  // Wait for auth context to finish loading
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+  });
+  return result;
 };
 
 describe('Login Page', () => {
@@ -62,25 +68,28 @@ describe('Login Page', () => {
     mockNavigate.mockClear();
     mockPost.mockClear();
     mockForgotPassword.mockClear();
+    // Setup default mock for getSession
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null });
+    mockSetSession.mockResolvedValue({ data: { session: null }, error: null });
   });
 
-  it('should render login form', () => {
-    renderLogin();
+  it('should render login form', async () => {
+    const { container } = await renderLogin();
 
     expect(screen.getByText('MergeMyDocs')).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(container.querySelector('#email')).toBeInTheDocument();
+    expect(container.querySelector('#password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
   it('should show validation errors for empty fields', async () => {
-    renderLogin();
+    const { container } = await renderLogin();
 
     const submitButton = screen.getByRole('button', { name: /sign in/i });
     fireEvent.click(submitButton);
 
     // HTML5 validation will prevent submission
-    const emailInput = screen.getByLabelText(/email/i) as HTMLInputElement;
+    const emailInput = container.querySelector('#email') as HTMLInputElement;
     expect(emailInput.validity.valid).toBe(false);
   });
 
@@ -97,10 +106,10 @@ describe('Login Page', () => {
 
     mockPost.mockResolvedValue(mockResponse);
 
-    renderLogin();
+    const { container } = await renderLogin();
 
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const emailInput = container.querySelector('#email')!;
+    const passwordInput = container.querySelector('#password')!;
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -112,6 +121,9 @@ describe('Login Page', () => {
         email: 'test@example.com',
         password: 'password123',
       });
+    });
+
+    await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/templates');
     });
   });
@@ -122,10 +134,10 @@ describe('Login Page', () => {
       response: { data: { error: errorMessage } },
     });
 
-    renderLogin();
+    const { container } = await renderLogin();
 
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const emailInput = container.querySelector('#email')!;
+    const passwordInput = container.querySelector('#password')!;
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -139,23 +151,24 @@ describe('Login Page', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('should have link to register page', () => {
-    renderLogin();
+  it('should have link to register page', async () => {
+    await renderLogin();
 
     const registerLink = screen.getByText(/don't have an account/i).closest('a');
     expect(registerLink).toHaveAttribute('href', '/register');
   });
 
   it('should disable submit button while loading', async () => {
-    vi.mocked(apiClient.authApi.login).mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 1000))
+    // Mock a slow API response
+    mockPost.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ data: {} }), 1000))
     );
 
-    renderLogin();
+    const { container } = await renderLogin();
 
     const submitButton = screen.getByRole('button', { name: /sign in/i });
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const emailInput = container.querySelector('#email')!;
+    const passwordInput = container.querySelector('#password')!;
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
     fireEvent.change(passwordInput, { target: { value: 'password123' } });
@@ -163,18 +176,19 @@ describe('Login Page', () => {
 
     await waitFor(() => {
       expect(submitButton).toBeDisabled();
+      expect(screen.getByText(/signing in/i)).toBeInTheDocument();
     });
   });
 
   describe('Forgot Password', () => {
-    it('should have forgot password link', () => {
-      renderLogin();
+    it('should have forgot password link', async () => {
+      await renderLogin();
 
       expect(screen.getByText(/forgot password/i)).toBeInTheDocument();
     });
 
     it('should open forgot password dialog when clicked', async () => {
-      renderLogin();
+      await renderLogin();
 
       const forgotPasswordLink = screen.getByText(/forgot password/i);
       fireEvent.click(forgotPasswordLink);
@@ -187,7 +201,7 @@ describe('Login Page', () => {
     });
 
     it('should close dialog when cancel is clicked', async () => {
-      renderLogin();
+      await renderLogin();
 
       const forgotPasswordLink = screen.getByText(/forgot password/i);
       fireEvent.click(forgotPasswordLink);
@@ -209,7 +223,7 @@ describe('Login Page', () => {
         message: 'If an account exists with this email, a password reset link has been sent.',
       });
 
-      renderLogin();
+      await renderLogin();
 
       const forgotPasswordLink = screen.getByText(/forgot password/i);
       fireEvent.click(forgotPasswordLink);
@@ -233,7 +247,7 @@ describe('Login Page', () => {
     it('should show success message even on error (prevents enumeration)', async () => {
       mockForgotPassword.mockRejectedValue(new Error('Network error'));
 
-      renderLogin();
+      await renderLogin();
 
       const forgotPasswordLink = screen.getByText(/forgot password/i);
       fireEvent.click(forgotPasswordLink);
@@ -259,7 +273,7 @@ describe('Login Page', () => {
         () => new Promise((resolve) => setTimeout(resolve, 1000))
       );
 
-      renderLogin();
+      await renderLogin();
 
       const forgotPasswordLink = screen.getByText(/forgot password/i);
       fireEvent.click(forgotPasswordLink);
@@ -285,7 +299,7 @@ describe('Login Page', () => {
         message: 'If an account exists with this email, a password reset link has been sent.',
       });
 
-      renderLogin();
+      await renderLogin();
 
       const forgotPasswordLink = screen.getByText(/forgot password/i);
       fireEvent.click(forgotPasswordLink);
