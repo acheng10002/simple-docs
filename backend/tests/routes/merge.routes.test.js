@@ -770,7 +770,7 @@ describe("Merge Routes", () => {
 
       prisma.mergeJob.findFirst.mockResolvedValue({
         id: "job-123",
-        filePath: "outputs/result.pdf",
+        filePath: "s3://test-bucket/outputs/result.pdf",
         userId: "user-123",
       });
 
@@ -783,9 +783,10 @@ describe("Merge Routes", () => {
         .expect(200);
 
       expect(response.headers["content-type"]).toBe("application/pdf");
+      // Authorization uses exact match with full S3 URI to prevent path injection attacks
       expect(prisma.mergeJob.findFirst).toHaveBeenCalledWith({
         where: {
-          filePath: { contains: "outputs/result.pdf" },
+          filePath: "s3://test-bucket/outputs/result.pdf",
           userId: "user-123",
         },
       });

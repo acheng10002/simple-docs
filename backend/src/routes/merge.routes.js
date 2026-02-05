@@ -344,10 +344,14 @@ router.get(
         return res.status(400).json({ error: "File path is required" });
       }
 
-      // Verify the user owns a merge job with this file path
+      // Reconstruct the full S3 URI for exact match against database
+      // Database stores: s3://bucket/path, frontend sends: path (after stripping s3://bucket/)
+      const fullS3Uri = `s3://${process.env.S3_BUCKET}/${filePath}`;
+
+      // Verify the user owns a merge job with this EXACT file path
       const job = await prisma.mergeJob.findFirst({
         where: {
-          filePath: { contains: filePath },
+          filePath: fullS3Uri,
           userId: req.user.id,
         },
       });
@@ -358,8 +362,8 @@ router.get(
 
       req.log.info({ filePath }, "Merge output download request started");
 
-      // Build S3 key with prefix
-      const s3Key = withPrefix(filePath);
+      // Use the filePath directly as the S3 key (it already includes prefix from storage)
+      const s3Key = filePath;
 
       try {
         const obj = await s3.send(
