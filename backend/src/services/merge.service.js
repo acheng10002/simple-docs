@@ -499,24 +499,10 @@ async function mergeTemplate({
   const baseFilename = `${safeBase}-${fieldValue}`;
   const ext = getExtension(outputType);
 
-  // Check for existing files with same name and add incremental counter if needed
-  let filename = baseFilename;
-  let counter = 0;
-  let isDuplicate = true;
-
-  while (isDuplicate) {
-    const testPath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${filename}.${ext}`)}`;
-    const existing = await prisma.mergeJob.findFirst({
-      where: { filePath: testPath },
-    });
-
-    if (!existing) {
-      isDuplicate = false;
-    } else {
-      counter++;
-      filename = `${baseFilename}-${counter}`;
-    }
-  }
+  // Include UUID to guarantee unique filenames and prevent race condition overwrites
+  // This eliminates the TOCTOU vulnerability where concurrent requests could collide
+  const uniqueId = randomUUID();
+  const filename = `${baseFilename}-${uniqueId}`;
 
   const filePath = `s3://${process.env.S3_BUCKET}/${withPrefix(`outputs/${filename}.${ext}`)}`;
 
