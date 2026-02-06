@@ -97,9 +97,10 @@ async function convertHtmlToPdf(htmlBuffer) {
       puppeteer.launch({
         headless: 'new',
         args: [
-          '--disable-dev-shm-usage',
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage', // Use /tmp instead of /dev/shm for shared memory
+          // Sandbox enabled in production for security when processing untrusted content
+          // Disabled in development for easier local setup
+          ...(process.env.NODE_ENV === 'development' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
         ],
       }),
       30000,

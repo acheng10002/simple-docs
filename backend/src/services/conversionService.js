@@ -27,12 +27,15 @@ function withTimeout(promise, ms, operation) {
  */
 async function getBrowser() {
   if (!browserInstance || !browserInstance.isConnected()) {
+    // Sandbox enabled in production for security when processing untrusted content
+    // Disabled in development for easier local setup (no root/permissions issues)
+    const isDev = process.env.NODE_ENV === 'development';
+
     browserInstance = await puppeteer.launch({
       headless: 'new',
       args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
+        '--disable-dev-shm-usage', // Use /tmp instead of /dev/shm for shared memory
+        ...(isDev ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
       ],
     });
   }

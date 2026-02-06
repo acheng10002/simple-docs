@@ -29,9 +29,12 @@ services:
       retries: 3
       start_period: 40s
 
-    # Security options
+    # Security options - custom seccomp profile for Chromium sandbox
+    # More restrictive than seccomp:unconfined while allowing required syscalls
     security_opt:
-      - no-new-privileges:true
+      - seccomp=./backend/chromium-seccomp.json
+    cap_add:
+      - SYS_ADMIN  # Required for Chromium sandbox  
 
     # Resource limits (adjust based on your needs)
     deploy:

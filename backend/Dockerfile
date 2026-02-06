@@ -29,6 +29,12 @@ FROM node:20-slim
 
 # Install LibreOffice, Chromium, and required fonts for document conversion
 RUN apt-get update && apt-get install -y \
+    libnss3 \                                                                        
+    libatk-bridge2.0-0 \                                                             
+    libdrm2 \                                                                        
+    libxkbcommon0 \                                                                  
+    libgbm1 \                                                                        
+    libasound2 \   
     libreoffice \
     libreoffice-writer \
     fonts-liberation \
@@ -41,8 +47,8 @@ RUN apt-get update && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Create non-root user for security
-RUN useradd -m -u 1001 -s /bin/bash appuser
+# Create non-root user for security with groups needed by Chromium sandbox
+RUN groupadd -r appuser && useradd -r -g appuser -G audio,video appuser
 
 WORKDIR /app
 
