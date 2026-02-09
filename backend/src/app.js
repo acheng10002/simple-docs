@@ -15,6 +15,8 @@ const authRouter = require("./routes/auth.routes");
 const folderRouter = require("./routes/folder.routes");
 const adminRouter = require("./routes/admin.routes");
 const { createRateLimiter } = require("./middleware/rate-limiter");
+const { getMemoryStats } = require("./middleware/memory-guard");
+const { mergeLimiter: concurrencyLimiter } = require("./utils/concurrency");
 const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
 const logger = require("./config/logger");
@@ -153,9 +155,13 @@ app.use(passport.initialize());
 app.get("/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
+    const memory = getMemoryStats();
+    const concurrency = concurrencyLimiter.stats();
     res.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
+      memory,
+      concurrency,
     });
   } catch (err) {
     res.status(503).json({

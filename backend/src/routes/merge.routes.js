@@ -8,6 +8,10 @@ const express = require("express");
 const { createUserRateLimiter } = require("../middleware/rate-limiter");
 // imports Supabase authentication middleware
 const authenticateSupabase = require("../middleware/supabase-auth");
+// concurrency limiter to prevent memory exhaustion from parallel merges
+const { mergeLimiter: concurrencyLimiter } = require("../utils/concurrency");
+// memory guard middleware to reject requests when memory is critically high
+const { memoryGuard } = require("../middleware/memory-guard");
 /* Node's cryptography module that gives me access to low-level primitives like hashes, HMACs, ciphers, signatures,
 random bytes, and key derivation */
 const crypto = require("crypto");
@@ -450,6 +454,7 @@ router.post(
   // requires a valid JWT, and on success, Passport sets req.user with no server-side sessions
   authenticateSupabase,
   csvLimiter,
+  memoryGuard,
   // multer middleware that expects one uploaded file under the form field name csv
   uploadCsv.single("csv"),
   async (req, res) => {
@@ -544,16 +549,19 @@ router.post(
       // loops each parsed row
       for (const row of rows) {
         try {
-          // calls core mergeTemplate service with...
-          const job = await mergeTemplate({
-            // which template to use
-            templateId,
-            // CSV row becomes key/value map for placeholders
-            data: row,
-            // e.g. "pdf" or "docx"
-            outputType,
-            // audit trail of who triggered the merge
-            userId: req.user?.id,
+          // calls core mergeTemplate service with concurrency limiting
+          // Each merge acquires a slot to prevent memory exhaustion
+          const job = await concurrencyLimiter.run(async () => {
+            return mergeTemplate({
+              // which template to use
+              templateId,
+              // CSV row becomes key/value map for placeholders
+              data: row,
+              // e.g. "pdf" or "docx"
+              outputType,
+              // audit trail of who triggered the merge
+              userId: req.user?.id,
+            });
           });
           // awaits each merge sequentially and pushes the returned { jobId, filePath } into jobs
           jobs.push(job);
@@ -592,6 +600,7 @@ router.post(
   // B2b. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): auth middleware
   authenticateSupabase,
   mergeLimiter,
+  memoryGuard,
   async (req, res) => {
     try {
       /* pulls templateId from req.params, selects which stored template to use
@@ -641,13 +650,16 @@ router.post(
       );
 
       // B4. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): handoff to merge engine
-      const result = await mergeTemplate({
-        templateId,
-        data,
-        outputType,
-        // tracks which user initiated manual merges
-        userId: req.user?.id,
-        testMode: testMode === true || testMode === 'true',
+      // Wrap in concurrency limiter to prevent memory exhaustion
+      const result = await concurrencyLimiter.run(async () => {
+        return mergeTemplate({
+          templateId,
+          data,
+          outputType,
+          // tracks which user initiated manual merges
+          userId: req.user?.id,
+          testMode: testMode === true || testMode === 'true',
+        });
       });
 
       req.log.info({ templateId, outputType, testMode }, "Manual merge completed");
@@ -685,7 +697,7 @@ router.post(
 /* WEBHOOK MERGE (HMAC) 
 - SANITIZES INPUTS ON WEBHOOK (EXTERNAL SYSTEMS) ROUTE
 - STILL HARD-BLOCKS EXECUTION ON CRITICAL VIOLATIONS (E.G. FAILED HMAC, SCHEMA MISMATCH, PATH TRAVERSAL LOGS, ETC.) */
-router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
+router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, async (req, res) => {
   // runs the same merge path with the POST body as data
   /* C5. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): route handler execution
       C5a. templateId from URL */
@@ -770,18 +782,21 @@ router.post("/webhooks/templates/:templateId", verifyHmac, async (req, res) => {
     // iterates through rows
     for (const row of rows) {
       rowIndex++;
-      /* mergeTemplate loads the template file, renders placeholders with data, optionally 
-        converts, writes the output file, optionally records a merge job, returns 
-        { jobId, filePath } 
+      /* mergeTemplate loads the template file, renders placeholders with data, optionally
+        converts, writes the output file, optionally records a merge job, returns
+        { jobId, filePath }
 
         C7. WEBHOOK DATA INGESTION (SHARED-SECRET HMAC): handoff to merge engine */
-      const job = await mergeTemplate({
-        templateId,
-        data: row,
-        outputType,
-        userId: null,
-        // lets the merge layer apply webhook-specific rules (i.e. sanitization)
-        fromWebhook: true,
+      // Wrap in concurrency limiter to prevent memory exhaustion
+      const job = await concurrencyLimiter.run(async () => {
+        return mergeTemplate({
+          templateId,
+          data: row,
+          outputType,
+          userId: null,
+          // lets the merge layer apply webhook-specific rules (i.e. sanitization)
+          fromWebhook: true,
+        });
       });
       jobs.push(job);
 

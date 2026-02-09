@@ -12,8 +12,9 @@ const path = require("path");
 // *** MULTER MIDDLEWARE IN MEMORY STORAGE MODE - PUTS FILE BYTES IN REQ.FILE.BUFFER
 const storage = multer.memoryStorage();
 
-// base limits I can tweak in one place - 15MB, limits for file size, number of files, parts, etc.
-const BASE_LIMITS = { fileSize: 15 * 1024 * 1024 };
+// base limits I can tweak in one place - 5MB to prevent memory exhaustion during merge
+// (each merge can hold 3-4 copies in memory: template, processing, output, upload)
+const BASE_LIMITS = { fileSize: 5 * 1024 * 1024 };
 
 /* FACTORY FUNCTION TO CREATE MULTER INSTANCES WITH BASE LIMITS AND PER-ROUTE FILTERS
 WITH OPTIONAL OVERRIDES 
@@ -99,8 +100,8 @@ const uploadCsv = makeUpload({
     // calls Multer's callback to accept or reject the file
     cb(ok ? null : new Error("Unsupported CSV type"), ok);
   },
-  // CSVs can be larger
-  limits: { fileSize: 25 * 1024 * 1024 },
+  // CSVs can be larger but still limited to prevent memory issues
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 /* when the upload instance is exported (i.e. uploadTemplate or uploadCSV), the same upload instance 
