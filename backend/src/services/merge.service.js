@@ -482,11 +482,12 @@ async function mergeTemplate({
 
   // outputNameFormat is now required, but check for safety
   if (!template.outputNameFormat || !data[template.outputNameFormat]) {
+    // Log only non-PII metadata for debugging - never log actual data values
     logger.error({
       templateId: template.id,
       outputNameFormat: template.outputNameFormat,
       dataKeys: Object.keys(data),
-      dataValues: data,
+      hasOutputNameFormatValue: template.outputNameFormat ? !!data[template.outputNameFormat] : false,
     }, 'outputNameFormat validation failed');
     throw new Error('Template outputNameFormat is not configured or field value is missing');
   }
