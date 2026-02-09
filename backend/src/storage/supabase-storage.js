@@ -1,7 +1,107 @@
 /* SUPABASE STORAGE CLIENT
 - S3-compatible storage using Supabase
-- provides similar interface to s3.js for easier migration */
+- provides similar interface to s3.js for easier migration
+- includes retry logic with exponential backoff for transient errors */
 const { createClient } = require("@supabase/supabase-js");
+
+// Retry configuration
+const RETRY_CONFIG = {
+  maxRetries: parseInt(process.env.STORAGE_MAX_RETRIES, 10) || 3,
+  baseDelayMs: parseInt(process.env.STORAGE_RETRY_BASE_MS, 10) || 100,
+  maxDelayMs: parseInt(process.env.STORAGE_RETRY_MAX_MS, 10) || 5000,
+};
+
+/**
+ * Check if an error is transient and should be retried
+ */
+function isTransientError(error) {
+  if (!error) return false;
+
+  const message = (error.message || "").toLowerCase();
+  const status = error.status || error.statusCode;
+
+  // Rate limiting
+  if (status === 429) return true;
+
+  // Server errors (5xx)
+  if (status >= 500 && status < 600) return true;
+
+  // Network/timeout errors
+  if (
+    message.includes("timeout") ||
+    message.includes("econnreset") ||
+    message.includes("econnrefused") ||
+    message.includes("socket hang up") ||
+    message.includes("network") ||
+    message.includes("fetch failed") ||
+    message.includes("temporarily unavailable")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Calculate delay with exponential backoff and jitter
+ */
+function calculateBackoff(attempt) {
+  // Exponential: baseDelay * 2^attempt
+  const exponentialDelay = RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt);
+
+  // Cap at max delay
+  const cappedDelay = Math.min(exponentialDelay, RETRY_CONFIG.maxDelayMs);
+
+  // Add jitter (±25%)
+  const jitter = cappedDelay * 0.25 * (Math.random() * 2 - 1);
+
+  return Math.round(cappedDelay + jitter);
+}
+
+/**
+ * Sleep for specified milliseconds
+ */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Execute an async function with retry logic
+ * @param {Function} fn - Async function to execute
+ * @param {string} operation - Operation name for logging
+ * @returns {Promise<any>} - Result from fn
+ */
+async function withRetry(fn, operation) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry non-transient errors
+      if (!isTransientError(error)) {
+        throw error;
+      }
+
+      // Don't retry if we've exhausted attempts
+      if (attempt >= RETRY_CONFIG.maxRetries) {
+        throw error;
+      }
+
+      // Calculate backoff and wait
+      const delayMs = calculateBackoff(attempt);
+      console.log(
+        `[Storage] ${operation} failed (attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1}), ` +
+          `retrying in ${delayMs}ms: ${error.message}`
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError;
+}
 
 // validates required environment variables
 if (!process.env.SUPABASE_URL) {
@@ -98,55 +198,64 @@ class DeleteObjectCommand {
 }
 
 /* Storage client wrapper that mimics S3Client.send() interface
-- executes PutObject, GetObject, and HeadObject operations using Supabase Storage */
+- executes PutObject, GetObject, and HeadObject operations using Supabase Storage
+- automatically retries transient errors with exponential backoff */
 const storageClient = {
   async send(command) {
     if (command instanceof PutObjectCommand) {
-      // upload operation
+      // upload operation with retry
       const { Key, Body, ContentType } = command.params;
       const { bucket, path } = getBucketAndPath(Key);
 
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(path, Body, {
-          contentType: ContentType,
-          upsert: true, // overwrites if exists
-        });
+      return withRetry(async () => {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .upload(path, Body, {
+            contentType: ContentType,
+            upsert: true, // overwrites if exists
+          });
 
-      if (error) {
-        throw new Error(`Supabase Storage upload failed: ${error.message}`);
-      }
-      return data;
+        if (error) {
+          const err = new Error(`Supabase Storage upload failed: ${error.message}`);
+          err.status = error.statusCode || error.status;
+          throw err;
+        }
+        return data;
+      }, `upload ${Key}`);
     }
 
     if (command instanceof GetObjectCommand) {
-      // download operation
+      // download operation with retry
       const { Key } = command.params;
       const { bucket, path } = getBucketAndPath(Key);
 
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .download(path);
+      return withRetry(async () => {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .download(path);
 
-      if (error) {
-        throw new Error(`Supabase Storage download failed: ${error.message}`);
-      }
+        if (error) {
+          const err = new Error(`Supabase Storage download failed: ${error.message}`);
+          err.status = error.statusCode || error.status;
+          throw err;
+        }
 
-      // converts Blob to Node.js stream to match S3 GetObjectCommand response
-      const buffer = Buffer.from(await data.arrayBuffer());
-      const { Readable } = require("stream");
-      const stream = Readable.from(buffer);
+        // converts Blob to Node.js stream to match S3 GetObjectCommand response
+        const buffer = Buffer.from(await data.arrayBuffer());
+        const { Readable } = require("stream");
+        const stream = Readable.from(buffer);
 
-      // mimics S3 GetObjectCommand response structure
-      return {
-        Body: stream,
-        ContentType: data.type,
-        ContentLength: data.size,
-      };
+        // mimics S3 GetObjectCommand response structure
+        return {
+          Body: stream,
+          ContentType: data.type,
+          ContentLength: data.size,
+        };
+      }, `download ${Key}`);
     }
 
     if (command instanceof HeadObjectCommand) {
-      // metadata check operation
+      // metadata check operation with retry
       const { Key } = command.params;
       const { bucket, path } = getBucketAndPath(Key);
 
@@ -155,44 +264,52 @@ const storageClient = {
       const fileName = pathParts.pop();
       const folder = pathParts.length > 0 ? pathParts.join("/") : "";
 
-      const { data, error } = await supabase.storage.from(bucket).list(folder, {
-        search: fileName,
-      });
+      return withRetry(async () => {
+        const { data, error } = await supabase.storage.from(bucket).list(folder, {
+          search: fileName,
+        });
 
-      if (error) {
-        throw new Error(`Supabase Storage head failed: ${error.message}`);
-      }
+        if (error) {
+          const err = new Error(`Supabase Storage head failed: ${error.message}`);
+          err.status = error.statusCode || error.status;
+          throw err;
+        }
 
-      // finds the specific file in the list
-      const file = data?.find((f) => f.name === fileName);
+        // finds the specific file in the list
+        const file = data?.find((f) => f.name === fileName);
 
-      if (!file) {
-        const notFoundError = new Error("Not Found");
-        notFoundError.name = "NotFound";
-        throw notFoundError;
-      }
+        if (!file) {
+          const notFoundError = new Error("Not Found");
+          notFoundError.name = "NotFound";
+          throw notFoundError;
+        }
 
-      // mimics S3 HeadObjectCommand response structure
-      return {
-        ContentLength: file.metadata?.size || 0,
-        ContentType: file.metadata?.mimetype || "application/octet-stream",
-        LastModified: new Date(file.updated_at || file.created_at),
-      };
+        // mimics S3 HeadObjectCommand response structure
+        return {
+          ContentLength: file.metadata?.size || 0,
+          ContentType: file.metadata?.mimetype || "application/octet-stream",
+          LastModified: new Date(file.updated_at || file.created_at),
+        };
+      }, `head ${Key}`);
     }
 
     if (command instanceof DeleteObjectCommand) {
-      // delete operation
+      // delete operation with retry
       const { Key } = command.params;
       const { bucket, path } = getBucketAndPath(Key);
 
-      const { error } = await supabase.storage.from(bucket).remove([path]);
+      return withRetry(async () => {
+        const { error } = await supabase.storage.from(bucket).remove([path]);
 
-      if (error) {
-        throw new Error(`Supabase Storage delete failed: ${error.message}`);
-      }
+        if (error) {
+          const err = new Error(`Supabase Storage delete failed: ${error.message}`);
+          err.status = error.statusCode || error.status;
+          throw err;
+        }
 
-      // mimics S3 DeleteObjectCommand response
-      return { DeleteMarker: false, VersionId: null };
+        // mimics S3 DeleteObjectCommand response
+        return { DeleteMarker: false, VersionId: null };
+      }, `delete ${Key}`);
     }
 
     throw new Error(`Unknown command type: ${command.constructor.name}`);
