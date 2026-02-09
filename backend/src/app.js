@@ -17,6 +17,7 @@ const adminRouter = require("./routes/admin.routes");
 const { createRateLimiter } = require("./middleware/rate-limiter");
 const { getMemoryStats } = require("./middleware/memory-guard");
 const { mergeLimiter: concurrencyLimiter } = require("./utils/concurrency");
+const { templateCache } = require("./utils/templateCache");
 const { resumePendingBatchJobs } = require("./services/batchJob.service");
 const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
@@ -158,11 +159,13 @@ app.get("/health", async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     const memory = getMemoryStats();
     const concurrency = concurrencyLimiter.stats();
+    const cache = templateCache.getStats();
     res.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
       memory,
       concurrency,
+      templateCache: cache,
     });
   } catch (err) {
     res.status(503).json({

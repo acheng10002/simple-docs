@@ -19,6 +19,7 @@ const pdfService = require('./pdfService');
 const xlsxService = require('./xlsxService');
 const pptxService = require('./pptxService');
 const conversionService = require('./conversionService');
+const { templateCache } = require('../utils/templateCache');
 
 /**
  * Timeout wrapper for promises
@@ -36,9 +37,17 @@ function withTimeout(promise, ms, operation) {
 }
 
 /**
- * Load template buffer from S3
+ * Load template buffer from S3 with caching
+ * Cache significantly reduces download overhead for batch processing
  */
 async function loadTemplateBuffer(template) {
+  // Check cache first
+  const cached = templateCache.get(template.id, template.storageKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Download from S3
   const key = withPrefix(`uploads/${template.storageKey}`);
   const resp = await s3.send(
     new GetObjectCommand({
@@ -49,7 +58,12 @@ async function loadTemplateBuffer(template) {
 
   const chunks = [];
   for await (const chunk of resp.Body) chunks.push(chunk);
-  return Buffer.concat(chunks);
+  const buffer = Buffer.concat(chunks);
+
+  // Store in cache for future requests
+  templateCache.set(template.id, template.storageKey, buffer);
+
+  return buffer;
 }
 
 /**
