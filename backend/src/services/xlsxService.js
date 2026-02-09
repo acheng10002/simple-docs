@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const { convertXlsxToPdf } = require('../utils/libreoffice');
 
 /**
  * Escape special regex characters in a string to prevent regex injection
@@ -90,13 +91,6 @@ async function fillXlsxTemplate(xlsxBuffer, data, outputFormat = 'xlsx') {
       });
     });
 
-    // For PDF output, we would need a conversion library
-    // For now, we'll just return the XLSX
-    if (outputFormat === 'pdf') {
-      console.warn('PDF output for XLSX not yet implemented, returning XLSX');
-      // TODO: Implement XLSX to PDF conversion using a library like xlsx-pdf or headless browser
-    }
-
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);
   } catch (error) {
@@ -108,4 +102,5 @@ async function fillXlsxTemplate(xlsxBuffer, data, outputFormat = 'xlsx') {
 module.exports = {
   extractXlsxFields,
   fillXlsxTemplate,
+  convertXlsxToPdf,
 };

@@ -1,5 +1,6 @@
 const PptxGenJS = require('pptxgenjs');
 const AdmZip = require('adm-zip');
+const { convertPptxToPdf } = require('../utils/libreoffice');
 
 /**
  * Escape special regex characters in a string to prevent regex injection
@@ -94,10 +95,8 @@ async function fillPptxTemplate(pptxBuffer, data, outputFormat = 'pptx') {
         zip.updateFile(contentTypesEntry, Buffer.from(contentTypes, 'utf8'));
         outputBuffer = zip.toBuffer();
       }
-    } else if (outputFormat === 'pdf' || outputFormat === 'jpg') {
-      console.warn(`${outputFormat.toUpperCase()} output for PPTX requires conversion, returning PPTX for now`);
-      // TODO: Implement PPTX to PDF/JPG conversion using LibreOffice or similar
     }
+    // PDF and JPG conversions are handled in merge.service.js
 
     return outputBuffer;
   } catch (error) {
@@ -109,4 +108,5 @@ async function fillPptxTemplate(pptxBuffer, data, outputFormat = 'pptx') {
 module.exports = {
   extractPptxFields,
   fillPptxTemplate,
+  convertPptxToPdf,
 };

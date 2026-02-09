@@ -467,11 +467,20 @@ async function mergeTemplate({
     outputBuffer = await conversionService.convertPdfToJpg(mergedBuffer);
   }
 
+  // XLSX conversions
+  if (intermediateFormat === 'xlsx' && outputType === 'pdf') {
+    outputBuffer = await xlsxService.convertXlsxToPdf(mergedBuffer);
+  }
+
   // PPTX conversions
-  if (intermediateFormat === 'pptx' && outputType === 'jpg') {
-    // Note: PPTX to JPG requires PPTX->PDF->JPG conversion
-    logger.warn('PPTX to JPG conversion not fully implemented, returning PPTX');
-    // TODO: Implement PPTX to PDF conversion using LibreOffice
+  if (intermediateFormat === 'pptx' && outputType !== 'pptx' && outputType !== 'ppsx') {
+    if (outputType === 'pdf') {
+      outputBuffer = await pptxService.convertPptxToPdf(mergedBuffer);
+    } else if (outputType === 'jpg') {
+      // PPTX → PDF → JPG
+      const pdfBuffer = await pptxService.convertPptxToPdf(mergedBuffer);
+      outputBuffer = await conversionService.convertPdfToJpg(pdfBuffer);
+    }
   }
 
   // Generate filename based on template settings
