@@ -23,6 +23,14 @@ const { sanitizeCsvRows } = require("../utils/csv-sanitizer");
 const { resolveTemplateFile } = require("../services/template.service");
 // imports my merge function
 const { mergeTemplate } = require("../services/merge.service");
+// batch job service for hybrid CSV processing
+const {
+  shouldProcessInline,
+  processRowsInline,
+  createBatchJob,
+  getBatchJobStatus,
+  listBatchJobs,
+} = require("../services/batchJob.service");
 const { s3, GetObjectCommand, withPrefix } = require("../storage/supabase-storage");
 const prisma = require("../config/prisma");
 
@@ -544,46 +552,72 @@ router.post(
       rows = sanitizeCsvRows(rows);
 
       req.log.info({ templateId, rowCount: rows.length }, "CSV merge started");
-      // initializes an array jobs to collect results, and merges each row
-      const jobs = [];
-      // loops each parsed row
-      for (const row of rows) {
-        try {
-          // calls core mergeTemplate service with concurrency limiting
-          // Each merge acquires a slot to prevent memory exhaustion
-          const job = await concurrencyLimiter.run(async () => {
-            return mergeTemplate({
-              // which template to use
-              templateId,
-              // CSV row becomes key/value map for placeholders
-              data: row,
-              // e.g. "pdf" or "docx"
-              outputType,
-              // audit trail of who triggered the merge
-              userId: req.user?.id,
-            });
+
+      // HYBRID ROUTING: Small batches inline, large batches queued
+      if (shouldProcessInline(rows.length)) {
+        // Process inline with bounded concurrency for small batches
+        req.log.info({ templateId, rowCount: rows.length }, "Processing CSV inline");
+
+        const results = await processRowsInline({
+          templateId,
+          rows,
+          outputType,
+          userId: req.user?.id,
+        });
+
+        // Check for template parse errors
+        const parseError = results.find(
+          r => !r.success && r.error?.includes("TEMPLATE_PARSE_ERROR")
+        );
+        if (parseError) {
+          return res.status(422).json({
+            error: "Template has invalid Docxtemplater tags",
+            details: parseError.error,
           });
-          // awaits each merge sequentially and pushes the returned { jobId, filePath } into jobs
-          jobs.push(job);
-        } catch (err) {
-          // if the merge failed due to Docxtemplater tag problems
-          if (err.message === "TEMPLATE_PARSE_ERROR" && err.details) {
-            // responds with 422 Unprocessable Entity and structured details
-            return res.status(422).json({
-              error: "Template has invalid Docxtemplater tags",
-              details: err.details,
-            });
-          }
-          // bubble other errors to outer catch
-          throw err;
         }
+
+        // Format response similar to original
+        const jobs = results
+          .filter(r => r.success)
+          .map(r => r.job);
+        const errors = results
+          .filter(r => !r.success)
+          .map(r => ({ rowIndex: r.rowIndex, error: r.error }));
+
+        req.log.info(
+          { templateId, rowCount: rows.length, successCount: jobs.length, errorCount: errors.length },
+          "CSV merge completed (inline)"
+        );
+
+        res.json({
+          count: rows.length,
+          jobs,
+          ...(errors.length > 0 ? { errors } : {}),
+        });
+      } else {
+        // Queue for background processing for large batches
+        req.log.info({ templateId, rowCount: rows.length }, "Queueing CSV for background processing");
+
+        const batchJob = await createBatchJob({
+          templateId,
+          rows,
+          outputType,
+          userId: req.user?.id,
+        });
+
+        req.log.info(
+          { templateId, rowCount: rows.length, batchJobId: batchJob.id },
+          "CSV merge queued"
+        );
+
+        // Return 202 Accepted with batch job ID for polling
+        res.status(202).json({
+          message: "Batch job queued for processing",
+          batchJobId: batchJob.id,
+          totalRows: rows.length,
+          statusUrl: `/api/batch-jobs/${batchJob.id}`,
+        });
       }
-      req.log.info(
-        { templateId, rowCount: rows.length, jobCount: jobs.length },
-        "CSV merge completed"
-      );
-      // sends JSON with the number of processed rows and the list of created jobs
-      res.json({ count: rows.length, jobs });
     } catch (err) {
       req.log.error({ err, templateId: req.params.templateId }, "CSV merge failed");
       // otherwise, send 400 Bad Request with a simple error message
@@ -694,7 +728,56 @@ router.post(
   }
 );
 
-/* WEBHOOK MERGE (HMAC) 
+/* GET /api/batch-jobs
+- lists all batch jobs for the authenticated user */
+router.get(
+  "/batch-jobs",
+  authenticateSupabase,
+  async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+      const offset = parseInt(req.query.offset, 10) || 0;
+
+      const batchJobs = await listBatchJobs(userId, { limit, offset });
+      res.json(batchJobs);
+    } catch (err) {
+      req.log.error({ err }, "Failed to list batch jobs");
+      res.status(500).json({ error: "Failed to list batch jobs" });
+    }
+  }
+);
+
+/* GET /api/batch-jobs/:id
+- gets status of a specific batch job */
+router.get(
+  "/batch-jobs/:id",
+  authenticateSupabase,
+  async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const batchJob = await getBatchJobStatus(req.params.id, userId);
+      if (!batchJob) {
+        return res.status(404).json({ error: "Batch job not found" });
+      }
+
+      res.json(batchJob);
+    } catch (err) {
+      req.log.error({ err, batchJobId: req.params.id }, "Failed to get batch job status");
+      res.status(500).json({ error: "Failed to get batch job status" });
+    }
+  }
+);
+
+/* WEBHOOK MERGE (HMAC)
 - SANITIZES INPUTS ON WEBHOOK (EXTERNAL SYSTEMS) ROUTE
 - STILL HARD-BLOCKS EXECUTION ON CRITICAL VIOLATIONS (E.G. FAILED HMAC, SCHEMA MISMATCH, PATH TRAVERSAL LOGS, ETC.) */
 router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, async (req, res) => {

@@ -17,6 +17,7 @@ const adminRouter = require("./routes/admin.routes");
 const { createRateLimiter } = require("./middleware/rate-limiter");
 const { getMemoryStats } = require("./middleware/memory-guard");
 const { mergeLimiter: concurrencyLimiter } = require("./utils/concurrency");
+const { resumePendingBatchJobs } = require("./services/batchJob.service");
 const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
 const logger = require("./config/logger");
@@ -205,8 +206,15 @@ app.use(errorLogger.expressErrorHandler);
 const PORT = process.env.PORT || 3000;
 
 // STARTS HTTP SERVER
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   logger.info({ port: PORT }, `Server running on http://localhost:${PORT}`);
+
+  // Resume any pending batch jobs from previous server instance
+  try {
+    await resumePendingBatchJobs();
+  } catch (err) {
+    logger.error({ err }, "Failed to resume pending batch jobs");
+  }
 });
 
 async function gracefulShutdown(signal) {

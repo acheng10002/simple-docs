@@ -175,6 +175,38 @@ enum UserRole {
 }
 
 /// *
+///  * BatchJob model - tracks background CSV merge jobs for large batches
+model BatchJob {
+    id            String         @id @default(cuid())
+    templateId    String
+    userId        String?
+    outputType    OutputType
+    status        BatchJobStatus @default(pending)
+    totalRows     Int
+    processedRows Int            @default(0)
+    failedRows    Int            @default(0)
+    rows          Json           // Array of row data to process
+    results       Json?          // Array of {rowIndex, mergeJobId, error?}
+    error         String?        // Overall job error if failed
+    createdAt     DateTime       @default(now())
+    updatedAt     DateTime       @updatedAt
+    startedAt     DateTime?
+    completedAt   DateTime?
+
+    @@index([status])
+    @@index([userId])
+    @@index([createdAt])
+    @@index([status, createdAt])
+}
+
+enum BatchJobStatus {
+    pending
+    processing
+    completed
+    failed
+}
+
+/// *
 ///  * ErrorLog model - stores application errors for debugging and monitoring
 model ErrorLog {
     id        String   @id @default(cuid())
