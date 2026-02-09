@@ -157,6 +157,8 @@ router.get(
       );
       // prevents MIME sniffing attacks
       res.setHeader("X-Content-Type-Options", "nosniff");
+      // allow browser to cache templates (private = user-specific, not shared proxies)
+      res.setHeader("Cache-Control", "private, max-age=300");
       // add CSP for HTML files to prevent script execution if opened in browser
       if (info.contentType === "text/html") {
         res.setHeader(
@@ -419,6 +421,9 @@ router.get(
             "default-src 'none'; style-src 'unsafe-inline';"
           );
         }
+
+        // Prevent caching of merge outputs (user-specific, one-time generated files)
+        res.setHeader("Cache-Control", "private, no-store");
 
         // S3 stream with timeout
         const stream = obj.Body;

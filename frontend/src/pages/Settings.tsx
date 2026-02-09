@@ -160,18 +160,16 @@ export default function Settings() {
       {/* Main Content */}
       <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
         <Paper sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Button
-              startIcon={<ArrowBackIcon />}
-              onClick={() => navigate('/templates')}
-              sx={{ mr: 2 }}
-            >
-              Back
-            </Button>
-            <Typography variant="h5" component="h1">
-              Account Settings
-            </Typography>
-          </Box>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate('/templates')}
+            sx={{ mb: 2 }}
+          >
+            Back
+          </Button>
+          <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
+            Account Settings
+          </Typography>
 
           {/* Email Update Section */}
           <Box sx={{ mb: 4 }}>
