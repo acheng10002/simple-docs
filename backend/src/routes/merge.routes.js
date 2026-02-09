@@ -407,6 +407,19 @@ router.get(
         res.setHeader("Content-Disposition", `attachment; filename="${filePath.split('/').pop()}"`);
         res.setHeader("X-Content-Type-Options", "nosniff");
 
+        // Set Content-Length if available (enables progress bars, proxies, resumable downloads)
+        if (obj.ContentLength) {
+          res.setHeader("Content-Length", obj.ContentLength);
+        }
+
+        // Add CSP for HTML files to prevent script execution if opened in browser
+        if (contentType === "text/html") {
+          res.setHeader(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline';"
+          );
+        }
+
         // S3 stream with timeout
         const stream = obj.Body;
         const timeout = setTimeout(() => {
