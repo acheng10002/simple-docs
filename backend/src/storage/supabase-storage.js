@@ -199,6 +199,38 @@ const storageClient = {
   },
 };
 
+/**
+ * Check storage connectivity by listing from templates bucket
+ * @returns {Promise<{ok: boolean, latencyMs: number, error?: string}>}
+ */
+async function checkStorageHealth() {
+  const start = Date.now();
+  try {
+    const { error } = await supabase.storage
+      .from("templates")
+      .list("", { limit: 1 });
+
+    if (error) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - start,
+        error: error.message,
+      };
+    }
+
+    return {
+      ok: true,
+      latencyMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - start,
+      error: err.message,
+    };
+  }
+}
+
 module.exports = {
   /* exposes storage client instance to send commands with:
   await storageClient.send(new PutObjectCommand({...})) */
@@ -212,4 +244,6 @@ module.exports = {
   withPrefix,
   // exposes raw Supabase client for advanced operations
   supabase,
+  // health check for storage connectivity
+  checkStorageHealth,
 };

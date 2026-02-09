@@ -20,6 +20,7 @@ const { mergeLimiter: concurrencyLimiter } = require("./utils/concurrency");
 const { templateCache } = require("./utils/templateCache");
 const { resumePendingBatchJobs } = require("./services/batchJob.service");
 const { getWorkerStats, shutdown: shutdownConversion } = require("./services/conversionService");
+const { checkStorageHealth } = require("./storage/supabase-storage");
 const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
 const logger = require("./config/logger");
@@ -157,14 +158,25 @@ app.use(passport.initialize());
 
 app.get("/health", async (req, res) => {
   try {
+    // Check database connectivity
     await prisma.$queryRaw`SELECT 1`;
+
+    // Check storage connectivity
+    const storage = await checkStorageHealth();
+
     const memory = getMemoryStats();
     const concurrency = concurrencyLimiter.stats();
     const cache = templateCache.getStats();
     const worker = getWorkerStats();
-    res.json({
-      status: "healthy",
+
+    // Report degraded if storage is down but DB is up
+    const status = storage.ok ? "healthy" : "degraded";
+
+    res.status(storage.ok ? 200 : 503).json({
+      status,
       timestamp: new Date().toISOString(),
+      database: { ok: true },
+      storage,
       memory,
       concurrency,
       templateCache: cache,
