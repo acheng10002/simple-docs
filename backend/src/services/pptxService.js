@@ -2,6 +2,15 @@ const PptxGenJS = require('pptxgenjs');
 const AdmZip = require('adm-zip');
 
 /**
+ * Escape special regex characters in a string to prevent regex injection
+ * @param {string} string - String to escape
+ * @returns {string} - Escaped string safe for use in RegExp
+ */
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Extract field placeholders from a PPTX template
  * Looks for text containing {{fieldName}} or ${fieldName} patterns
  * @param {Buffer} pptxBuffer - PPTX file buffer
@@ -54,9 +63,10 @@ async function fillPptxTemplate(pptxBuffer, data, outputFormat = 'pptx') {
 
         // Replace all placeholders
         for (const [fieldName, fieldValue] of Object.entries(data)) {
+          const escapedFieldName = escapeRegExp(fieldName);
           const patterns = [
-            new RegExp(`\\{\\{${fieldName}\\}\\}`, 'g'),
-            new RegExp(`\\$\\{${fieldName}\\}`, 'g'),
+            new RegExp(`\\{\\{${escapedFieldName}\\}\\}`, 'g'),
+            new RegExp(`\\$\\{${escapedFieldName}\\}`, 'g'),
           ];
 
           patterns.forEach((pattern) => {

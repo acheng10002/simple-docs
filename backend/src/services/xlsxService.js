@@ -1,6 +1,15 @@
 const ExcelJS = require('exceljs');
 
 /**
+ * Escape special regex characters in a string to prevent regex injection
+ * @param {string} string - String to escape
+ * @returns {string} - Escaped string safe for use in RegExp
+ */
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Extract field placeholders from an XLSX template
  * Looks for cells containing {{fieldName}} or ${fieldName} patterns
  * @param {Buffer} xlsxBuffer - XLSX file buffer
@@ -62,9 +71,10 @@ async function fillXlsxTemplate(xlsxBuffer, data, outputFormat = 'xlsx') {
 
             // Replace all placeholders in the cell
             for (const [fieldName, fieldValue] of Object.entries(data)) {
+              const escapedFieldName = escapeRegExp(fieldName);
               const patterns = [
-                new RegExp(`\\{\\{${fieldName}\\}\\}`, 'g'),
-                new RegExp(`\\$\\{${fieldName}\\}`, 'g'),
+                new RegExp(`\\{\\{${escapedFieldName}\\}\\}`, 'g'),
+                new RegExp(`\\$\\{${escapedFieldName}\\}`, 'g'),
               ];
 
               patterns.forEach((pattern) => {
