@@ -10,6 +10,19 @@ const os = require('os');
 const logger = require('../config/logger');
 const { resolveSoffice, runSoffice } = require('../utils/libreoffice');
 
+// Use isolated worker by default in production
+const USE_ISOLATED_WORKER = process.env.CONVERSION_USE_WORKER !== 'false' &&
+  process.env.NODE_ENV !== 'test';
+
+// Lazy load worker manager to avoid circular dependencies
+let workerManager = null;
+function getWorkerManager() {
+  if (!workerManager && USE_ISOLATED_WORKER) {
+    workerManager = require('../workers/workerManager').workerManager;
+  }
+  return workerManager;
+}
+
 /**
  * Timeout wrapper for promises
  */
@@ -87,10 +100,31 @@ function sanitizeHtml(htmlBuffer) {
 
 /**
  * Convert HTML to PDF using Puppeteer
+ * Uses isolated worker in production, in-process in development/test
  * @param {Buffer} htmlBuffer - HTML file buffer
  * @returns {Promise<Buffer>} - PDF buffer
  */
 async function convertHtmlToPdf(htmlBuffer) {
+  const htmlBuf = Buffer.isBuffer(htmlBuffer) ? htmlBuffer : Buffer.from(htmlBuffer, 'utf-8');
+
+  // Try isolated worker first
+  const wm = getWorkerManager();
+  if (wm) {
+    try {
+      return await wm.convertHtmlToPdf(htmlBuf);
+    } catch (err) {
+      logger.warn({ err }, 'Worker HTML->PDF failed, falling back to in-process');
+    }
+  }
+
+  // Fallback to in-process
+  return convertHtmlToPdfInProcess(htmlBuf);
+}
+
+/**
+ * In-process HTML to PDF conversion using Puppeteer
+ */
+async function convertHtmlToPdfInProcess(htmlBuffer) {
   let browser;
   try {
     browser = await withTimeout(
@@ -153,10 +187,31 @@ async function convertHtmlToPdf(htmlBuffer) {
 
 /**
  * Convert HTML to DOCX using LibreOffice CLI
+ * Uses isolated worker in production, in-process in development/test
  * @param {Buffer} htmlBuffer - HTML file buffer
  * @returns {Promise<Buffer>} - DOCX buffer
  */
 async function convertHtmlToDocx(htmlBuffer) {
+  const htmlBuf = Buffer.isBuffer(htmlBuffer) ? htmlBuffer : Buffer.from(htmlBuffer, 'utf-8');
+
+  // Try isolated worker first
+  const wm = getWorkerManager();
+  if (wm) {
+    try {
+      return await wm.convertHtmlToDocx(htmlBuf);
+    } catch (err) {
+      logger.warn({ err }, 'Worker HTML->DOCX failed, falling back to in-process');
+    }
+  }
+
+  // Fallback to in-process
+  return convertHtmlToDocxInProcess(htmlBuf);
+}
+
+/**
+ * In-process HTML to DOCX conversion using LibreOffice CLI
+ */
+async function convertHtmlToDocxInProcess(htmlBuffer) {
   const soffice = await resolveSoffice();
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'html2docx-'));
   const inHtml = path.join(tmpDir, 'source.html');

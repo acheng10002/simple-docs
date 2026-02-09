@@ -1,8 +1,35 @@
 /* CONVERSION SERVICE - FORMAT CONVERSION OPERATIONS
-Handles conversions between formats, especially to JPG output using Puppeteer */
+Handles conversions between formats using isolated worker process for security.
+Falls back to in-process conversion if worker is disabled. */
 
 const puppeteer = require('puppeteer');
-const logger = require('../config/logger');
+
+// Safe logger wrapper
+let logger;
+try {
+  const rawLogger = require('../config/logger');
+  logger = {
+    debug: (...args) => rawLogger.debug?.(...args),
+    info: (...args) => rawLogger.info?.(...args),
+    warn: (...args) => rawLogger.warn?.(...args),
+    error: (...args) => rawLogger.error?.(...args),
+  };
+} catch {
+  logger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+}
+
+// Use isolated worker by default in production
+const USE_ISOLATED_WORKER = process.env.CONVERSION_USE_WORKER !== 'false' &&
+  process.env.NODE_ENV !== 'test';
+
+// Lazy load worker manager to avoid circular dependencies
+let workerManager = null;
+function getWorkerManager() {
+  if (!workerManager && USE_ISOLATED_WORKER) {
+    workerManager = require('../workers/workerManager').workerManager;
+  }
+  return workerManager;
+}
 
 let browserInstance = null;
 
@@ -22,19 +49,17 @@ function withTimeout(promise, ms, operation) {
 }
 
 /**
- * Get or create a shared Puppeteer browser instance
+ * Get or create a shared Puppeteer browser instance (for in-process mode)
  * @returns {Promise<Browser>}
  */
 async function getBrowser() {
   if (!browserInstance || !browserInstance.isConnected()) {
-    // Sandbox enabled in production for security when processing untrusted content
-    // Disabled in development for easier local setup (no root/permissions issues)
     const isDev = process.env.NODE_ENV === 'development';
 
     browserInstance = await puppeteer.launch({
       headless: 'new',
       args: [
-        '--disable-dev-shm-usage', // Use /tmp instead of /dev/shm for shared memory
+        '--disable-dev-shm-usage',
         ...(isDev ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
       ],
     });
@@ -43,19 +68,40 @@ async function getBrowser() {
 }
 
 /**
- * Convert HTML content to JPG using Puppeteer
- * @param {string|Buffer} htmlContent - HTML string or buffer
- * @returns {Promise<Buffer>} - JPG image buffer
+ * Convert HTML content to JPG
+ * Uses isolated worker in production, in-process in development/test
  */
 async function convertHtmlToJpg(htmlContent) {
+  const htmlBuffer = Buffer.isBuffer(htmlContent)
+    ? htmlContent
+    : Buffer.from(htmlContent, 'utf-8');
+
+  // Try isolated worker first
+  const wm = getWorkerManager();
+  if (wm) {
+    try {
+      // Worker converts HTML -> PDF -> JPG
+      const pdfBuffer = await wm.convertHtmlToPdf(htmlBuffer);
+      return await wm.convertPdfToJpg(pdfBuffer);
+    } catch (err) {
+      logger.warn({ err }, 'Worker conversion failed, falling back to in-process');
+    }
+  }
+
+  // Fallback to in-process
+  return convertHtmlToJpgInProcess(htmlBuffer);
+}
+
+/**
+ * In-process HTML to JPG conversion
+ */
+async function convertHtmlToJpgInProcess(htmlContent) {
   const browser = await getBrowser();
   const page = await browser.newPage();
 
   try {
-    // SSRF protection: Block all network requests (defense-in-depth)
     await page.setRequestInterception(true);
     page.on('request', (request) => {
-      // Only allow data: URLs (inline content), block everything else
       if (request.url().startsWith('data:')) {
         request.continue();
       } else {
@@ -68,24 +114,19 @@ async function convertHtmlToJpg(htmlContent) {
       : htmlContent;
 
     await withTimeout(
-      page.setContent(html, { waitUntil: 'domcontentloaded' }), // Changed from networkidle0
+      page.setContent(html, { waitUntil: 'domcontentloaded' }),
       25000,
       'HTML page load'
     );
 
-    // Set viewport for consistent rendering
     await page.setViewport({
       width: 1200,
       height: 1600,
-      deviceScaleFactor: 2, // For better quality
+      deviceScaleFactor: 2,
     });
 
     const screenshot = await withTimeout(
-      page.screenshot({
-        type: 'jpeg',
-        quality: 90,
-        fullPage: true,
-      }),
+      page.screenshot({ type: 'jpeg', quality: 90, fullPage: true }),
       30000,
       'Screenshot capture'
     );
@@ -100,19 +141,34 @@ async function convertHtmlToJpg(htmlContent) {
 }
 
 /**
- * Convert PDF buffer to JPG using Puppeteer
- * @param {Buffer} pdfBuffer - PDF file buffer
- * @returns {Promise<Buffer>} - JPG image buffer (first page only)
+ * Convert PDF buffer to JPG
+ * Uses isolated worker in production
  */
 async function convertPdfToJpg(pdfBuffer) {
+  // Try isolated worker first
+  const wm = getWorkerManager();
+  if (wm) {
+    try {
+      return await wm.convertPdfToJpg(pdfBuffer);
+    } catch (err) {
+      logger.warn({ err }, 'Worker conversion failed, falling back to in-process');
+    }
+  }
+
+  // Fallback to in-process
+  return convertPdfToJpgInProcess(pdfBuffer);
+}
+
+/**
+ * In-process PDF to JPG conversion
+ */
+async function convertPdfToJpgInProcess(pdfBuffer) {
   const browser = await getBrowser();
   const page = await browser.newPage();
 
   try {
-    // SSRF protection: Block all network requests (defense-in-depth)
     await page.setRequestInterception(true);
     page.on('request', (request) => {
-      // Only allow data: URLs (inline content), block everything else
       if (request.url().startsWith('data:')) {
         request.continue();
       } else {
@@ -120,7 +176,6 @@ async function convertPdfToJpg(pdfBuffer) {
       }
     });
 
-    // Convert PDF buffer to base64 data URL
     const pdfBase64 = pdfBuffer.toString('base64');
     const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
 
@@ -130,7 +185,6 @@ async function convertPdfToJpg(pdfBuffer) {
       'PDF page load'
     );
 
-    // Set viewport for PDF rendering
     await page.setViewport({
       width: 1200,
       height: 1600,
@@ -138,11 +192,7 @@ async function convertPdfToJpg(pdfBuffer) {
     });
 
     const screenshot = await withTimeout(
-      page.screenshot({
-        type: 'jpeg',
-        quality: 90,
-        fullPage: true,
-      }),
+      page.screenshot({ type: 'jpeg', quality: 90, fullPage: true }),
       30000,
       'Screenshot capture'
     );
@@ -157,17 +207,11 @@ async function convertPdfToJpg(pdfBuffer) {
 }
 
 /**
- * Convert DOCX to JPG by first converting to HTML, then to JPG
- * @param {Buffer} docxBuffer - DOCX file buffer
- * @param {Function} docxToHtmlFn - Function that converts DOCX buffer to HTML buffer
- * @returns {Promise<Buffer>} - JPG image buffer
+ * Convert DOCX to JPG
  */
 async function convertDocxToJpg(docxBuffer, docxToHtmlFn) {
   try {
-    // First convert DOCX to HTML
     const htmlBuffer = await docxToHtmlFn(docxBuffer);
-
-    // Then convert HTML to JPG
     return await convertHtmlToJpg(htmlBuffer);
   } catch (error) {
     logger.error({ error }, 'Error converting DOCX to JPG');
@@ -176,17 +220,11 @@ async function convertDocxToJpg(docxBuffer, docxToHtmlFn) {
 }
 
 /**
- * Convert PPTX to JPG (placeholder - requires PPTX to HTML/PDF conversion first)
- * @param {Buffer} pptxBuffer - PPTX file buffer
- * @param {Function} pptxToPdfFn - Function that converts PPTX to PDF (if available)
- * @returns {Promise<Buffer>} - JPG image buffer
+ * Convert PPTX to JPG
  */
 async function convertPptxToJpg(pptxBuffer, pptxToPdfFn) {
   try {
-    // Convert PPTX to PDF first (requires LibreOffice or similar)
     const pdfBuffer = await pptxToPdfFn(pptxBuffer);
-
-    // Then convert PDF to JPG
     return await convertPdfToJpg(pdfBuffer);
   } catch (error) {
     logger.error({ error }, 'Error converting PPTX to JPG');
@@ -208,15 +246,24 @@ async function closeBrowser() {
   }
 }
 
-// Clean up on process exit
-process.on('exit', async () => {
+/**
+ * Shutdown worker and browser
+ */
+async function shutdown() {
+  const wm = getWorkerManager();
+  if (wm) {
+    await wm.shutdown();
+  }
   await closeBrowser();
-});
+}
 
-process.on('SIGINT', async () => {
-  await closeBrowser();
-  process.exit(0);
-});
+/**
+ * Get worker stats (for health endpoint)
+ */
+function getWorkerStats() {
+  const wm = getWorkerManager();
+  return wm ? wm.getStats() : { mode: 'in-process' };
+}
 
 module.exports = {
   getBrowser,
@@ -225,4 +272,7 @@ module.exports = {
   convertDocxToJpg,
   convertPptxToJpg,
   closeBrowser,
+  shutdown,
+  getWorkerStats,
+  USE_ISOLATED_WORKER,
 };

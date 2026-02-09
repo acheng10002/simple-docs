@@ -19,6 +19,7 @@ const { getMemoryStats } = require("./middleware/memory-guard");
 const { mergeLimiter: concurrencyLimiter } = require("./utils/concurrency");
 const { templateCache } = require("./utils/templateCache");
 const { resumePendingBatchJobs } = require("./services/batchJob.service");
+const { getWorkerStats, shutdown: shutdownConversion } = require("./services/conversionService");
 const prisma = require("./config/prisma");
 const addRequestId = require("express-request-id").default();
 const logger = require("./config/logger");
@@ -160,12 +161,14 @@ app.get("/health", async (req, res) => {
     const memory = getMemoryStats();
     const concurrency = concurrencyLimiter.stats();
     const cache = templateCache.getStats();
+    const worker = getWorkerStats();
     res.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
       memory,
       concurrency,
       templateCache: cache,
+      conversionWorker: worker,
     });
   } catch (err) {
     res.status(503).json({
@@ -225,6 +228,15 @@ async function gracefulShutdown(signal) {
 
   server.close(async () => {
     logger.info("HTTP server closed");
+
+    // Shutdown conversion worker
+    try {
+      await shutdownConversion();
+      logger.info("Conversion worker shutdown complete");
+    } catch (err) {
+      logger.warn({ err }, "Error shutting down conversion worker");
+    }
+
     await prisma.$disconnect();
     logger.info("Database connections closed");
     process.exit(0);
