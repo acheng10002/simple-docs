@@ -37,7 +37,9 @@ describe("Supabase Auth Middleware", () => {
       await authenticateSupabase(mockReq, mockRes, mockNext);
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: "Unauthorized" });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: { code: "UNAUTHORIZED", message: "Unauthorized" }
+      });
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -47,7 +49,9 @@ describe("Supabase Auth Middleware", () => {
       await authenticateSupabase(mockReq, mockRes, mockNext);
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: "Unauthorized" });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: { code: "UNAUTHORIZED", message: "Unauthorized" }
+      });
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -78,7 +82,9 @@ describe("Supabase Auth Middleware", () => {
       await authenticateSupabase(mockReq, mockRes, mockNext);
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: "Invalid token" });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: { code: "INVALID_TOKEN", message: "Invalid token" }
+      });
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -93,7 +99,9 @@ describe("Supabase Auth Middleware", () => {
       await authenticateSupabase(mockReq, mockRes, mockNext);
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: "Invalid token" });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: { code: "INVALID_TOKEN", message: "Invalid token" }
+      });
       expect(mockNext).not.toHaveBeenCalled();
     });
   });
@@ -120,7 +128,9 @@ describe("Supabase Auth Middleware", () => {
         where: { supabaseId: mockSupabaseUser.id },
       });
       expect(mockRes.status).toHaveBeenCalledWith(401);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: "User not found" });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: { code: "USER_NOT_FOUND", message: "User not found" }
+      });
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -150,7 +160,7 @@ describe("Supabase Auth Middleware", () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: "Account is disabled",
+        error: { code: "ACCOUNT_DISABLED", message: "Account is disabled" }
       });
       expect(mockNext).not.toHaveBeenCalled();
     });
@@ -232,7 +242,7 @@ describe("Supabase Auth Middleware", () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: "Authentication failed",
+        error: { code: "AUTH_FAILED", message: "Authentication failed" }
       });
       expect(mockNext).not.toHaveBeenCalled();
     });

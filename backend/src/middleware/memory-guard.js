@@ -2,6 +2,7 @@
 Rejects requests when memory usage is too high to prevent OOM crashes */
 
 const v8 = require('v8');
+const { errorResponse } = require('../utils/errorResponse');
 
 // Default threshold: reject if heap used exceeds 80% of heap limit
 const MEMORY_THRESHOLD = parseFloat(process.env.MEMORY_THRESHOLD) || 0.8;
@@ -27,10 +28,11 @@ function memoryGuard(req, res, next) {
       );
     }
 
-    return res.status(503).json({
-      error: 'Server is under heavy load, please retry in a few seconds',
-      retryAfter: 5,
-    });
+    return errorResponse.serviceUnavailable(
+      res,
+      'Server is under heavy load, please retry in a few seconds',
+      { retryAfter: 5 }
+    );
   }
 
   next();

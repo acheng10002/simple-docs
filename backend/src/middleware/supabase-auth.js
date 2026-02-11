@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require("../config/supabase-auth");
 const prisma = require("../config/prisma");
+const { errorResponse, ErrorCodes } = require("../utils/errorResponse");
 
 /**
  * Supabase authentication middleware
@@ -11,7 +12,7 @@ async function authenticateSupabase(req, res, next) {
     const authHeader = req.get("Authorization");
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -21,7 +22,7 @@ async function authenticateSupabase(req, res, next) {
 
     if (error || !user) {
       req.log?.warn({ error: error?.message }, "Invalid Supabase token");
-      return res.status(401).json({ error: "Invalid token" });
+      return errorResponse.unauthorized(res, "Invalid token", ErrorCodes.INVALID_TOKEN);
     }
 
     // Load user from database using Supabase ID
@@ -31,12 +32,12 @@ async function authenticateSupabase(req, res, next) {
 
     if (!dbUser) {
       req.log?.error({ supabaseId: user.id }, "User not found in database");
-      return res.status(401).json({ error: "User not found" });
+      return errorResponse.unauthorized(res, "User not found", ErrorCodes.USER_NOT_FOUND);
     }
 
     if (!dbUser.isActive) {
       req.log?.warn({ userId: dbUser.id }, "Inactive user attempted access");
-      return res.status(403).json({ error: "Account is disabled" });
+      return errorResponse.forbidden(res, "Account is disabled", ErrorCodes.ACCOUNT_DISABLED);
     }
 
     // Attach user to request (same pattern as passport)
@@ -46,7 +47,7 @@ async function authenticateSupabase(req, res, next) {
     next();
   } catch (err) {
     req.log?.error({ err }, "Supabase auth middleware error");
-    res.status(401).json({ error: "Authentication failed" });
+    errorResponse.unauthorized(res, "Authentication failed", ErrorCodes.AUTH_FAILED);
   }
 }
 

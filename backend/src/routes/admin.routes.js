@@ -3,6 +3,7 @@
 
 const express = require("express");
 const { runCleanup, OUTPUT_RETENTION_DAYS } = require("../services/cleanup.service");
+const { errorResponse, ErrorCodes } = require("../utils/errorResponse");
 
 const router = express.Router();
 
@@ -15,12 +16,12 @@ function verifyCleanupSecret(req, res, next) {
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
   if (!token) {
-    return res.status(401).json({ error: "Missing authorization token" });
+    return errorResponse.unauthorized(res, "Missing authorization token", ErrorCodes.UNAUTHORIZED);
   }
 
   if (token !== process.env.CLEANUP_SECRET) {
     req.log.warn({ ip: req.ip }, "Invalid cleanup secret attempted");
-    return res.status(403).json({ error: "Invalid authorization token" });
+    return errorResponse.forbidden(res, "Invalid authorization token", ErrorCodes.FORBIDDEN);
   }
 
   next();
@@ -55,11 +56,7 @@ router.post("/admin/cleanup", verifyCleanupSecret, async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err }, "Cleanup endpoint failed");
-    res.status(500).json({
-      success: false,
-      error: "Cleanup failed",
-      message: err.message,
-    });
+    errorResponse.internal(res, "Cleanup failed", { details: err.message });
   }
 });
 

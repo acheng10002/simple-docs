@@ -89,7 +89,7 @@ describe("Folder Routes", () => {
       const response = await request(app).get("/api/folders");
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to load folders");
+      expect(response.body.error.message).toBe("Failed to load folders");
     });
   });
 
@@ -143,7 +143,7 @@ describe("Folder Routes", () => {
         .send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Folder name is required");
+      expect(response.body.error.message).toBe("Folder name is required");
     });
 
     test("should return 400 when folder name is only whitespace", async () => {
@@ -152,7 +152,7 @@ describe("Folder Routes", () => {
         .send({ name: "   " });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Folder name is required");
+      expect(response.body.error.message).toBe("Folder name is required");
     });
 
     test("should return 400 when folder name exceeds 100 characters", async () => {
@@ -163,7 +163,7 @@ describe("Folder Routes", () => {
         .send({ name: longName });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Folder name must be 100 characters or less");
+      expect(response.body.error.message).toBe("Folder name must be 100 characters or less");
     });
 
     test("should return 400 when max depth exceeded", async () => {
@@ -176,7 +176,7 @@ describe("Folder Routes", () => {
         .send({ name: "Too Deep", parentId: "parent-1" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Maximum folder depth of 4 exceeded");
+      expect(response.body.error.message).toBe("Maximum folder depth of 4 exceeded");
     });
 
     test("should return 404 when parent folder not found", async () => {
@@ -187,7 +187,7 @@ describe("Folder Routes", () => {
         .send({ name: "Child", parentId: "nonexistent" });
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Parent folder not found");
+      expect(response.body.error.message).toBe("Parent folder not found");
     });
 
     test("should return 409 when duplicate folder name exists", async () => {
@@ -198,7 +198,7 @@ describe("Folder Routes", () => {
         .send({ name: "Duplicate" });
 
       expect(response.status).toBe(409);
-      expect(response.body.error).toBe("A root folder with this name already exists");
+      expect(response.body.error.message).toBe("A root folder with this name already exists");
     });
   });
 
@@ -231,7 +231,7 @@ describe("Folder Routes", () => {
         .send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Folder name is required");
+      expect(response.body.error.message).toBe("Folder name is required");
     });
 
     test("should return 404 when folder not found", async () => {
@@ -242,7 +242,7 @@ describe("Folder Routes", () => {
         .send({ name: "New Name" });
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Folder not found");
+      expect(response.body.error.message).toBe("Folder not found");
     });
 
     test("should return 409 when duplicate name exists in same location", async () => {
@@ -258,7 +258,7 @@ describe("Folder Routes", () => {
         .send({ name: "New Name" });
 
       expect(response.status).toBe(409);
-      expect(response.body.error).toBe("A folder with this name already exists in the same location");
+      expect(response.body.error.message).toBe("A folder with this name already exists in the same location");
     });
   });
 
@@ -324,7 +324,7 @@ describe("Folder Routes", () => {
         .send({ newParentId: "folder-1" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Cannot move folder into itself");
+      expect(response.body.error.message).toBe("Cannot move folder into itself");
     });
 
     test("should return 404 when folder not found", async () => {
@@ -335,7 +335,7 @@ describe("Folder Routes", () => {
         .send({ newParentId: "parent-1" });
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Folder not found");
+      expect(response.body.error.message).toBe("Folder not found");
     });
 
     test("should return 404 when target folder not found", async () => {
@@ -350,7 +350,7 @@ describe("Folder Routes", () => {
         .send({ newParentId: "nonexistent" });
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Target folder not found");
+      expect(response.body.error.message).toBe("Target folder not found");
     });
   });
 
@@ -374,7 +374,7 @@ describe("Folder Routes", () => {
       const response = await request(app).delete("/api/folders/nonexistent");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Folder not found");
+      expect(response.body.error.message).toBe("Folder not found");
     });
   });
 
@@ -431,7 +431,7 @@ describe("Folder Routes", () => {
         .send({ folderId: "folder-1" });
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when target folder not found", async () => {
@@ -445,7 +445,7 @@ describe("Folder Routes", () => {
         .send({ folderId: "nonexistent" });
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Folder not found");
+      expect(response.body.error.message).toBe("Folder not found");
     });
   });
 

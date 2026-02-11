@@ -149,7 +149,7 @@ describe("Merge Routes", () => {
         .get(`/api/templates/${VALID_TEMPLATE_ID}/download`)
         .expect(404);
 
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when template belongs to different user (tenant isolation)", async () => {
@@ -166,7 +166,7 @@ describe("Merge Routes", () => {
         .get(`/api/templates/${VALID_TEMPLATE_ID}/download`)
         .expect(404);
 
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when file missing in storage", async () => {
@@ -179,7 +179,7 @@ describe("Merge Routes", () => {
         .get(`/api/templates/${VALID_TEMPLATE_ID}/download`)
         .expect(404);
 
-      expect(response.body.error).toBe("Template file missing in storage");
+      expect(response.body.error.message).toBe("Template file missing in storage");
     });
 
     test("should return 400 for invalid template ID format", async () => {
@@ -187,7 +187,7 @@ describe("Merge Routes", () => {
         .get("/api/templates/invalid-id/download")
         .expect(400);
 
-      expect(response.body.error).toBe("Invalid template ID format");
+      expect(response.body.error.message).toBe("Invalid template ID format");
     });
   });
 
@@ -233,7 +233,7 @@ describe("Merge Routes", () => {
         .send({ data: { name: "John" } })
         .expect(404);
 
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when template belongs to different user (tenant isolation)", async () => {
@@ -249,7 +249,7 @@ describe("Merge Routes", () => {
         .send({ data: { name: "John" } })
         .expect(404);
 
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
       expect(mergeTemplate).not.toHaveBeenCalled();
     });
 
@@ -300,10 +300,10 @@ describe("Merge Routes", () => {
         .send({ data: { name: "Test" } })
         .expect(422);
 
-      expect(response.body.error).toBe(
+      expect(response.body.error.message).toBe(
         "Template has invalid Docxtemplater tags"
       );
-      expect(response.body.details).toBeDefined();
+      expect(response.body.error.details).toBeDefined();
     });
 
     test("should return 400 for other errors", async () => {
@@ -321,7 +321,7 @@ describe("Merge Routes", () => {
         .send({ data: { name: "Test" } })
         .expect(400);
 
-      expect(response.body.error).toBe("Something went wrong");
+      expect(response.body.error.message).toBe("Something went wrong");
     });
 
     test("should return 400 for invalid template ID format", async () => {
@@ -330,7 +330,7 @@ describe("Merge Routes", () => {
         .send({ data: { name: "Test" } })
         .expect(400);
 
-      expect(response.body.error).toBe("Invalid template ID format");
+      expect(response.body.error.message).toBe("Invalid template ID format");
     });
   });
 
@@ -378,7 +378,7 @@ describe("Merge Routes", () => {
         .attach("csv", Buffer.from(csvContent), "data.csv")
         .expect(404);
 
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when template belongs to different user (tenant isolation)", async () => {
@@ -397,7 +397,7 @@ describe("Merge Routes", () => {
         .attach("csv", Buffer.from(csvContent), "data.csv")
         .expect(404);
 
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
       expect(mergeTemplate).not.toHaveBeenCalled();
     });
 
@@ -417,7 +417,7 @@ describe("Merge Routes", () => {
         .attach("csv", Buffer.from(csvContent), "data.csv")
         .expect(400);
 
-      expect(response.body.error).toContain("Invalid outputType");
+      expect(response.body.error.message).toContain("Invalid outputType");
     });
 
     test("should return 400 when CSV file is not uploaded", async () => {
@@ -433,7 +433,7 @@ describe("Merge Routes", () => {
         .field("outputType", "pdf")
         .expect(400);
 
-      expect(response.body.error).toContain("No CSV file uploaded");
+      expect(response.body.error.message).toContain("No CSV file uploaded");
     });
 
     test("should return 400 with invalid CSV format", async () => {
@@ -452,7 +452,7 @@ describe("Merge Routes", () => {
         .attach("csv", Buffer.from(invalidCsv), "data.csv")
         .expect(400);
 
-      expect(response.body.error).toContain("Invalid CSV format");
+      expect(response.body.error.message).toContain("Invalid CSV format");
     });
 
     test("should return 400 when CSV has no data rows", async () => {
@@ -471,7 +471,7 @@ describe("Merge Routes", () => {
         .attach("csv", Buffer.from(csvContent), "data.csv")
         .expect(400);
 
-      expect(response.body.error).toContain("No data rows found");
+      expect(response.body.error.message).toContain("No data rows found");
     });
 
     test("should return 422 for template parse errors", async () => {
@@ -494,7 +494,7 @@ describe("Merge Routes", () => {
         .attach("csv", Buffer.from(csvContent), "data.csv")
         .expect(422);
 
-      expect(response.body.error).toBe(
+      expect(response.body.error.message).toBe(
         "Template has invalid Docxtemplater tags"
       );
     });
@@ -508,7 +508,7 @@ describe("Merge Routes", () => {
         .attach("csv", Buffer.from(csvContent), "data.csv")
         .expect(400);
 
-      expect(response.body.error).toBe("Invalid template ID format");
+      expect(response.body.error.message).toBe("Invalid template ID format");
     });
   });
 
@@ -619,7 +619,7 @@ describe("Merge Routes", () => {
         .send(body)
         .expect(401);
 
-      expect(response.body.error).toBe("Unauthorized");
+      expect(response.body.error.message).toBe("Unauthorized");
     });
 
     test("should return 401 with invalid signature", async () => {
@@ -632,7 +632,7 @@ describe("Merge Routes", () => {
         .send(body)
         .expect(401);
 
-      expect(response.body.error).toBe("Unauthorized");
+      expect(response.body.error.message).toBe("Unauthorized");
     });
 
     test("should return error for unsupported content type", async () => {
@@ -672,7 +672,7 @@ describe("Merge Routes", () => {
         .send(body)
         .expect(400);
 
-      expect(response.body.error).toBe("Invalid payload");
+      expect(response.body.error.message).toBe("Invalid payload");
     });
 
     test("should return 413 for too many rows", async () => {
@@ -693,7 +693,7 @@ describe("Merge Routes", () => {
         .send(body)
         .expect(413);
 
-      expect(response.body.error).toBe("Too many rows");
+      expect(response.body.error.message).toBe("Too many rows");
     });
 
     test("should return warnings when merge produces warnings", async () => {
@@ -744,7 +744,7 @@ describe("Merge Routes", () => {
         .send(body)
         .expect(422);
 
-      expect(response.body.error).toBe(
+      expect(response.body.error.message).toBe(
         "Template has invalid Docxtemplater tags"
       );
     });
@@ -760,7 +760,7 @@ describe("Merge Routes", () => {
         .send(body)
         .expect(400);
 
-      expect(response.body.error).toBe("Invalid template ID format");
+      expect(response.body.error.message).toBe("Invalid template ID format");
     });
   });
 
@@ -799,7 +799,7 @@ describe("Merge Routes", () => {
         .get("/api/download/outputs/other-user-file.pdf")
         .expect(404);
 
-      expect(response.body.error).toBe("File not found");
+      expect(response.body.error.message).toBe("File not found");
     });
 
     test("should return error when file path is empty", async () => {

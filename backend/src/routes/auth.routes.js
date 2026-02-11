@@ -5,6 +5,7 @@ const express = require("express");
 const prisma = require("../config/prisma");
 const { createRateLimiter } = require("../middleware/rate-limiter");
 const { supabaseAdmin, supabaseClient } = require("../config/supabase-auth");
+const { errorResponse, ErrorCodes } = require("../utils/errorResponse");
 
 const router = express.Router();
 
@@ -35,25 +36,23 @@ router.post("/auth/register", authLimiter, async (req, res) => {
 
     // validates required fields
     if (!email || !password) {
-      return res.status(400).json({
-        error: "Email and password are required"
-      });
+      return errorResponse.badRequest(res, "Email and password are required", ErrorCodes.MISSING_FIELD);
     }
 
     // validates email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        error: "Invalid email format"
-      });
+      return errorResponse.badRequest(res, "Invalid email format", ErrorCodes.INVALID_FORMAT);
     }
 
     // validates password strength
     const passwordErrors = validatePasswordStrength(password);
     if (passwordErrors.length > 0) {
-      return res.status(400).json({
-        error: `Password must contain ${passwordErrors.join(', ')}`
-      });
+      return errorResponse.badRequest(
+        res,
+        `Password must contain ${passwordErrors.join(', ')}`,
+        ErrorCodes.VALIDATION_ERROR
+      );
     }
 
     // checks if user already exists in database
@@ -62,9 +61,7 @@ router.post("/auth/register", authLimiter, async (req, res) => {
     });
 
     if (existingUser) {
-      return res.status(409).json({
-        error: "User with this email already exists"
-      });
+      return errorResponse.conflict(res, "User with this email already exists", ErrorCodes.ALREADY_EXISTS);
     }
 
     // creates user in Supabase Auth
@@ -80,9 +77,7 @@ router.post("/auth/register", authLimiter, async (req, res) => {
 
     if (authError) {
       req.log.error({ err: authError, email }, "Supabase user creation failed");
-      return res.status(500).json({
-        error: "Registration failed. Please try again."
-      });
+      return errorResponse.internal(res, "Registration failed. Please try again.");
     }
 
     // creates user in database
@@ -113,9 +108,7 @@ router.post("/auth/register", authLimiter, async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err, email: req.body?.email }, "Registration failed");
-    res.status(500).json({
-      error: "Registration failed. Please try again."
-    });
+    errorResponse.internal(res, "Registration failed. Please try again.");
   }
 });
 
@@ -128,9 +121,7 @@ router.post("/auth/login", authLimiter, async (req, res) => {
 
     // validates required fields
     if (!email || !password) {
-      return res.status(400).json({
-        error: "Email and password are required"
-      });
+      return errorResponse.badRequest(res, "Email and password are required", ErrorCodes.MISSING_FIELD);
     }
 
     // finds user in database first to check isActive
@@ -139,16 +130,12 @@ router.post("/auth/login", authLimiter, async (req, res) => {
     });
 
     if (!dbUser) {
-      return res.status(401).json({
-        error: "Invalid email or password"
-      });
+      return errorResponse.unauthorized(res, "Invalid email or password", ErrorCodes.INVALID_CREDENTIALS);
     }
 
     // checks if user account is active
     if (!dbUser.isActive) {
-      return res.status(403).json({
-        error: "Account is disabled. Contact support."
-      });
+      return errorResponse.forbidden(res, "Account is disabled. Contact support.", ErrorCodes.ACCOUNT_DISABLED);
     }
 
     // authenticates with Supabase Auth
@@ -159,9 +146,7 @@ router.post("/auth/login", authLimiter, async (req, res) => {
 
     if (error) {
       req.log.warn({ email, error: error.message }, "Supabase login failed");
-      return res.status(401).json({
-        error: "Invalid email or password"
-      });
+      return errorResponse.unauthorized(res, "Invalid email or password", ErrorCodes.INVALID_CREDENTIALS);
     }
 
     // updates last login timestamp
@@ -184,9 +169,7 @@ router.post("/auth/login", authLimiter, async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err, email: req.body?.email }, "Login failed");
-    res.status(500).json({
-      error: "Login failed. Please try again."
-    });
+    errorResponse.internal(res, "Login failed. Please try again.");
   }
 });
 
@@ -198,9 +181,7 @@ router.post("/auth/forgot-password", async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({
-        error: "Email is required"
-      });
+      return errorResponse.badRequest(res, "Email is required", ErrorCodes.MISSING_FIELD);
     }
 
     // Always attempt to send reset email - Supabase handles non-existent emails gracefully
@@ -234,23 +215,21 @@ router.post("/auth/reset-password", async (req, res) => {
     const { password } = req.body;
 
     if (!password) {
-      return res.status(400).json({
-        error: "Password is required"
-      });
+      return errorResponse.badRequest(res, "Password is required", ErrorCodes.MISSING_FIELD);
     }
 
     const passwordErrors = validatePasswordStrength(password);
     if (passwordErrors.length > 0) {
-      return res.status(400).json({
-        error: `Password must contain ${passwordErrors.join(', ')}`
-      });
+      return errorResponse.badRequest(
+        res,
+        `Password must contain ${passwordErrors.join(', ')}`,
+        ErrorCodes.VALIDATION_ERROR
+      );
     }
 
     const authHeader = req.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Invalid reset session"
-      });
+      return errorResponse.unauthorized(res, "Invalid reset session", ErrorCodes.INVALID_TOKEN);
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -259,9 +238,7 @@ router.post("/auth/reset-password", async (req, res) => {
     const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
 
     if (verifyError || !user) {
-      return res.status(401).json({
-        error: "Invalid or expired reset link"
-      });
+      return errorResponse.unauthorized(res, "Invalid or expired reset link", ErrorCodes.TOKEN_EXPIRED);
     }
 
     // Update the password
@@ -271,9 +248,7 @@ router.post("/auth/reset-password", async (req, res) => {
 
     if (updateError) {
       req.log.error({ error: updateError.message, userId: user.id }, "Password update failed");
-      return res.status(500).json({
-        error: "Failed to update password. Please try again."
-      });
+      return errorResponse.internal(res, "Failed to update password. Please try again.");
     }
 
     req.log.info({ userId: user.id, email: user.email }, "Password reset successful");
@@ -283,9 +258,7 @@ router.post("/auth/reset-password", async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err }, "Password reset failed");
-    res.status(500).json({
-      error: "Failed to reset password. Please try again."
-    });
+    errorResponse.internal(res, "Failed to reset password. Please try again.");
   }
 });
 
@@ -297,24 +270,18 @@ router.put("/auth/update-email", async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({
-        error: "Email is required"
-      });
+      return errorResponse.badRequest(res, "Email is required", ErrorCodes.MISSING_FIELD);
     }
 
     // validates email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        error: "Invalid email format"
-      });
+      return errorResponse.badRequest(res, "Invalid email format", ErrorCodes.INVALID_FORMAT);
     }
 
     const authHeader = req.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Authentication required"
-      });
+      return errorResponse.unauthorized(res, "Authentication required", ErrorCodes.UNAUTHORIZED);
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -323,9 +290,7 @@ router.put("/auth/update-email", async (req, res) => {
     const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
 
     if (verifyError || !user) {
-      return res.status(401).json({
-        error: "Invalid session"
-      });
+      return errorResponse.unauthorized(res, "Invalid session", ErrorCodes.INVALID_TOKEN);
     }
 
     // Check if the new email is already in use
@@ -334,9 +299,7 @@ router.put("/auth/update-email", async (req, res) => {
     });
 
     if (existingUser && existingUser.supabaseId !== user.id) {
-      return res.status(409).json({
-        error: "Email is already in use"
-      });
+      return errorResponse.conflict(res, "Email is already in use", ErrorCodes.ALREADY_EXISTS);
     }
 
     // Update email in Supabase Auth
@@ -347,9 +310,7 @@ router.put("/auth/update-email", async (req, res) => {
 
     if (updateError) {
       req.log.error({ error: updateError.message, userId: user.id }, "Email update in Supabase failed");
-      return res.status(500).json({
-        error: "Failed to update email. Please try again."
-      });
+      return errorResponse.internal(res, "Failed to update email. Please try again.");
     }
 
     // Update email in database
@@ -365,9 +326,7 @@ router.put("/auth/update-email", async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err }, "Email update failed");
-    res.status(500).json({
-      error: "Failed to update email. Please try again."
-    });
+    errorResponse.internal(res, "Failed to update email. Please try again.");
   }
 });
 
@@ -379,29 +338,25 @@ router.put("/auth/update-password", async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword) {
-      return res.status(400).json({
-        error: "Current password is required"
-      });
+      return errorResponse.badRequest(res, "Current password is required", ErrorCodes.MISSING_FIELD);
     }
 
     if (!newPassword) {
-      return res.status(400).json({
-        error: "New password is required"
-      });
+      return errorResponse.badRequest(res, "New password is required", ErrorCodes.MISSING_FIELD);
     }
 
     const passwordErrors = validatePasswordStrength(newPassword);
     if (passwordErrors.length > 0) {
-      return res.status(400).json({
-        error: `New password must contain ${passwordErrors.join(', ')}`
-      });
+      return errorResponse.badRequest(
+        res,
+        `New password must contain ${passwordErrors.join(', ')}`,
+        ErrorCodes.VALIDATION_ERROR
+      );
     }
 
     const authHeader = req.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Authentication required"
-      });
+      return errorResponse.unauthorized(res, "Authentication required", ErrorCodes.UNAUTHORIZED);
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -410,9 +365,7 @@ router.put("/auth/update-password", async (req, res) => {
     const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
 
     if (verifyError || !user) {
-      return res.status(401).json({
-        error: "Invalid session"
-      });
+      return errorResponse.unauthorized(res, "Invalid session", ErrorCodes.INVALID_TOKEN);
     }
 
     // Verify current password by attempting to sign in
@@ -422,9 +375,7 @@ router.put("/auth/update-password", async (req, res) => {
     });
 
     if (signInError) {
-      return res.status(401).json({
-        error: "Current password is incorrect"
-      });
+      return errorResponse.unauthorized(res, "Current password is incorrect", ErrorCodes.INVALID_CREDENTIALS);
     }
 
     // Update password in Supabase Auth
@@ -434,9 +385,7 @@ router.put("/auth/update-password", async (req, res) => {
 
     if (updateError) {
       req.log.error({ error: updateError.message, userId: user.id }, "Password update failed");
-      return res.status(500).json({
-        error: "Failed to update password. Please try again."
-      });
+      return errorResponse.internal(res, "Failed to update password. Please try again.");
     }
 
     req.log.info({ userId: user.id, email: user.email }, "Password updated successfully");
@@ -446,9 +395,7 @@ router.put("/auth/update-password", async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err }, "Password update failed");
-    res.status(500).json({
-      error: "Failed to update password. Please try again."
-    });
+    errorResponse.internal(res, "Failed to update password. Please try again.");
   }
 });
 
@@ -468,7 +415,7 @@ router.post("/auth/logout", async (req, res) => {
     res.json({ message: "Logged out successfully" });
   } catch (err) {
     req.log.error({ err }, "Logout failed");
-    res.status(500).json({ error: "Logout failed" });
+    errorResponse.internal(res, "Logout failed");
   }
 });
 

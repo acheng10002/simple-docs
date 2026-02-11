@@ -82,7 +82,7 @@ describe("Template Routes", () => {
       const response = await request(app).get("/api/templates");
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to load templates");
+      expect(response.body.error.message).toBe("Failed to load templates");
     });
   });
 
@@ -109,7 +109,7 @@ describe("Template Routes", () => {
       const response = await request(app).get("/api/templates/nonexistent");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when template belongs to different user (tenant isolation)", async () => {
@@ -125,7 +125,7 @@ describe("Template Routes", () => {
       const response = await request(app).get("/api/templates/template-1");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
   });
 
@@ -156,7 +156,7 @@ describe("Template Routes", () => {
       const response = await request(app).delete("/api/templates/nonexistent");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when template belongs to different user (tenant isolation)", async () => {
@@ -172,7 +172,7 @@ describe("Template Routes", () => {
       const response = await request(app).delete("/api/templates/template-1");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
       expect(prisma.template.update).not.toHaveBeenCalled();
     });
 
@@ -189,7 +189,7 @@ describe("Template Routes", () => {
       const response = await request(app).delete("/api/templates/template-1");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template already deactivated");
+      expect(response.body.error.message).toBe("Template already deactivated");
     });
 
     test("should return 500 on database error", async () => {
@@ -199,7 +199,7 @@ describe("Template Routes", () => {
       const response = await request(app).delete("/api/templates/template-1");
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to deactivate template");
+      expect(response.body.error.message).toBe("Failed to deactivate template");
     });
   });
 
@@ -230,7 +230,7 @@ describe("Template Routes", () => {
       const response = await request(app).post("/api/templates/nonexistent/activate");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when template belongs to different user (tenant isolation)", async () => {
@@ -246,7 +246,7 @@ describe("Template Routes", () => {
       const response = await request(app).post("/api/templates/template-1/activate");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
       expect(prisma.template.update).not.toHaveBeenCalled();
     });
 
@@ -263,7 +263,7 @@ describe("Template Routes", () => {
       const response = await request(app).post("/api/templates/template-1/activate");
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Template is already active");
+      expect(response.body.error.message).toBe("Template is already active");
     });
 
     test("should return 500 on database error", async () => {
@@ -273,7 +273,7 @@ describe("Template Routes", () => {
       const response = await request(app).post("/api/templates/template-1/activate");
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to activate template");
+      expect(response.body.error.message).toBe("Failed to activate template");
     });
   });
 
@@ -315,7 +315,7 @@ describe("Template Routes", () => {
       const response = await request(app).get("/api/templates/nonexistent/versions");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
     });
 
     test("should return 404 when template belongs to different user (tenant isolation)", async () => {
@@ -326,7 +326,7 @@ describe("Template Routes", () => {
       const response = await request(app).get("/api/templates/template-1/versions");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
       expect(prisma.templateVersion.findMany).not.toHaveBeenCalled();
     });
 
@@ -347,7 +347,7 @@ describe("Template Routes", () => {
       const response = await request(app).get("/api/templates/template-1/versions");
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to load version history");
+      expect(response.body.error.message).toBe("Failed to load version history");
     });
   });
 
@@ -431,7 +431,7 @@ describe("Template Routes", () => {
       const response = await request(app).post("/api/templates/template-1/versions/version-1/revert");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toBe("Template not found");
+      expect(response.body.error.message).toBe("Template not found");
       expect(prisma.templateVersion.create).not.toHaveBeenCalled();
     });
 
@@ -450,7 +450,7 @@ describe("Template Routes", () => {
       const response = await request(app).post("/api/templates/template-1/versions/version-1/revert");
 
       expect(response.status).toBe(404);
-      expect(response.body.error).toContain("Version file not found");
+      expect(response.body.error.message).toContain("Version file not found");
     });
 
     test("should return 500 on database error", async () => {
@@ -468,7 +468,7 @@ describe("Template Routes", () => {
       const response = await request(app).post("/api/templates/template-1/versions/version-1/revert");
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to revert template");
+      expect(response.body.error.message).toBe("Failed to revert template");
     });
   });
 });

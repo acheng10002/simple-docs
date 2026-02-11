@@ -11,6 +11,7 @@ const path = require("path");
 const { randomUUID } = require("crypto");
 const authenticateSupabase = require("../middleware/supabase-auth");
 const prisma = require("../config/prisma");
+const { errorResponse, ErrorCodes } = require("../utils/errorResponse");
 // middleware specific to template upload route
 const { uploadTemplate } = require("../middleware/upload.middleware");
 // service functions that produce the db records merge.service.js will read
@@ -71,7 +72,7 @@ router.post("/upload", authenticateSupabase, uploadTemplate.single("template"), 
     A2. TEMPLATE UPLOAD - INGESTION & DISCOVERY: basic request guard */
     const file = req.file;
     // POSSIBLE ERROR - no file sent
-    if (!file) return res.status(400).send("No file uploaded");
+    if (!file) return errorResponse.badRequest(res, "No file uploaded", ErrorCodes.MISSING_FIELD);
 
     // MIME (detection & normalization
     const declared = (file.mimetype || "").toLowerCase();
@@ -135,7 +136,7 @@ router.post("/upload", authenticateSupabase, uploadTemplate.single("template"), 
     A3c. allow-list enforcement */
     if (!finalMime || !ALLOWED_MIME_TYPES.includes(finalMime)) {
       //  POSSIBLE ERROR - type not allowed or MIME detection rejected the file
-      return res.status(415).send("Unsupported or undetectable file type.");
+      return errorResponse.unsupportedMediaType(res, "Unsupported or undetectable file type");
     }
 
     if (declared && declared !== finalMime) {
@@ -162,10 +163,12 @@ router.post("/upload", authenticateSupabase, uploadTemplate.single("template"), 
         req.log.warn({ warnings }, "HTML template has warnings");
       // if there are errors, fail fast, send 422 Unprocessable Entity with details
       if (errors.length) {
-        return res.status(422).json({
-          error: "Template blocked by HTML linter",
-          details: errors,
-        });
+        return errorResponse.unprocessable(
+          res,
+          "Template blocked by HTML linter",
+          ErrorCodes.TEMPLATE_PARSE_ERROR,
+          { details: errors }
+        );
       }
     }
 
@@ -176,10 +179,12 @@ router.post("/upload", authenticateSupabase, uploadTemplate.single("template"), 
       // when upload hits my endpoint, DOCX linter will run
       const lint = lintDocxBuffer(file.buffer);
       if (lint.length) {
-        return res.status(422).json({
-          error: "Template has invalid Docxtemplater delimiters/tags",
-          details: lint,
-        });
+        return errorResponse.unprocessable(
+          res,
+          "Template has invalid Docxtemplater delimiters/tags",
+          ErrorCodes.TEMPLATE_PARSE_ERROR,
+          { details: lint }
+        );
       }
     }
 
@@ -292,7 +297,7 @@ router.post("/upload", authenticateSupabase, uploadTemplate.single("template"), 
       exited with 400/415 */
   } catch (err) {
     req.log.error({ err }, "Upload failed");
-    res.status(500).send("Internal Server Error");
+    errorResponse.internal(res, "Internal server error");
   }
 });
 
@@ -318,7 +323,7 @@ router.get(
       res.json(templates);
     } catch (err) {
       req.log.error({ err }, "Failed to fetch templates");
-      res.status(500).json({ error: "Failed to load templates" });
+      errorResponse.internal(res, "Failed to load templates");
     }
   }
 );
@@ -338,7 +343,7 @@ router.get(
       });
 
       if (!template || template.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       // Get all non-expired versions, ordered by version number ascending (oldest first)
@@ -366,7 +371,7 @@ router.get(
         { err, templateId: req.params.id },
         "Failed to fetch version history"
       );
-      res.status(500).json({ error: "Failed to load version history" });
+      errorResponse.internal(res, "Failed to load version history");
     }
   }
 );
@@ -388,9 +393,7 @@ router.post(
 
       if (!versionCheck) {
         req.log.warn({ versionId, templateId: id }, "Version ID not found in database");
-        return res.status(404).json({
-          error: "Version not found. It may have been deleted or never existed.",
-        });
+        return errorResponse.notFound(res, "Version not found. It may have been deleted or never existed.", ErrorCodes.NOT_FOUND);
       }
 
       if (versionCheck.templateId !== id) {
@@ -398,9 +401,7 @@ router.post(
           { versionId, requestedTemplateId: id, actualTemplateId: versionCheck.templateId },
           "Version belongs to different template"
         );
-        return res.status(404).json({
-          error: "Version not found for this template.",
-        });
+        return errorResponse.notFound(res, "Version not found for this template.", ErrorCodes.NOT_FOUND);
       }
 
       if (versionCheck.expiresAt <= new Date()) {
@@ -408,9 +409,7 @@ router.post(
           { versionId, expiresAt: versionCheck.expiresAt },
           "Version has expired"
         );
-        return res.status(404).json({
-          error: "Version has expired and is no longer available.",
-        });
+        return errorResponse.notFound(res, "Version has expired and is no longer available.", ErrorCodes.NOT_FOUND);
       }
 
       // Fetch the full version data
@@ -419,9 +418,7 @@ router.post(
       });
 
       if (!version) {
-        return res.status(404).json({
-          error: "Version not found or has expired",
-        });
+        return errorResponse.notFound(res, "Version not found or has expired", ErrorCodes.NOT_FOUND);
       }
 
       // Verify the S3 file still exists
@@ -438,9 +435,7 @@ router.post(
           { s3Key, storageKey: version.storageKey, versionId, s3Error: s3Error.message },
           "Version file not found in S3"
         );
-        return res.status(404).json({
-          error: "Version file not found in storage. The file may have been deleted.",
-        });
+        return errorResponse.notFound(res, "Version file not found in storage. The file may have been deleted.", ErrorCodes.FILE_NOT_FOUND);
       }
 
       // Get current template state and verify ownership
@@ -450,7 +445,7 @@ router.post(
       });
 
       if (!currentTemplate || currentTemplate.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       // Create version of CURRENT state before reverting
@@ -529,7 +524,7 @@ router.post(
         { err, templateId: req.params.id },
         "Failed to revert template"
       );
-      res.status(500).json({ error: "Failed to revert template" });
+      errorResponse.internal(res, "Failed to revert template");
     }
   }
 );
@@ -552,13 +547,13 @@ router.get(
 
       // Check template exists and belongs to user
       if (!template || template.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       res.json(template);
     } catch (err) {
       req.log.error({ err, templateId: req.params.id }, "Failed to fetch template");
-      res.status(500).json({ error: "Failed to load template" });
+      errorResponse.internal(res, "Failed to load template");
     }
   }
 );
@@ -578,11 +573,11 @@ router.delete(
       });
 
       if (!template || template.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       if (!template.isActive) {
-        return res.status(404).json({ error: "Template already deactivated" });
+        return errorResponse.notFound(res, "Template already deactivated", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       // Deactivate template (soft delete)
@@ -595,7 +590,7 @@ router.delete(
       res.status(204).send();
     } catch (err) {
       req.log.error({ err, templateId: req.params.id }, "Failed to deactivate template");
-      res.status(500).json({ error: "Failed to deactivate template" });
+      errorResponse.internal(res, "Failed to deactivate template");
     }
   }
 );
@@ -615,11 +610,11 @@ router.post(
       });
 
       if (!template || template.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       if (template.isActive) {
-        return res.status(400).json({ error: "Template is already active" });
+        return errorResponse.badRequest(res, "Template is already active", ErrorCodes.VALIDATION_ERROR);
       }
 
       // Activate template
@@ -632,7 +627,7 @@ router.post(
       res.status(204).send();
     } catch (err) {
       req.log.error({ err, templateId: req.params.id }, "Failed to activate template");
-      res.status(500).json({ error: "Failed to activate template" });
+      errorResponse.internal(res, "Failed to activate template");
     }
   }
 );
@@ -657,7 +652,7 @@ router.put(
       });
 
       if (!existingTemplate || existingTemplate.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       // Prepare update data
@@ -724,7 +719,7 @@ router.put(
               : null);
 
         if (!finalMime || !ALLOWED_MIME_TYPES.includes(finalMime)) {
-          return res.status(415).send("Unsupported or undetectable file type.");
+          return errorResponse.unsupportedMediaType(res, "Unsupported or undetectable file type");
         }
 
         // Lint the new file
@@ -736,20 +731,24 @@ router.put(
           if (warnings.length)
             req.log.warn({ warnings }, "HTML template has warnings");
           if (errors.length) {
-            return res.status(422).json({
-              error: "Template blocked by HTML linter",
-              details: errors,
-            });
+            return errorResponse.unprocessable(
+              res,
+              "Template blocked by HTML linter",
+              ErrorCodes.TEMPLATE_PARSE_ERROR,
+              { details: errors }
+            );
           }
         }
 
         if (fileType.ext === "docx") {
           const lint = lintDocxBuffer(file.buffer);
           if (lint.length) {
-            return res.status(422).json({
-              error: "Template has invalid Docxtemplater delimiters/tags",
-              details: lint,
-            });
+            return errorResponse.unprocessable(
+              res,
+              "Template has invalid Docxtemplater delimiters/tags",
+              ErrorCodes.TEMPLATE_PARSE_ERROR,
+              { details: lint }
+            );
           }
         }
 
@@ -839,7 +838,7 @@ router.put(
       res.json(updatedTemplate);
     } catch (err) {
       req.log.error({ err, templateId: req.params.id }, "Failed to update template");
-      res.status(500).json({ error: "Failed to update template" });
+      errorResponse.internal(res, "Failed to update template");
     }
   }
 );

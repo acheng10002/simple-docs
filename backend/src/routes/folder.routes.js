@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authenticateSupabase = require('../middleware/supabase-auth');
 const folderService = require('../services/folder.service');
+const { errorResponse, ErrorCodes } = require('../utils/errorResponse');
 
 // All routes require authentication
 router.use(authenticateSupabase);
@@ -15,7 +16,7 @@ router.get('/folders', async (req, res) => {
     res.json(folders);
   } catch (err) {
     req.log.error({ err }, 'Failed to fetch folders');
-    res.status(500).json({ error: 'Failed to load folders' });
+    errorResponse.internal(res, 'Failed to load folders');
   }
 });
 
@@ -28,27 +29,27 @@ router.post('/folders', async (req, res) => {
 
     // Validation
     if (!name || !name.trim()) {
-      return res.status(400).json({ error: 'Folder name is required' });
+      return errorResponse.badRequest(res, 'Folder name is required', ErrorCodes.MISSING_FIELD);
     }
 
     if (name.length > 100) {
-      return res.status(400).json({ error: 'Folder name must be 100 characters or less' });
+      return errorResponse.badRequest(res, 'Folder name must be 100 characters or less', ErrorCodes.VALIDATION_ERROR);
     }
 
     const folder = await folderService.createFolder(req.user.id, name.trim(), parentId || null);
     res.status(201).json(folder);
   } catch (err) {
     if (err.message.includes('Maximum folder depth')) {
-      return res.status(400).json({ error: err.message });
+      return errorResponse.badRequest(res, err.message, ErrorCodes.VALIDATION_ERROR);
     }
     if (err.message.includes('already exists')) {
-      return res.status(409).json({ error: err.message });
+      return errorResponse.conflict(res, err.message, ErrorCodes.ALREADY_EXISTS);
     }
     if (err.message.includes('not found')) {
-      return res.status(404).json({ error: err.message });
+      return errorResponse.notFound(res, err.message, ErrorCodes.FOLDER_NOT_FOUND);
     }
     req.log.error({ err }, 'Failed to create folder');
-    res.status(500).json({ error: 'Failed to create folder' });
+    errorResponse.internal(res, 'Failed to create folder');
   }
 });
 
@@ -61,24 +62,24 @@ router.put('/folders/:id', async (req, res) => {
     const { name } = req.body;
 
     if (!name || !name.trim()) {
-      return res.status(400).json({ error: 'Folder name is required' });
+      return errorResponse.badRequest(res, 'Folder name is required', ErrorCodes.MISSING_FIELD);
     }
 
     if (name.length > 100) {
-      return res.status(400).json({ error: 'Folder name must be 100 characters or less' });
+      return errorResponse.badRequest(res, 'Folder name must be 100 characters or less', ErrorCodes.VALIDATION_ERROR);
     }
 
     const folder = await folderService.renameFolder(req.user.id, id, name.trim());
     res.json(folder);
   } catch (err) {
     if (err.message.includes('not found')) {
-      return res.status(404).json({ error: err.message });
+      return errorResponse.notFound(res, err.message, ErrorCodes.FOLDER_NOT_FOUND);
     }
     if (err.message.includes('already exists')) {
-      return res.status(409).json({ error: err.message });
+      return errorResponse.conflict(res, err.message, ErrorCodes.ALREADY_EXISTS);
     }
-    req.log.error({ err, folderId: id }, 'Failed to rename folder');
-    res.status(500).json({ error: 'Failed to rename folder' });
+    req.log.error({ err, folderId: req.params.id }, 'Failed to rename folder');
+    errorResponse.internal(res, 'Failed to rename folder');
   }
 });
 
@@ -94,16 +95,16 @@ router.put('/folders/:id/move', async (req, res) => {
     res.json(folder);
   } catch (err) {
     if (err.message.includes('not found')) {
-      return res.status(404).json({ error: err.message });
+      return errorResponse.notFound(res, err.message, ErrorCodes.FOLDER_NOT_FOUND);
     }
     if (err.message.includes('Circular') || err.message.includes('Maximum depth') || err.message.includes('itself')) {
-      return res.status(400).json({ error: err.message });
+      return errorResponse.badRequest(res, err.message, ErrorCodes.VALIDATION_ERROR);
     }
     if (err.message.includes('already exists')) {
-      return res.status(409).json({ error: err.message });
+      return errorResponse.conflict(res, err.message, ErrorCodes.ALREADY_EXISTS);
     }
-    req.log.error({ err, folderId: id }, 'Failed to move folder');
-    res.status(500).json({ error: 'Failed to move folder' });
+    req.log.error({ err, folderId: req.params.id }, 'Failed to move folder');
+    errorResponse.internal(res, 'Failed to move folder');
   }
 });
 
@@ -117,10 +118,10 @@ router.delete('/folders/:id', async (req, res) => {
     res.status(204).send();
   } catch (err) {
     if (err.message.includes('not found')) {
-      return res.status(404).json({ error: err.message });
+      return errorResponse.notFound(res, err.message, ErrorCodes.FOLDER_NOT_FOUND);
     }
-    req.log.error({ err, folderId: id }, 'Failed to delete folder');
-    res.status(500).json({ error: 'Failed to delete folder' });
+    req.log.error({ err, folderId: req.params.id }, 'Failed to delete folder');
+    errorResponse.internal(res, 'Failed to delete folder');
   }
 });
 
@@ -136,10 +137,10 @@ router.put('/templates/:id/move', async (req, res) => {
     res.json(template);
   } catch (err) {
     if (err.message.includes('not found')) {
-      return res.status(404).json({ error: err.message });
+      return errorResponse.notFound(res, err.message, ErrorCodes.NOT_FOUND);
     }
-    req.log.error({ err, templateId: id }, 'Failed to move template');
-    res.status(500).json({ error: 'Failed to move template' });
+    req.log.error({ err, templateId: req.params.id }, 'Failed to move template');
+    errorResponse.internal(res, 'Failed to move template');
   }
 });
 

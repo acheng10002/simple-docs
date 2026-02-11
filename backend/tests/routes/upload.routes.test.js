@@ -179,7 +179,7 @@ describe("Upload Routes", () => {
     test("should return 400 when no file is uploaded", async () => {
       const response = await request(app).post("/api/upload").expect(400);
 
-      expect(response.text).toBe("No file uploaded");
+      expect(response.body.error.message).toBe("No file uploaded");
     });
 
     test("should reject unsupported file type", async () => {
@@ -265,7 +265,7 @@ describe("Upload Routes", () => {
         .attach("template", badDocxBuffer, "sample.docx")
         .expect(500);
 
-      expect(response.text).toBe("Internal Server Error");
+      expect(response.body.error.message).toBe("Internal server error");
     });
 
     test("should return 422 when HTML has lint errors", async () => {
@@ -291,9 +291,9 @@ describe("Upload Routes", () => {
         .attach("template", htmlBuffer, "malicious.html")
         .expect(422);
 
-      expect(response.body.error).toBe("Template blocked by HTML linter");
-      expect(response.body.details).toHaveLength(2);
-      expect(response.body.details).toContain("Disallowed <script> tag");
+      expect(response.body.error.message).toBe("Template blocked by HTML linter");
+      expect(response.body.error.details).toHaveLength(2);
+      expect(response.body.error.details).toContain("Disallowed <script> tag");
     });
 
     test("should log warnings but continue when HTML has lint warnings", async () => {
@@ -342,11 +342,11 @@ describe("Upload Routes", () => {
         .attach("template", docxBuffer, "bad-template.docx")
         .expect(422);
 
-      expect(response.body.error).toBe(
+      expect(response.body.error.message).toBe(
         "Template has invalid Docxtemplater delimiters/tags"
       );
-      expect(response.body.details).toHaveLength(1);
-      expect(response.body.details[0].id).toBe("duplicate_open_tag");
+      expect(response.body.error.details).toHaveLength(1);
+      expect(response.body.error.details[0].id).toBe("duplicate_open_tag");
     });
 
     test("should sanitize filename and add timestamp", async () => {
@@ -438,7 +438,7 @@ describe("Upload Routes", () => {
         .attach("template", htmlBuffer, "sample.html")
         .expect(500);
 
-      expect(response.text).toBe("Internal Server Error");
+      expect(response.body.error.message).toBe("Internal server error");
     });
 
     test("should handle .htm extension as HTML", async () => {

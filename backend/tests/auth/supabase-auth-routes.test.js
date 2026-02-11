@@ -120,7 +120,7 @@ describe("Supabase Auth Routes", () => {
         .send({ password: "password123" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Email and password are required");
     });
 
     test("should return 400 when password is missing", async () => {
@@ -129,7 +129,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "test@example.com" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Email and password are required");
     });
 
     test("should return 400 for invalid email format", async () => {
@@ -138,7 +138,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "invalid-email", password: "password123" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Invalid email format");
+      expect(response.body.error.message).toBe("Invalid email format");
     });
 
     test("should return 400 when password does not meet requirements", async () => {
@@ -147,7 +147,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "test@example.com", password: "short" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toContain("Password must contain");
+      expect(response.body.error.message).toContain("Password must contain");
     });
 
     test("should return 409 when user already exists", async () => {
@@ -161,7 +161,7 @@ describe("Supabase Auth Routes", () => {
         .send(validRegistration);
 
       expect(response.status).toBe(409);
-      expect(response.body.error).toBe("User with this email already exists");
+      expect(response.body.error.message).toBe("User with this email already exists");
     });
 
     test("should return 500 when Supabase user creation fails", async () => {
@@ -177,7 +177,7 @@ describe("Supabase Auth Routes", () => {
         .send(validRegistration);
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Registration failed. Please try again.");
+      expect(response.body.error.message).toBe("Registration failed. Please try again.");
     });
   });
 
@@ -241,7 +241,7 @@ describe("Supabase Auth Routes", () => {
         .send({ password: "password123" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Email and password are required");
     });
 
     test("should return 400 when password is missing", async () => {
@@ -250,7 +250,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "test@example.com" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Email and password are required");
     });
 
     test("should return 401 when user does not exist", async () => {
@@ -261,7 +261,7 @@ describe("Supabase Auth Routes", () => {
         .send(loginCredentials);
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Invalid email or password");
+      expect(response.body.error.message).toBe("Invalid email or password");
     });
 
     test("should return 403 when account is inactive", async () => {
@@ -276,7 +276,7 @@ describe("Supabase Auth Routes", () => {
         .send(loginCredentials);
 
       expect(response.status).toBe(403);
-      expect(response.body.error).toBe("Account is disabled. Contact support.");
+      expect(response.body.error.message).toBe("Account is disabled. Contact support.");
     });
 
     test("should return 401 when Supabase authentication fails", async () => {
@@ -296,7 +296,7 @@ describe("Supabase Auth Routes", () => {
         .send(loginCredentials);
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Invalid email or password");
+      expect(response.body.error.message).toBe("Invalid email or password");
     });
   });
 
@@ -333,7 +333,7 @@ describe("Supabase Auth Routes", () => {
         .set("Authorization", "Bearer test-token");
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Logout failed");
+      expect(response.body.error.message).toBe("Logout failed");
     });
   });
 
@@ -381,7 +381,7 @@ describe("Supabase Auth Routes", () => {
         .send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Email is required");
+      expect(response.body.error.message).toBe("Email is required");
     });
 
     test("should return success even when Supabase throws an error", async () => {
@@ -442,7 +442,7 @@ describe("Supabase Auth Routes", () => {
         .send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Password is required");
+      expect(response.body.error.message).toBe("Password is required");
     });
 
     test("should return 400 when password does not meet requirements", async () => {
@@ -452,7 +452,7 @@ describe("Supabase Auth Routes", () => {
         .send({ password: "short" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toContain("Password must contain");
+      expect(response.body.error.message).toContain("Password must contain");
     });
 
     test("should return 401 when Authorization header is missing", async () => {
@@ -461,7 +461,7 @@ describe("Supabase Auth Routes", () => {
         .send({ password: "NewPassword123!" });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Invalid reset session");
+      expect(response.body.error.message).toBe("Invalid reset session");
     });
 
     test("should return 401 when token is invalid", async () => {
@@ -476,7 +476,7 @@ describe("Supabase Auth Routes", () => {
         .send({ password: "NewPassword123!" });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Invalid or expired reset link");
+      expect(response.body.error.message).toBe("Invalid or expired reset link");
     });
 
     test("should return 500 when password update fails", async () => {
@@ -496,7 +496,7 @@ describe("Supabase Auth Routes", () => {
         .send({ password: "NewPassword123!" });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to update password. Please try again.");
+      expect(response.body.error.message).toBe("Failed to update password. Please try again.");
     });
   });
 
@@ -549,7 +549,7 @@ describe("Supabase Auth Routes", () => {
         .send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Email is required");
+      expect(response.body.error.message).toBe("Email is required");
     });
 
     test("should return 400 for invalid email format", async () => {
@@ -559,7 +559,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "invalid-email" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Invalid email format");
+      expect(response.body.error.message).toBe("Invalid email format");
     });
 
     test("should return 401 when Authorization header is missing", async () => {
@@ -568,7 +568,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "new@example.com" });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Authentication required");
+      expect(response.body.error.message).toBe("Authentication required");
     });
 
     test("should return 401 when token is invalid", async () => {
@@ -583,7 +583,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "new@example.com" });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Invalid session");
+      expect(response.body.error.message).toBe("Invalid session");
     });
 
     test("should return 409 when email is already in use by another user", async () => {
@@ -604,7 +604,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "new@example.com" });
 
       expect(response.status).toBe(409);
-      expect(response.body.error).toBe("Email is already in use");
+      expect(response.body.error.message).toBe("Email is already in use");
     });
 
     test("should allow updating to same email (no conflict with self)", async () => {
@@ -657,7 +657,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "new@example.com" });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to update email. Please try again.");
+      expect(response.body.error.message).toBe("Failed to update email. Please try again.");
     });
   });
 
@@ -711,7 +711,7 @@ describe("Supabase Auth Routes", () => {
         .send({ newPassword: "NewPassword1!" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("Current password is required");
+      expect(response.body.error.message).toBe("Current password is required");
     });
 
     test("should return 400 when new password is missing", async () => {
@@ -721,7 +721,7 @@ describe("Supabase Auth Routes", () => {
         .send({ currentPassword: "OldPassword1!" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe("New password is required");
+      expect(response.body.error.message).toBe("New password is required");
     });
 
     test("should return 400 when new password is too short", async () => {
@@ -734,7 +734,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toContain("at least 8 characters");
+      expect(response.body.error.message).toContain("at least 8 characters");
     });
 
     test("should return 400 when new password lacks uppercase", async () => {
@@ -747,7 +747,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toContain("uppercase");
+      expect(response.body.error.message).toContain("uppercase");
     });
 
     test("should return 400 when new password lacks lowercase", async () => {
@@ -760,7 +760,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toContain("lowercase");
+      expect(response.body.error.message).toContain("lowercase");
     });
 
     test("should return 400 when new password lacks number", async () => {
@@ -773,7 +773,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toContain("number");
+      expect(response.body.error.message).toContain("number");
     });
 
     test("should return 400 when new password lacks special character", async () => {
@@ -786,7 +786,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toContain("special character");
+      expect(response.body.error.message).toContain("special character");
     });
 
     test("should return 401 when Authorization header is missing", async () => {
@@ -798,7 +798,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Authentication required");
+      expect(response.body.error.message).toBe("Authentication required");
     });
 
     test("should return 401 when token is invalid", async () => {
@@ -816,7 +816,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Invalid session");
+      expect(response.body.error.message).toBe("Invalid session");
     });
 
     test("should return 401 when current password is incorrect", async () => {
@@ -839,7 +839,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe("Current password is incorrect");
+      expect(response.body.error.message).toBe("Current password is incorrect");
     });
 
     test("should return 500 when password update fails", async () => {
@@ -867,7 +867,7 @@ describe("Supabase Auth Routes", () => {
         });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe("Failed to update password. Please try again.");
+      expect(response.body.error.message).toBe("Failed to update password. Please try again.");
     });
   });
 

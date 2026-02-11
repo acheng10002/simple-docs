@@ -1,11 +1,12 @@
 /* HTTP ROUTES FOR MERGING & WEBHOOKS
 PUBLIC API SURFACE THAT CALLS INTO SERVICES: MERGE PATHS -> MERGE.SERVICE.JS
-- wires in two data sources and feeds the merge engine 
-- defines the JWT-protected upload download route, JWT-protected manual merge API, JWT-protected manual csv merge, 
+- wires in two data sources and feeds the merge engine
+- defines the JWT-protected upload download route, JWT-protected manual merge API, JWT-protected manual csv merge,
   and HMAC-verified webhook API */
 require("dotenv").config();
 const express = require("express");
 const { createUserRateLimiter } = require("../middleware/rate-limiter");
+const { errorResponse, ErrorCodes } = require("../utils/errorResponse");
 // imports Supabase authentication middleware
 const authenticateSupabase = require("../middleware/supabase-auth");
 // concurrency limiter to prevent memory exhaustion from parallel merges
@@ -67,19 +68,19 @@ const downloadLimiter = createUserRateLimiter({
 /* App.js's express.raw() leaves req.body as a Node buffer, raw bytes, for HMAC 
 - every other route uses express.json() */
 function verifyHmac(req, res, next) {
-  /* client's x-signature header should be the same as the HMACed req.body the server will compute and 
+  /* client's x-signature header should be the same as the HMACed req.body the server will compute and
       verify below
     C2. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): signature verification middleware */
   const sigHex = (req.get("x-signature") || "").trim();
   // short-circuits with a 401 if the required auth is missing or blank
-  if (!sigHex) return res.status(401).json({ error: "Unauthorized" });
+  if (!sigHex) return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
   // C3. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): raw body validation */
   const raw = req.body;
 
   // ensures raw is a Node Buffer i.e. the exact bytes received on the wire
   if (!Buffer.isBuffer(raw)) {
     // if it's not a buffer and is instead an object, reject the req
-    return res.status(400).json({ error: "Webhook requires raw body" });
+    return errorResponse.badRequest(res, "Webhook requires raw body", ErrorCodes.INVALID_PAYLOAD);
   }
 
   /* C4. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): HMAC computation & verification
@@ -98,7 +99,7 @@ function verifyHmac(req, res, next) {
     provided = Buffer.from(sigHex, "hex");
   } catch {
     // if sigHex is malformed, treat as bad credentials
-    return res.status(401).json({ error: "Unauthorized" });
+    return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
   }
 
   if (
@@ -106,12 +107,12 @@ function verifyHmac(req, res, next) {
     !provided ||
     // lengths must match
     provided.length !== expectedSignature.length ||
-    /* C4b. performs constant-time comparison of the two byte arrays to avoid timing side channels/ 
+    /* C4b. performs constant-time comparison of the two byte arrays to avoid timing side channels/
       timing leaks */
     !crypto.timingSafeEqual(provided, expectedSignature)
   ) {
     // C4c. any failure returns 401 unauthorized
-    return res.status(401).json({ error: "Unauthorized" });
+    return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
   }
   next();
 }
@@ -130,7 +131,7 @@ router.get(
       req.log.info({ templateId }, "Download request started");
 
       if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-        return res.status(400).json({ error: "Invalid template ID format" });
+        return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
       }
 
       // helper that looks up the template by templateId (db)
@@ -138,13 +139,11 @@ router.get(
 
       // if the db record doesn't exist or doesn't belong to user, respond 404
       if (!info || info.tpl.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
       // if the db record exists but the file doesn't, also 404 with a clear message
       if (info.missing)
-        return res
-          .status(404)
-          .json({ error: "Template file missing in storage" });
+        return errorResponse.notFound(res, "Template file missing in storage", ErrorCodes.FILE_NOT_FOUND);
 
       // tells the client the MIME type to help the browser/client handle the file correctly
       res.setHeader("Content-Type", info.contentType);
@@ -185,7 +184,7 @@ router.get(
         stream.destroy(new Error("Download timeout"));
         // if HTTP headers haven't been sent yet, reply with a 504 and end the response
         if (!res.headersSent) {
-          res.status(504).json({ error: "Download timeout" });
+          errorResponse.timeout(res, "Download timeout");
         }
       }, 60000);
 
@@ -195,7 +194,7 @@ router.get(
         req.log.error({ err, templateId }, "S3 stream error");
 
         if (!res.headersSent) {
-          res.status(500).json({ error: "Download failed" });
+          errorResponse.internal(res, "Download failed");
         } else {
           res.destroy();
         }
@@ -247,7 +246,7 @@ router.get(
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
+        return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
       }
 
       const jobs = await prisma.mergeJob.findMany({
@@ -278,7 +277,7 @@ router.get(
       res.json(jobs);
     } catch (err) {
       req.log.error({ err }, "Failed to fetch merge jobs");
-      res.status(500).json({ error: "Failed to load merge jobs" });
+      errorResponse.internal(res, "Failed to load merge jobs");
     }
   }
 );
@@ -294,11 +293,11 @@ router.delete(
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
+        return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
       }
 
       if (isNaN(jobId)) {
-        return res.status(400).json({ error: "Invalid job ID" });
+        return errorResponse.badRequest(res, "Invalid job ID", ErrorCodes.INVALID_FORMAT);
       }
 
       // Find the job and verify ownership
@@ -307,11 +306,11 @@ router.delete(
       });
 
       if (!job) {
-        return res.status(404).json({ error: "Job not found" });
+        return errorResponse.notFound(res, "Job not found", ErrorCodes.JOB_NOT_FOUND);
       }
 
       if (job.userId !== userId) {
-        return res.status(403).json({ error: "Forbidden - not your job" });
+        return errorResponse.forbidden(res, "Forbidden - not your job", ErrorCodes.FORBIDDEN);
       }
 
       // Delete from S3 if file exists
@@ -339,7 +338,7 @@ router.delete(
       res.status(204).send();
     } catch (err) {
       req.log.error({ err, jobId: req.params.id }, "Failed to delete merge job");
-      res.status(500).json({ error: "Failed to delete merge job" });
+      errorResponse.internal(res, "Failed to delete merge job");
     }
   }
 );
@@ -355,7 +354,7 @@ router.get(
       const { filePath } = req.params;
 
       if (!filePath) {
-        return res.status(400).json({ error: "File path is required" });
+        return errorResponse.badRequest(res, "File path is required", ErrorCodes.MISSING_FIELD);
       }
 
       // Reconstruct the full S3 URI for exact match against database
@@ -371,7 +370,7 @@ router.get(
       });
 
       if (!job) {
-        return res.status(404).json({ error: "File not found" });
+        return errorResponse.notFound(res, "File not found", ErrorCodes.FILE_NOT_FOUND);
       }
 
       req.log.info({ filePath }, "Merge output download request started");
@@ -431,7 +430,7 @@ router.get(
           req.log.warn({ filePath }, "Download timeout - destroying stream");
           stream.destroy(new Error("Download timeout"));
           if (!res.headersSent) {
-            res.status(504).json({ error: "Download timeout" });
+            errorResponse.timeout(res, "Download timeout");
           }
         }, 60000);
 
@@ -439,7 +438,7 @@ router.get(
           clearTimeout(timeout);
           req.log.error({ err, filePath }, "S3 stream error");
           if (!res.headersSent) {
-            res.status(500).json({ error: "Download failed" });
+            errorResponse.internal(res, "Download failed");
           } else {
             res.destroy();
           }
@@ -461,14 +460,14 @@ router.get(
         stream.pipe(res);
       } catch (s3Err) {
         if (s3Err.name === "NoSuchKey") {
-          return res.status(404).json({ error: "File not found" });
+          return errorResponse.notFound(res, "File not found", ErrorCodes.FILE_NOT_FOUND);
         }
         throw s3Err;
       }
     } catch (err) {
       req.log.error({ err, filePath: req.params.filePath }, "Download failed");
       if (!res.headersSent) {
-        res.status(500).json({ error: "Download failed" });
+        errorResponse.internal(res, "Download failed");
       }
     }
   }
@@ -491,7 +490,7 @@ router.post(
       const { outputType = "pdf" } = req.body || {};
 
       if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-        return res.status(400).json({ error: "Invalid template ID format" });
+        return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
       }
 
       // Fetch template to validate outputType against its format and ownership
@@ -501,23 +500,26 @@ router.post(
 
       // Check template exists and belongs to user
       if (!template || template.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       // Validate outputType is supported for this template's format
       const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
       if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
-        return res.status(400).json({
-          error: `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
-        });
+        return errorResponse.badRequest(
+          res,
+          `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
+          ErrorCodes.VALIDATION_ERROR
+        );
       }
 
       // ensures a CSV file was uploaded
       if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
-        return res.status(400).json({
-          error:
-            "No CSV file uploaded. Send multipart/form-data with field name 'csv'.",
-        });
+        return errorResponse.badRequest(
+          res,
+          "No CSV file uploaded. Send multipart/form-data with field name 'csv'.",
+          ErrorCodes.MISSING_FIELD
+        );
       }
 
       // gets the uploaded CSV file's bytes from req.file.buffer, and converts it to a UTF-8 string
@@ -530,7 +532,7 @@ router.post(
 
       // empty text early-out
       if (!csv.trim()) {
-        return res.status(400).json({ error: "Uploaded CSV is empty." });
+        return errorResponse.badRequest(res, "Uploaded CSV is empty.", ErrorCodes.EMPTY_DATA);
       }
 
       // parse CSV -> rows
@@ -546,25 +548,21 @@ router.post(
           trim: true,
         });
       } catch (parseErr) {
-        return res.status(400).json({
-          error: "Invalid CSV format",
-          details: parseErr.message,
-        });
+        return errorResponse.badRequest(res, "Invalid CSV format", ErrorCodes.INVALID_FORMAT, { details: parseErr.message });
       }
 
       // ensures at least one data row
       if (!Array.isArray(rows) || rows.length === 0) {
         // otherwise, bad request
-        return res.status(400).json({
-          error:
-            "No data rows found in CSV. Include a header row and at least one data row.",
-        });
+        return errorResponse.badRequest(
+          res,
+          "No data rows found in CSV. Include a header row and at least one data row.",
+          ErrorCodes.EMPTY_DATA
+        );
       }
 
       if (rows.length > 1000) {
-        return res.status(413).json({
-          error: "Too many rows. Maximum 1000 rows per CSV.",
-        });
+        return errorResponse.payloadTooLarge(res, "Too many rows. Maximum 1000 rows per CSV.");
       }
 
       rows = sanitizeCsvRows(rows);
@@ -588,10 +586,12 @@ router.post(
           r => !r.success && r.error?.includes("TEMPLATE_PARSE_ERROR")
         );
         if (parseError) {
-          return res.status(422).json({
-            error: "Template has invalid Docxtemplater tags",
-            details: parseError.error,
-          });
+          return errorResponse.unprocessable(
+            res,
+            "Template has invalid Docxtemplater tags",
+            ErrorCodes.TEMPLATE_PARSE_ERROR,
+            { details: parseError.error }
+          );
         }
 
         // Format response similar to original
@@ -639,7 +639,7 @@ router.post(
     } catch (err) {
       req.log.error({ err, templateId: req.params.templateId }, "CSV merge failed");
       // otherwise, send 400 Bad Request with a simple error message
-      res.status(400).json({ error: err.message });
+      errorResponse.badRequest(res, err.message, ErrorCodes.VALIDATION_ERROR);
     }
   }
 );
@@ -663,7 +663,7 @@ router.post(
       const { data = {}, outputType = "docx", testMode = false } = req.body || {};
 
       if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-        return res.status(400).json({ error: "Invalid template ID format" });
+        return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
       }
 
       // Fetch template to validate outputType against its format and ownership
@@ -673,22 +673,22 @@ router.post(
 
       // Check template exists and belongs to user
       if (!template || template.uploadedById !== req.user.id) {
-        return res.status(404).json({ error: "Template not found" });
+        return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
       }
 
       // Validate outputType is supported for this template's format
       const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
       if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
-        return res.status(400).json({
-          error: `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
-        });
+        return errorResponse.badRequest(
+          res,
+          `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
+          ErrorCodes.VALIDATION_ERROR
+        );
       }
 
       // MISSING: data type validation
       if (typeof data !== "object" || Array.isArray(data)) {
-        return res.status(400).json({
-          error: "Data must be an object with key-value pairs.",
-        });
+        return errorResponse.badRequest(res, "Data must be an object with key-value pairs.", ErrorCodes.VALIDATION_ERROR);
       }
 
       // logs the data
@@ -732,16 +732,16 @@ router.post(
       // ids my domain error, not any random error
       if (err.message === "TEMPLATE_PARSE_ERROR" && err.details) {
         // early-returns an HTTP 422 Unprocessable Entity with a machine-readable payload
-        return res.status(422).json({
-          error: "Template has invalid Docxtemplater tags",
-          /* details lets clients pinpoint the exact tag issues (e.g. duplicate_open_tag, xtag, 
-          file, offset) */
-          details: err.details,
-        });
+        return errorResponse.unprocessable(
+          res,
+          "Template has invalid Docxtemplater tags",
+          ErrorCodes.TEMPLATE_PARSE_ERROR,
+          { details: err.details }
+        );
       }
       // any other error gets logged and returns 400 bad request with a message if merge engine throws
       req.log.error({ err, templateId: req.params.templateId }, "Manual merge failed");
-      res.status(400).json({ error: err.message });
+      errorResponse.badRequest(res, err.message, ErrorCodes.VALIDATION_ERROR);
     }
   }
 );
@@ -755,7 +755,7 @@ router.get(
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
+        return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
       }
 
       const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
@@ -765,7 +765,7 @@ router.get(
       res.json(batchJobs);
     } catch (err) {
       req.log.error({ err }, "Failed to list batch jobs");
-      res.status(500).json({ error: "Failed to list batch jobs" });
+      errorResponse.internal(res, "Failed to list batch jobs");
     }
   }
 );
@@ -779,18 +779,18 @@ router.get(
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
+        return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
       }
 
       const batchJob = await getBatchJobStatus(req.params.id, userId);
       if (!batchJob) {
-        return res.status(404).json({ error: "Batch job not found" });
+        return errorResponse.notFound(res, "Batch job not found", ErrorCodes.JOB_NOT_FOUND);
       }
 
       res.json(batchJob);
     } catch (err) {
       req.log.error({ err, batchJobId: req.params.id }, "Failed to get batch job status");
-      res.status(500).json({ error: "Failed to get batch job status" });
+      errorResponse.internal(res, "Failed to get batch job status");
     }
   }
 );
@@ -807,7 +807,7 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, async (r
   const outputType = req.query.outputType || "pdf";
 
   if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-    return res.status(400).json({ error: "Invalid template ID format" });
+    return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
   }
 
   // Fetch template to validate outputType against its format
@@ -818,19 +818,21 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, async (r
     });
   } catch (err) {
     req.log.error({ err, templateId }, "Failed to fetch template");
-    return res.status(500).json({ error: "Internal server error" });
+    return errorResponse.internal(res, "Internal server error");
   }
 
   if (!template) {
-    return res.status(404).json({ error: "Template not found" });
+    return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
   }
 
   // Validate outputType is supported for this template's format
   const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
   if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
-    return res.status(400).json({
-      error: `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
-    });
+    return errorResponse.badRequest(
+      res,
+      `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
+      ErrorCodes.VALIDATION_ERROR
+    );
   }
 
   req.log.info({ templateId, outputType }, "Webhook merge started");
@@ -861,16 +863,16 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, async (r
       rows = Array.isArray(json) ? json : [json];
     } else {
       // unsupported media type
-      return res.status(415).json({ error: "Unsupported content type" });
+      return errorResponse.unsupportedMediaType(res, "Unsupported content type");
     }
   } catch {
     // if fails, client sent syntactically invalid JSON
-    return res.status(400).json({ error: "Invalid payload" });
+    return errorResponse.badRequest(res, "Invalid payload", ErrorCodes.INVALID_PAYLOAD);
   }
 
   if (rows.length > 1000)
     // payload too large
-    return res.status(413).json({ error: "Too many rows" });
+    return errorResponse.payloadTooLarge(res, "Too many rows");
 
   rows = sanitizeCsvRows(rows);
 
@@ -917,14 +919,16 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, async (r
     // responds with 422 meaning "Unprocessable" on failure
   } catch (err) {
     if (err.message === "TEMPLATE_PARSE_ERROR" && err.details) {
-      return res.status(422).json({
-        error: "Template has invalid Docxtemplater tags",
-        details: err.details,
-      });
+      return errorResponse.unprocessable(
+        res,
+        "Template has invalid Docxtemplater tags",
+        ErrorCodes.TEMPLATE_PARSE_ERROR,
+        { details: err.details }
+      );
     }
     req.log.error({ err, templateId }, "Webhook merge failed");
     // errors surface as 400 and bad signature returns 401
-    res.status(400).json({ error: err.message });
+    errorResponse.badRequest(res, err.message, ErrorCodes.VALIDATION_ERROR);
   }
 });
 
