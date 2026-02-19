@@ -1,6 +1,7 @@
 const rateLimit = require("express-rate-limit");
 const { ipKeyGenerator } = require("express-rate-limit");
 const { PostgresStore } = require("@acpr/rate-limit-postgresql");
+const { errorResponse } = require("../utils/errorResponse");
 
 /**
  * Parse PostgreSQL connection URL into config object
@@ -29,11 +30,15 @@ const dbConfig = parseConnectionUrl(process.env.DIRECT_URL || process.env.DATABA
  * @returns {Function} - express middleware
  */
 function createRateLimiter(options, prefix) {
+  const { message, ...restOptions } = options;
   return rateLimit({
-    ...options,
+    ...restOptions,
     store: new PostgresStore(dbConfig, prefix),
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (req, res) => {
+      errorResponse.rateLimited(res, message || "Too many requests");
+    },
   });
 }
 
@@ -44,8 +49,9 @@ function createRateLimiter(options, prefix) {
  * @returns {Function} - express middleware
  */
 function createUserRateLimiter(options, prefix) {
+  const { message, ...restOptions } = options;
   return rateLimit({
-    ...options,
+    ...restOptions,
     store: new PostgresStore(dbConfig, prefix),
     keyGenerator: (req) => {
       // Use user ID if authenticated, otherwise use IP with proper IPv6 handling
@@ -54,6 +60,9 @@ function createUserRateLimiter(options, prefix) {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (req, res) => {
+      errorResponse.rateLimited(res, message || "Too many requests");
+    },
   });
 }
 
@@ -63,9 +72,10 @@ function createUserRateLimiter(options, prefix) {
  * @param {number} maxPoints - Maximum points allowed in window
  * @param {number} windowMs - Window duration in milliseconds
  * @param {string} prefix - Unique prefix for this limiter
+ * @param {string} message - Custom error message
  * @returns {Function} - Middleware factory that takes cost parameter
  */
-function createWeightedLimiter(maxPoints, windowMs, prefix) {
+function createWeightedLimiter(maxPoints, windowMs, prefix, message) {
   // For weighted limiting, we use a higher max and track points manually
   const limiter = rateLimit({
     windowMs,
@@ -77,6 +87,9 @@ function createWeightedLimiter(maxPoints, windowMs, prefix) {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (req, res) => {
+      errorResponse.rateLimited(res, message || "Too many requests");
+    },
   });
 
   return (cost = 1) =>
