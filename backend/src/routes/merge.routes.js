@@ -7,6 +7,15 @@ require("dotenv").config();
 const express = require("express");
 const { createUserRateLimiter } = require("../middleware/rate-limiter");
 const { errorResponse, ErrorCodes } = require("../utils/errorResponse");
+const { validate } = require("../middleware/validate");
+const {
+  templateIdParams,
+  mergeBody,
+  csvMergeBody,
+  jobIdParams,
+  batchJobIdParams,
+  batchJobsQuery,
+} = require("../schemas/merge.schemas");
 // imports Supabase authentication middleware
 const authenticateSupabase = require("../middleware/supabase-auth");
 // concurrency limiter to prevent memory exhaustion from parallel merges
@@ -117,22 +126,19 @@ function verifyHmac(req, res, next) {
   next();
 }
 
-/* DOWNLOAD ROUTE 
+/* DOWNLOAD ROUTE
 - streams original uploaded file by templateId */
 router.get(
   "/templates/:templateId/download",
   // tells Passport not to use server-side sessions, making the route stateless
   authenticateSupabase,
   downloadLimiter,
+  validate({ params: templateIdParams }),
   async (req, res) => {
     try {
-      // gets templateId path parameter
+      // gets templateId path parameter (already validated by Zod)
       const { templateId } = req.params;
       req.log.info({ templateId }, "Download request started");
-
-      if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-        return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
-      }
 
       // helper that looks up the template by templateId (db)
       const info = await resolveTemplateFile(templateId);
@@ -287,17 +293,14 @@ router.get(
 router.delete(
   "/jobs/:id",
   authenticateSupabase,
+  validate({ params: jobIdParams }),
   async (req, res) => {
     try {
-      const jobId = parseInt(req.params.id, 10);
+      const jobId = req.params.id; // Already validated and coerced by Zod
       const userId = req.user?.id;
 
       if (!userId) {
         return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
-      }
-
-      if (isNaN(jobId)) {
-        return errorResponse.badRequest(res, "Invalid job ID", ErrorCodes.INVALID_FORMAT);
       }
 
       // Find the job and verify ownership
@@ -482,16 +485,13 @@ router.post(
   memoryGuard,
   // multer middleware that expects one uploaded file under the form field name csv
   uploadCsv.single("csv"),
+  validate({ params: templateIdParams }),
   async (req, res) => {
     try {
-      // pulls the templateId (i.e. which template to merge with) from the URL
+      // pulls the templateId (i.e. which template to merge with) from the URL (already validated by Zod)
       const { templateId } = req.params;
       // reads outputType from the JSON body; defaults to "pdf"
       const { outputType = "pdf" } = req.body || {};
-
-      if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-        return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
-      }
 
       // Fetch template to validate outputType against its format and ownership
       const template = await prisma.template.findUnique({
@@ -644,7 +644,7 @@ router.post(
   }
 );
 
-/* *MANUAL MERGE (JWT) 
+/* *MANUAL MERGE (JWT)
 path: POST /api/templates/:templateId/merge; JWT-protected and then hands off to merge engine */
 router.post(
   // path param :templateId selects which template to merge
@@ -653,18 +653,16 @@ router.post(
   authenticateSupabase,
   mergeLimiter,
   memoryGuard,
+  validate({ params: templateIdParams, body: mergeBody }),
   async (req, res) => {
     try {
-      /* pulls templateId from req.params, selects which stored template to use
+      /* pulls templateId from req.params (already validated by Zod)
       B3a. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler */
       const { templateId } = req.params;
 
-      /* B3b & c. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler */
-      const { data = {}, outputType = "docx", testMode = false } = req.body || {};
-
-      if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-        return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
-      }
+      /* B3b & c. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): route handler
+         Already validated by Zod */
+      const { data, outputType, testMode } = req.body;
 
       // Fetch template to validate outputType against its format and ownership
       const template = await prisma.template.findUnique({
@@ -684,11 +682,6 @@ router.post(
           `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
           ErrorCodes.VALIDATION_ERROR
         );
-      }
-
-      // MISSING: data type validation
-      if (typeof data !== "object" || Array.isArray(data)) {
-        return errorResponse.badRequest(res, "Data must be an object with key-value pairs.", ErrorCodes.VALIDATION_ERROR);
       }
 
       // logs the data
@@ -751,6 +744,7 @@ router.post(
 router.get(
   "/batch-jobs",
   authenticateSupabase,
+  validate({ query: batchJobsQuery }),
   async (req, res) => {
     try {
       const userId = req.user?.id;
@@ -758,8 +752,8 @@ router.get(
         return errorResponse.unauthorized(res, "Unauthorized", ErrorCodes.UNAUTHORIZED);
       }
 
-      const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
-      const offset = parseInt(req.query.offset, 10) || 0;
+      // Already validated and coerced by Zod
+      const { limit, offset } = req.query;
 
       const batchJobs = await listBatchJobs(userId, { limit, offset });
       res.json(batchJobs);
@@ -775,6 +769,7 @@ router.get(
 router.get(
   "/batch-jobs/:id",
   authenticateSupabase,
+  validate({ params: batchJobIdParams }),
   async (req, res) => {
     try {
       const userId = req.user?.id;
@@ -798,17 +793,13 @@ router.get(
 /* WEBHOOK MERGE (HMAC)
 - SANITIZES INPUTS ON WEBHOOK (EXTERNAL SYSTEMS) ROUTE
 - STILL HARD-BLOCKS EXECUTION ON CRITICAL VIOLATIONS (E.G. FAILED HMAC, SCHEMA MISMATCH, PATH TRAVERSAL LOGS, ETC.) */
-router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, async (req, res) => {
+router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, validate({ params: templateIdParams }), async (req, res) => {
   // runs the same merge path with the POST body as data
   /* C5. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): route handler execution
-      C5a. templateId from URL */
+      C5a. templateId from URL (already validated by Zod) */
   const { templateId } = req.params;
   // C5b. outputType read from query string
   const outputType = req.query.outputType || "pdf";
-
-  if (!/^c[a-z0-9]{24}$/.test(templateId)) {
-    return errorResponse.badRequest(res, "Invalid template ID format", ErrorCodes.INVALID_FORMAT);
-  }
 
   // Fetch template to validate outputType against its format
   let template;

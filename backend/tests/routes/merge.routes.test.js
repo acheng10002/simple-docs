@@ -59,6 +59,13 @@ jest.mock("../../src/middleware/upload.middleware", () => {
   };
 });
 
+// Mock memory-guard middleware to pass through
+jest.mock("../../src/middleware/memory-guard", () => ({
+  memoryGuard: (req, res, next) => next(),
+  getMemoryStats: jest.fn(() => ({ heapUsedMB: 100, heapLimitMB: 500 })),
+  MEMORY_THRESHOLD: 0.8,
+}));
+
 // Valid template ID matching the regex /^c[a-z0-9]{24}$/
 const VALID_TEMPLATE_ID = "cm12345678901234567890123";
 

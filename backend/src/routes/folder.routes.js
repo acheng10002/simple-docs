@@ -1,8 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const authenticateSupabase = require('../middleware/supabase-auth');
+const { validate } = require('../middleware/validate');
 const folderService = require('../services/folder.service');
 const { errorResponse, ErrorCodes } = require('../utils/errorResponse');
+const {
+  folderIdParams,
+  createFolderBody,
+  renameFolderBody,
+  moveFolderBody,
+  moveTemplateParams,
+  moveTemplateBody,
+} = require('../schemas/folder.schemas');
 
 // All routes require authentication
 router.use(authenticateSupabase);
@@ -23,20 +32,11 @@ router.get('/folders', async (req, res) => {
 /**
  * POST /api/folders - Create new folder
  */
-router.post('/folders', async (req, res) => {
+router.post('/folders', validate({ body: createFolderBody }), async (req, res) => {
   try {
-    const { name, parentId } = req.body;
+    const { name, parentId } = req.body; // Already validated and trimmed by Zod
 
-    // Validation
-    if (!name || !name.trim()) {
-      return errorResponse.badRequest(res, 'Folder name is required', ErrorCodes.MISSING_FIELD);
-    }
-
-    if (name.length > 100) {
-      return errorResponse.badRequest(res, 'Folder name must be 100 characters or less', ErrorCodes.VALIDATION_ERROR);
-    }
-
-    const folder = await folderService.createFolder(req.user.id, name.trim(), parentId || null);
+    const folder = await folderService.createFolder(req.user.id, name, parentId || null);
     res.status(201).json(folder);
   } catch (err) {
     if (err.message.includes('Maximum folder depth')) {
@@ -56,20 +56,12 @@ router.post('/folders', async (req, res) => {
 /**
  * PUT /api/folders/:id - Rename folder
  */
-router.put('/folders/:id', async (req, res) => {
+router.put('/folders/:id', validate({ params: folderIdParams, body: renameFolderBody }), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name } = req.body; // Already validated and trimmed by Zod
 
-    if (!name || !name.trim()) {
-      return errorResponse.badRequest(res, 'Folder name is required', ErrorCodes.MISSING_FIELD);
-    }
-
-    if (name.length > 100) {
-      return errorResponse.badRequest(res, 'Folder name must be 100 characters or less', ErrorCodes.VALIDATION_ERROR);
-    }
-
-    const folder = await folderService.renameFolder(req.user.id, id, name.trim());
+    const folder = await folderService.renameFolder(req.user.id, id, name);
     res.json(folder);
   } catch (err) {
     if (err.message.includes('not found')) {
@@ -86,7 +78,7 @@ router.put('/folders/:id', async (req, res) => {
 /**
  * PUT /api/folders/:id/move - Move folder to new parent
  */
-router.put('/folders/:id/move', async (req, res) => {
+router.put('/folders/:id/move', validate({ params: folderIdParams, body: moveFolderBody }), async (req, res) => {
   try {
     const { id } = req.params;
     const { newParentId } = req.body;
@@ -111,7 +103,7 @@ router.put('/folders/:id/move', async (req, res) => {
 /**
  * DELETE /api/folders/:id - Delete folder and unfile all templates
  */
-router.delete('/folders/:id', async (req, res) => {
+router.delete('/folders/:id', validate({ params: folderIdParams }), async (req, res) => {
   try {
     const { id } = req.params;
     await folderService.deleteFolder(req.user.id, id);
@@ -128,7 +120,7 @@ router.delete('/folders/:id', async (req, res) => {
 /**
  * PUT /api/templates/:id/move - Move template to folder (or unfile)
  */
-router.put('/templates/:id/move', async (req, res) => {
+router.put('/templates/:id/move', validate({ params: moveTemplateParams, body: moveTemplateBody }), async (req, res) => {
   try {
     const { id } = req.params;
     const { folderId } = req.body; // null to unfile

@@ -19,6 +19,12 @@ const {
   extractFieldsFromTemplate,
   storeTemplateAndFields,
 } = require("../services/template.service");
+const { validate } = require("../middleware/validate");
+const {
+  templateIdParams,
+  templateVersionParams,
+  updateTemplateBody,
+} = require("../schemas/template.schemas");
 
 // shared linter utilities
 const { lintDocxBuffer } = require("../utils/docx-templating");
@@ -333,9 +339,10 @@ router.get(
 router.get(
   "/templates/:id/versions",
   authenticateSupabase,
+  validate({ params: templateIdParams }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params; // Already validated by Zod
 
       // Verify template exists and belongs to user
       const template = await prisma.template.findUnique({
@@ -381,9 +388,10 @@ router.get(
 router.post(
   "/templates/:id/versions/:versionId/revert",
   authenticateSupabase,
+  validate({ params: templateVersionParams }),
   async (req, res) => {
     try {
-      const { id, versionId } = req.params;
+      const { id, versionId } = req.params; // Already validated by Zod
 
       // First, check if the version exists at all
       const versionCheck = await prisma.templateVersion.findUnique({
@@ -534,9 +542,10 @@ router.post(
 router.get(
   "/templates/:id",
   authenticateSupabase,
+  validate({ params: templateIdParams }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params; // Already validated by Zod
 
       const template = await prisma.template.findUnique({
         where: { id },
@@ -563,9 +572,10 @@ router.get(
 router.delete(
   "/templates/:id",
   authenticateSupabase,
+  validate({ params: templateIdParams }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params; // Already validated by Zod
 
       // Check if template exists, belongs to user, and is active
       const template = await prisma.template.findUnique({
@@ -600,9 +610,10 @@ router.delete(
 router.post(
   "/templates/:id/activate",
   authenticateSupabase,
+  validate({ params: templateIdParams }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params; // Already validated by Zod
 
       // Check if template exists, belongs to user, and is inactive
       const template = await prisma.template.findUnique({
@@ -639,9 +650,10 @@ router.put(
   "/templates/:id",
   authenticateSupabase,
   uploadTemplate.single("template"),
+  validate({ params: templateIdParams }),
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params; // Already validated by Zod
       const { displayName, defaultOutputType, outputNameFormat, pageSize, orientation } = req.body;
       const file = req.file;
 

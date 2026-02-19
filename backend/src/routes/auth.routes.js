@@ -6,19 +6,17 @@ const prisma = require("../config/prisma");
 const { createRateLimiter } = require("../middleware/rate-limiter");
 const { supabaseAdmin, supabaseClient } = require("../config/supabase-auth");
 const { errorResponse, ErrorCodes } = require("../utils/errorResponse");
+const { validate } = require("../middleware/validate");
+const {
+  registerBody,
+  loginBody,
+  forgotPasswordBody,
+  resetPasswordBody,
+  updateEmailBody,
+  updatePasswordBody,
+} = require("../schemas/auth.schemas");
 
 const router = express.Router();
-
-// Password strength validation
-function validatePasswordStrength(password) {
-  const errors = [];
-  if (password.length < 8) errors.push('at least 8 characters');
-  if (!/[A-Z]/.test(password)) errors.push('at least one uppercase letter');
-  if (!/[a-z]/.test(password)) errors.push('at least one lowercase letter');
-  if (!/[0-9]/.test(password)) errors.push('at least one number');
-  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('at least one special character');
-  return errors;
-}
 
 // Rate limiting for auth routes (prevent brute force attacks) - PostgreSQL-backed
 const authLimiter = createRateLimiter({
@@ -30,30 +28,9 @@ const authLimiter = createRateLimiter({
 /* POST /api/auth/register
 - creates new user in Supabase Auth and database
 - validates email uniqueness */
-router.post("/auth/register", authLimiter, async (req, res) => {
+router.post("/auth/register", authLimiter, validate({ body: registerBody }), async (req, res) => {
   try {
-    const { email, password, firstName, lastName } = req.body;
-
-    // validates required fields
-    if (!email || !password) {
-      return errorResponse.badRequest(res, "Email and password are required", ErrorCodes.MISSING_FIELD);
-    }
-
-    // validates email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return errorResponse.badRequest(res, "Invalid email format", ErrorCodes.INVALID_FORMAT);
-    }
-
-    // validates password strength
-    const passwordErrors = validatePasswordStrength(password);
-    if (passwordErrors.length > 0) {
-      return errorResponse.badRequest(
-        res,
-        `Password must contain ${passwordErrors.join(', ')}`,
-        ErrorCodes.VALIDATION_ERROR
-      );
-    }
+    const { email, password, firstName, lastName } = req.body; // Already validated by Zod
 
     // checks if user already exists in database
     const existingUser = await prisma.user.findUnique({
@@ -115,14 +92,9 @@ router.post("/auth/register", authLimiter, async (req, res) => {
 /* POST /api/auth/login
 - authenticates user with Supabase Auth
 - returns Supabase session and user data */
-router.post("/auth/login", authLimiter, async (req, res) => {
+router.post("/auth/login", authLimiter, validate({ body: loginBody }), async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    // validates required fields
-    if (!email || !password) {
-      return errorResponse.badRequest(res, "Email and password are required", ErrorCodes.MISSING_FIELD);
-    }
+    const { email, password } = req.body; // Already validated by Zod
 
     // finds user in database first to check isActive
     const dbUser = await prisma.user.findUnique({
@@ -176,13 +148,9 @@ router.post("/auth/login", authLimiter, async (req, res) => {
 /* POST /api/auth/forgot-password
 - sends password reset email via Supabase Auth
 - always returns success to prevent email enumeration */
-router.post("/auth/forgot-password", async (req, res) => {
+router.post("/auth/forgot-password", validate({ body: forgotPasswordBody }), async (req, res) => {
   try {
-    const { email } = req.body;
-
-    if (!email) {
-      return errorResponse.badRequest(res, "Email is required", ErrorCodes.MISSING_FIELD);
-    }
+    const { email } = req.body; // Already validated by Zod
 
     // Always attempt to send reset email - Supabase handles non-existent emails gracefully
     const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
@@ -210,22 +178,9 @@ router.post("/auth/forgot-password", async (req, res) => {
 /* POST /api/auth/reset-password
 - updates user password after reset email verification
 - requires valid Supabase session from reset link */
-router.post("/auth/reset-password", async (req, res) => {
+router.post("/auth/reset-password", validate({ body: resetPasswordBody }), async (req, res) => {
   try {
-    const { password } = req.body;
-
-    if (!password) {
-      return errorResponse.badRequest(res, "Password is required", ErrorCodes.MISSING_FIELD);
-    }
-
-    const passwordErrors = validatePasswordStrength(password);
-    if (passwordErrors.length > 0) {
-      return errorResponse.badRequest(
-        res,
-        `Password must contain ${passwordErrors.join(', ')}`,
-        ErrorCodes.VALIDATION_ERROR
-      );
-    }
+    const { password } = req.body; // Already validated by Zod
 
     const authHeader = req.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -265,19 +220,9 @@ router.post("/auth/reset-password", async (req, res) => {
 /* PUT /api/auth/update-email
 - updates user email in Supabase Auth and database
 - requires valid Supabase session */
-router.put("/auth/update-email", async (req, res) => {
+router.put("/auth/update-email", validate({ body: updateEmailBody }), async (req, res) => {
   try {
-    const { email } = req.body;
-
-    if (!email) {
-      return errorResponse.badRequest(res, "Email is required", ErrorCodes.MISSING_FIELD);
-    }
-
-    // validates email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return errorResponse.badRequest(res, "Invalid email format", ErrorCodes.INVALID_FORMAT);
-    }
+    const { email } = req.body; // Already validated by Zod
 
     const authHeader = req.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -333,26 +278,9 @@ router.put("/auth/update-email", async (req, res) => {
 /* PUT /api/auth/update-password
 - updates user password in Supabase Auth
 - requires valid current password verification */
-router.put("/auth/update-password", async (req, res) => {
+router.put("/auth/update-password", validate({ body: updatePasswordBody }), async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword) {
-      return errorResponse.badRequest(res, "Current password is required", ErrorCodes.MISSING_FIELD);
-    }
-
-    if (!newPassword) {
-      return errorResponse.badRequest(res, "New password is required", ErrorCodes.MISSING_FIELD);
-    }
-
-    const passwordErrors = validatePasswordStrength(newPassword);
-    if (passwordErrors.length > 0) {
-      return errorResponse.badRequest(
-        res,
-        `New password must contain ${passwordErrors.join(', ')}`,
-        ErrorCodes.VALIDATION_ERROR
-      );
-    }
+    const { currentPassword, newPassword } = req.body; // Already validated by Zod
 
     const authHeader = req.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {

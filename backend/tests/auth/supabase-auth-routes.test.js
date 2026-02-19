@@ -117,10 +117,10 @@ describe("Supabase Auth Routes", () => {
     test("should return 400 when email is missing", async () => {
       const response = await request(app)
         .post("/api/auth/register")
-        .send({ password: "password123" });
+        .send({ password: "Password123!" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.message).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Email is required");
     });
 
     test("should return 400 when password is missing", async () => {
@@ -129,7 +129,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "test@example.com" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.message).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Password is required");
     });
 
     test("should return 400 for invalid email format", async () => {
@@ -241,7 +241,7 @@ describe("Supabase Auth Routes", () => {
         .send({ password: "password123" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.message).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Email is required");
     });
 
     test("should return 400 when password is missing", async () => {
@@ -250,7 +250,7 @@ describe("Supabase Auth Routes", () => {
         .send({ email: "test@example.com" });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.message).toBe("Email and password are required");
+      expect(response.body.error.message).toBe("Password is required");
     });
 
     test("should return 401 when user does not exist", async () => {
