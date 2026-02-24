@@ -5,8 +5,6 @@ require("dotenv").config();
 const errorLogger = require("./utils/error-logger");
 // SERVER ENTRY POINT - backend framework that handles HTTP requests and response
 const express = require("express");
-// imports the passport property of passport.js
-const { passport } = require("./config/passport");
 // router for template ingestion & discovery
 const uploadRouter = require("./routes/template.routes");
 // router for merge execution & webhook intake
@@ -151,10 +149,6 @@ const webhookLimiter = createRateLimiter({
 
 app.use("/api/upload", uploadLimiter);
 app.use("/api/webhooks", webhookLimiter);
-
-/* INITIALIZES PASSPORT (JWT STRATEGY)
-- before routes, initialize passport so merge.routes.js can authenticate */
-app.use(passport.initialize());
 
 app.get("/health", async (req, res) => {
   try {
