@@ -28,7 +28,6 @@
   "homepage": "https://github.com/acheng10002/simple-docs#readme",
   "dependencies": {
     "@acpr/rate-limit-postgresql": "^1.4.1",
-    "@aws-sdk/client-s3": "^3.899.0",
     "@prisma/client": "^6.19.1",
     "@supabase/supabase-js": "^2.88.0",
     "adm-zip": "^0.5.16",

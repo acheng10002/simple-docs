@@ -79,6 +79,7 @@ model Template {
     @@index([uploadedById])
     @@index([isActive])
     @@index([folderId])
+    @@index([displayName])
 }
 
 /// *
