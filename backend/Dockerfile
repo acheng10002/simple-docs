@@ -2,7 +2,7 @@
 # Stage 1: Builder - installs dependencies and builds native modules
 FROM node:20-slim AS builder
 
-# Install build dependencies for native modules (bcrypt, etc.)
+# Install build dependencies for native modules
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
