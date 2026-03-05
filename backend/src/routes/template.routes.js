@@ -465,7 +465,7 @@ router.post(
 
       const nextVersionNumber = (maxVersion?.versionNumber || 0) + 1;
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+      expiresAt.setDate(expiresAt.getDate() + 60);
 
       await prisma.templateVersion.create({
         data: {
