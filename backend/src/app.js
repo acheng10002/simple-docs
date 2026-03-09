@@ -43,7 +43,7 @@ const optionalEnvVars = {
   PORT: "3000",
   NODE_ENV: "development",
   LOG_LEVEL: "info",
-  OUTPUT_RETENTION_DAYS: "60",
+  OUTPUT_RETENTION_DAYS: "90",
 };
 
 /* looks up each required key in process.env/ Node's env var object 

@@ -1,12 +1,12 @@
 /* CLEANUP SERVICE - Scheduled cleanup for expired data
-   Handles deletion of expired template versions and old merge outputs */
+   Handles deletion of old merge outputs (template versions never expire) */
 
 const prisma = require("../config/prisma");
 const { s3, DeleteObjectCommand, withPrefix } = require("../storage/supabase-storage");
 const logger = require("../config/logger");
 
-// Default retention period for merge outputs (30 days)
-const OUTPUT_RETENTION_DAYS = parseInt(process.env.OUTPUT_RETENTION_DAYS, 10) || 30;
+// Default retention period for merge outputs (90 days)
+const OUTPUT_RETENTION_DAYS = parseInt(process.env.OUTPUT_RETENTION_DAYS, 10) || 90;
 
 /**
  * Delete expired template versions (DB records + S3 files)
@@ -145,19 +145,19 @@ async function cleanupOldOutputs(retentionDays = OUTPUT_RETENTION_DAYS) {
 
 /**
  * Run all cleanup tasks
+ * Template versions no longer expire, so only merge outputs are cleaned up
  * @returns {Promise<{versions: {deleted: number, errors: number}, outputs: {deleted: number, errors: number}}>}
  */
 async function runCleanup() {
   logger.info("Starting scheduled cleanup");
 
-  const [versions, outputs] = await Promise.all([
-    cleanupExpiredVersions(),
-    cleanupOldOutputs(),
-  ]);
+  // Template versions never expire (set to 100 years in the future)
+  // Only clean up old merge outputs
+  const outputs = await cleanupOldOutputs();
 
-  logger.info({ versions, outputs }, "Cleanup completed");
+  logger.info({ outputs }, "Cleanup completed");
 
-  return { versions, outputs };
+  return { versions: { deleted: 0, errors: 0 }, outputs };
 }
 
 module.exports = {

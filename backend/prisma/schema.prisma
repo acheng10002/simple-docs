@@ -97,7 +97,7 @@ model TemplateVersion {
     orientation       Orientation?
     fieldsSnapshot    Json         // Snapshot of fields at version time
     createdAt         DateTime     @default(now())
-    expiresAt         DateTime     // 30 days from createdAt
+    expiresAt         DateTime     // Set to far future (never expires)
 
     template          Template     @relation(fields: [templateId], references: [id], onDelete: Cascade)
 

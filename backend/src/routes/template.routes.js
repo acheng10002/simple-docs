@@ -464,8 +464,9 @@ router.post(
       });
 
       const nextVersionNumber = (maxVersion?.versionNumber || 0) + 1;
+      // Set far-future expiration (template versions never expire)
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 60);
+      expiresAt.setFullYear(expiresAt.getFullYear() + 100);
 
       await prisma.templateVersion.create({
         data: {
@@ -773,9 +774,9 @@ router.put(
 
         const nextVersionNumber = (maxVersion?.versionNumber || 0) + 1;
 
-        // Set expiration to 30 days from now
+        // Set far-future expiration (template versions never expire)
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30);
+        expiresAt.setFullYear(expiresAt.getFullYear() + 100);
 
         // Snapshot CURRENT state before replacing
         await prisma.templateVersion.create({
