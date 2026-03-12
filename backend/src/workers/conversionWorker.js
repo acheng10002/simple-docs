@@ -5,6 +5,8 @@ Communicates via JSON over stdin/stdout.
 
 Security properties:
 - No access to DATABASE_URL, JWT_SECRET, etc.
+- Chrome sandbox enabled in production (disabled in dev for local setup)
+- SSRF protection via request interception (only data: URLs allowed)
 - Can be run with restricted seccomp profile
 - Network access can be disabled
 - Crashes don't affect main process
@@ -23,6 +25,12 @@ for (const key of Object.keys(process.env)) {
     delete process.env[key];
   }
 }
+
+// Chrome sandbox is enabled in production, disabled in development for easier local setup
+const isDev = process.env.NODE_ENV === 'development';
+const CHROME_SANDBOX_ARGS = isDev
+  ? ['--no-sandbox', '--disable-setuid-sandbox']
+  : []; // Sandbox enabled in production
 
 /**
  * Resolve soffice executable path
@@ -117,10 +125,9 @@ async function convertHtmlToPdf(htmlBuffer) {
       headless: 'new',
       args: [
         '--disable-dev-shm-usage',
-        '--no-sandbox',  // Worker is already sandboxed at process level
-        '--disable-setuid-sandbox',
         '--disable-gpu',
         '--disable-software-rasterizer',
+        ...CHROME_SANDBOX_ARGS,
       ],
     });
 
@@ -202,9 +209,8 @@ async function convertPdfToJpg(pdfBuffer) {
       headless: 'new',
       args: [
         '--disable-dev-shm-usage',
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
         '--disable-gpu',
+        ...CHROME_SANDBOX_ARGS,
       ],
     });
 
