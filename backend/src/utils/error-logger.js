@@ -3,6 +3,7 @@
 - replacement for Sentry/GlitchTip error tracking */
 const prisma = require("../config/prisma");
 const logger = require("../config/logger");
+const { hashForLog } = require("./pii");
 
 /**
  * Logs an error to the database
@@ -88,14 +89,14 @@ async function info(message, error = null, context = {}) {
  * @param {Function} next - Express next function
  */
 async function expressErrorHandler(err, req, res, next) {
-  // extracts useful request context
+  // extracts useful request context (PII is hashed for privacy)
   const context = {
     requestId: req.id,
     method: req.method,
     url: req.url,
     userId: req.user?.id,
-    userEmail: req.user?.email,
-    ip: req.ip,
+    emailHash: hashForLog(req.user?.email),
+    ipHash: hashForLog(req.ip),
     userAgent: req.get("user-agent"),
   };
 

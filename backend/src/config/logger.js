@@ -37,7 +37,7 @@ const logger = pino({
     res: pino.stdSerializers.res,
   },
 
-  // redacts sensitive fields from logs
+  // redacts sensitive fields from logs (defense-in-depth for PII)
   redact: {
     paths: [
       "req.headers.authorization",
@@ -45,6 +45,12 @@ const logger = pino({
       "password",
       "secret",
       "token",
+      "email",
+      "userEmail",
+      "*.email",
+      "*.password",
+      "req.body.email",
+      "req.body.password",
     ],
     remove: true,
   },

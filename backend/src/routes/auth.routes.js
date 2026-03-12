@@ -15,6 +15,7 @@ const {
   updateEmailBody,
   updatePasswordBody,
 } = require("../schemas/auth.schemas");
+const { hashForLog } = require("../utils/pii");
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.post("/auth/register", authLimiter, validate({ body: registerBody }), asy
     });
 
     if (authError) {
-      req.log.error({ err: authError, email }, "Supabase user creation failed");
+      req.log.error({ err: authError, emailHash: hashForLog(email) }, "Supabase user creation failed");
       return errorResponse.internal(res, "Registration failed. Please try again.");
     }
 
@@ -76,7 +77,7 @@ router.post("/auth/register", authLimiter, validate({ body: registerBody }), asy
       },
     });
 
-    req.log.info({ userId: user.id, email: user.email }, "User registered");
+    req.log.info({ userId: user.id, emailHash: hashForLog(user.email) }, "User registered");
 
     res.status(201).json({
       message: "User created successfully",
@@ -84,7 +85,7 @@ router.post("/auth/register", authLimiter, validate({ body: registerBody }), asy
       session: authData.session,
     });
   } catch (err) {
-    req.log.error({ err, email: req.body?.email }, "Registration failed");
+    req.log.error({ err, emailHash: hashForLog(req.body?.email) }, "Registration failed");
     errorResponse.internal(res, "Registration failed. Please try again.");
   }
 });
@@ -117,7 +118,7 @@ router.post("/auth/login", authLimiter, validate({ body: loginBody }), async (re
     });
 
     if (error) {
-      req.log.warn({ email, error: error.message }, "Supabase login failed");
+      req.log.warn({ emailHash: hashForLog(email), error: error.message }, "Supabase login failed");
       return errorResponse.unauthorized(res, "Invalid email or password", ErrorCodes.INVALID_CREDENTIALS);
     }
 
@@ -127,7 +128,7 @@ router.post("/auth/login", authLimiter, validate({ body: loginBody }), async (re
       data: { lastLogin: new Date() },
     });
 
-    req.log.info({ userId: dbUser.id, email: dbUser.email }, "User logged in");
+    req.log.info({ userId: dbUser.id, emailHash: hashForLog(dbUser.email) }, "User logged in");
 
     res.json({
       session: data.session,
@@ -140,7 +141,7 @@ router.post("/auth/login", authLimiter, validate({ body: loginBody }), async (re
       },
     });
   } catch (err) {
-    req.log.error({ err, email: req.body?.email }, "Login failed");
+    req.log.error({ err, emailHash: hashForLog(req.body?.email) }, "Login failed");
     errorResponse.internal(res, "Login failed. Please try again.");
   }
 });
@@ -159,7 +160,7 @@ router.post("/auth/forgot-password", validate({ body: forgotPasswordBody }), asy
 
     if (error) {
       // Log error but don't expose to client (prevents email enumeration)
-      req.log.warn({ email, error: error.message }, "Password reset request failed");
+      req.log.warn({ emailHash: hashForLog(email), error: error.message }, "Password reset request failed");
     }
 
     // Always return success to prevent email enumeration
@@ -167,7 +168,7 @@ router.post("/auth/forgot-password", validate({ body: forgotPasswordBody }), asy
       message: "If an account exists with this email, a password reset link has been sent."
     });
   } catch (err) {
-    req.log.error({ err, email: req.body?.email }, "Password reset request failed");
+    req.log.error({ err, emailHash: hashForLog(req.body?.email) }, "Password reset request failed");
     // Still return success to prevent enumeration
     res.json({
       message: "If an account exists with this email, a password reset link has been sent."
@@ -206,7 +207,7 @@ router.post("/auth/reset-password", validate({ body: resetPasswordBody }), async
       return errorResponse.internal(res, "Failed to update password. Please try again.");
     }
 
-    req.log.info({ userId: user.id, email: user.email }, "Password reset successful");
+    req.log.info({ userId: user.id, emailHash: hashForLog(user.email) }, "Password reset successful");
 
     res.json({
       message: "Password has been reset successfully. You can now log in with your new password."
@@ -264,7 +265,7 @@ router.put("/auth/update-email", validate({ body: updateEmailBody }), async (req
       data: { email }
     });
 
-    req.log.info({ userId: user.id, oldEmail: user.email, newEmail: email }, "Email updated successfully");
+    req.log.info({ userId: user.id, oldEmailHash: hashForLog(user.email), newEmailHash: hashForLog(email) }, "Email updated successfully");
 
     res.json({
       message: "Email updated successfully"
@@ -316,7 +317,7 @@ router.put("/auth/update-password", validate({ body: updatePasswordBody }), asyn
       return errorResponse.internal(res, "Failed to update password. Please try again.");
     }
 
-    req.log.info({ userId: user.id, email: user.email }, "Password updated successfully");
+    req.log.info({ userId: user.id, emailHash: hashForLog(user.email) }, "Password updated successfully");
 
     res.json({
       message: "Password updated successfully"
