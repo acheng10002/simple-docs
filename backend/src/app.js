@@ -261,4 +261,29 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
              Unix "signal" that tells my Node process to stop, "terminate" covers prod stops/rollouts */
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
+// UNCAUGHT EXCEPTION HANDLER - last resort for unexpected errors
+process.on("uncaughtException", (err, origin) => {
+  logger.error({ err, origin }, "Uncaught exception - attempting graceful shutdown");
+
+  // Attempt graceful shutdown, but with shorter timeout since we're in an unstable state
+  server.close(() => {
+    prisma.$disconnect().finally(() => {
+      process.exit(1);
+    });
+  });
+
+  // Force exit after 5s if graceful shutdown fails
+  setTimeout(() => {
+    logger.error("Forced exit after uncaught exception");
+    process.exit(1);
+  }, 5000);
+});
+
+// UNHANDLED REJECTION HANDLER - catches unhandled promise rejections
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error({ reason, promise }, "Unhandled promise rejection");
+  // Don't exit - just log. Node.js 15+ treats these as uncaughtException by default,
+  // but we log explicitly for visibility. Consider exiting in production if this becomes frequent.
+});
+
 // KEY LIBS: EXPRESS, DOTENV, PASSPORT SETUP
