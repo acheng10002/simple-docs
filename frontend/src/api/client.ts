@@ -44,7 +44,12 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ErrorResponse>) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || '';
+
+    // Don't intercept auth endpoint errors - let them propagate to show error messages
+    const isAuthEndpoint = requestUrl.includes('/api/auth/');
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       // Try to refresh the session
       const { data: { session }, error: refreshError } =
         await supabase.auth.refreshSession();
