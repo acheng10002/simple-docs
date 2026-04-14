@@ -27,9 +27,7 @@ model User {
     createdTemplates Template[] @relation("UserTemplates")
     folders          Folder[]   @relation("UserFolders")
 
-    @@index([email])
     @@index([isActive])
-    @@index([supabaseId])
 }
 
 /// *
@@ -49,9 +47,7 @@ model Folder {
     user      User       @relation("UserFolders", fields: [userId], references: [id])
 
     @@unique([userId, parentId, name])
-    @@index([userId])
     @@index([parentId])
-    @@index([userId, parentId])
 }
 
 /// *
@@ -136,6 +132,7 @@ model MergeJob {
     @@index([templateId])
     @@index([status, createdAt])
     @@index([userId])
+    @@index([userId, createdAt])
 }
 
 /// *
@@ -194,8 +191,8 @@ model BatchJob {
     startedAt     DateTime?
     completedAt   DateTime?
 
-    @@index([status])
     @@index([userId])
+    @@index([userId, createdAt])
     @@index([createdAt])
     @@index([status, createdAt])
 }
@@ -217,7 +214,6 @@ model ErrorLog {
     context   Json?    // Request context, user info, error details, etc.
     createdAt DateTime @default(now())
 
-    @@index([level])
     @@index([createdAt])
     @@index([level, createdAt])
 }

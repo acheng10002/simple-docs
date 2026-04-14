@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
   Container,
   Box,
@@ -22,7 +22,9 @@ import { authApi } from '../api/client';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  const registered = location.state?.registered;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -102,6 +104,11 @@ export default function Login() {
           </Typography>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: '100%' }}>
+            {registered && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                Account created successfully! Please sign in.
+              </Alert>
+            )}
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}

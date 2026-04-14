@@ -49,9 +49,9 @@ export default function Register() {
 
     try {
       await register({ email, password, firstName, lastName });
-      navigate('/templates');
+      navigate('/login', { state: { registered: true } });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
