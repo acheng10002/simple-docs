@@ -17,13 +17,16 @@ import { templatesApi } from '../api/client';
 interface UploadTemplateDialogProps {
   open: boolean;
   onClose: () => void;
+  existingTemplateNames?: string[];
 }
 
-export default function UploadTemplateDialog({ open, onClose }: UploadTemplateDialogProps) {
+export default function UploadTemplateDialog({ open, onClose, existingTemplateNames = [] }: UploadTemplateDialogProps) {
   const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validTypes = [
@@ -34,6 +37,18 @@ export default function UploadTemplateDialog({ open, onClose }: UploadTemplateDi
     'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
   ];
 
+  const uploadFile = async (file: File) => {
+    try {
+      setUploading(true);
+      setError('');
+      const response = await templatesApi.upload(file);
+      navigate(`/templates/${response.templateId}/edit`);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Upload failed');
+      setUploading(false);
+    }
+  };
+
   const handleFileSelection = async (file: File) => {
     // Validate file type
     if (!validTypes.includes(file.type)) {
@@ -41,17 +56,27 @@ export default function UploadTemplateDialog({ open, onClose }: UploadTemplateDi
       return;
     }
 
-    // Upload immediately
-    try {
-      setUploading(true);
-      setError('');
-      const response = await templatesApi.upload(file);
-      // Navigate to edit page
-      navigate(`/templates/${response.templateId}/edit`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Upload failed');
-      setUploading(false);
+    // Check for duplicate name
+    if (existingTemplateNames.includes(file.name)) {
+      setPendingFile(file);
+      setDuplicateWarning(`A template named "${file.name}" already exists. Upload anyway?`);
+      return;
     }
+
+    await uploadFile(file);
+  };
+
+  const handleDuplicateProceed = async () => {
+    if (pendingFile) {
+      setDuplicateWarning('');
+      await uploadFile(pendingFile);
+      setPendingFile(null);
+    }
+  };
+
+  const handleDuplicateCancel = () => {
+    setDuplicateWarning('');
+    setPendingFile(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -97,6 +122,8 @@ export default function UploadTemplateDialog({ open, onClose }: UploadTemplateDi
     if (!uploading) {
       setError('');
       setDragActive(false);
+      setDuplicateWarning('');
+      setPendingFile(null);
       onClose();
     }
   };
@@ -154,6 +181,25 @@ export default function UploadTemplateDialog({ open, onClose }: UploadTemplateDi
             Supported formats: .docx, .html, .pdf, .xlsx, .pptx
           </Typography>
         </Box>
+
+        {duplicateWarning && (
+          <Alert
+            severity="warning"
+            sx={{ mt: 2 }}
+            action={
+              <>
+                <Button color="inherit" size="small" onClick={handleDuplicateCancel}>
+                  Cancel
+                </Button>
+                <Button color="inherit" size="small" onClick={handleDuplicateProceed}>
+                  Upload
+                </Button>
+              </>
+            }
+          >
+            {duplicateWarning}
+          </Alert>
+        )}
 
         {error && (
           <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError('')}>

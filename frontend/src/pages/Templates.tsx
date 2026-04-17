@@ -606,6 +606,7 @@ export default function Templates() {
       <UploadTemplateDialog
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
+        existingTemplateNames={templates.filter(t => t.isActive).map(t => t.displayName)}
       />
 
       {/* Folder Dialogs */}
