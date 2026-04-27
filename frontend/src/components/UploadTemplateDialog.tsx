@@ -187,14 +187,9 @@ export default function UploadTemplateDialog({ open, onClose, existingTemplateNa
             severity="warning"
             sx={{ mt: 2 }}
             action={
-              <>
-                <Button color="inherit" size="small" onClick={handleDuplicateCancel}>
-                  Cancel
-                </Button>
-                <Button color="inherit" size="small" onClick={handleDuplicateProceed}>
-                  Upload
-                </Button>
-              </>
+              <Button color="inherit" size="small" onClick={handleDuplicateProceed}>
+                Upload
+              </Button>
             }
           >
             {duplicateWarning}

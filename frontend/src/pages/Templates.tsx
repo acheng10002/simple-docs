@@ -358,235 +358,386 @@ export default function Templates() {
             </Box>
           ) : (
             <>
-              {/* Active Templates Section */}
-              {filteredTemplates.filter(t => t.isActive).length > 0 && (
-                <Box sx={{ mb: 0 }}>
-                  <Box sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', py: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.12)', bgcolor: 'grey.200', px: 2 }}>
-                    <Typography variant="h6" sx={{ mb: 0 }}>
-                      Active Templates
-                    </Typography>
-                  </Box>
-
-                  {/* Folder Tree */}
-                  {folders.length > 0 && (
-                    <Box>
-                      <Box sx={{ display: 'flex', alignItems: 'baseline', px: 2, bgcolor: 'grey.50', py: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.125rem', mr: 2 }}>
-                          Folders
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          Click, drag, and drop any active template into an existing folder.
+              {searchQuery ? (
+                /* Flat search results view — no folders, no drag-and-drop */
+                <>
+                  {filteredTemplates.filter(t => t.isActive).length > 0 && (
+                    <Box sx={{ mb: 0 }}>
+                      <Box sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', py: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.12)', bgcolor: 'grey.200', px: 2 }}>
+                        <Typography variant="h6" sx={{ mb: 0 }}>
+                          Active Templates
                         </Typography>
                       </Box>
-                      <Divider />
-                      <FolderTree
-                        folders={folders}
-                        templates={templates}
-                        selectedFolderId={selectedFolderId}
-                        expandedFolderIds={expandedFolderIds}
-                        onSelectFolder={setSelectedFolderId}
-                        onToggleFolder={handleToggleFolder}
-                        onCreateFolder={(parentId) => {
-                          setCreateFolderParentId(parentId);
-                          setCreateFolderDialogOpen(true);
-                        }}
-                        onRenameFolder={setRenameFolderDialog}
-                        onMoveFolder={setMoveFolderDialog}
-                        onRefresh={handleFolderCreated}
-                        onDrop={handleDropOnFolder}
-                        onDragOverChange={setDragOverFolderId}
-                        dragOverFolderId={dragOverFolderId}
-                        draggedTemplateId={draggedTemplateId}
-                        onTemplateDragStart={handleDragStart}
-                        onTemplateDragEnd={handleDragEnd}
-                        onMerge={handleMerge}
-                        onDownload={handleDownload}
-                        onCsvMerge={handleCsvMerge}
-                        onEdit={(templateId) => navigate(`/templates/${templateId}/edit`)}
-                      />
-                      <Divider />
+                      <TableContainer sx={{ padding: 0 }}>
+                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
+                          <colgroup>
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '30%' }} />
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '20%' }} />
+                          </colgroup>
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: 'grey.50' }}>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
+                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {filteredTemplates.filter(t => t.isActive).map((template) => (
+                              <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
+                                <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
+                                <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {template.fields.map((f) => f.name).join(', ')}
+                                </TableCell>
+                                <TableCell sx={{ py: 1 }}>
+                                  {template.createdAt
+                                    ? new Date(template.createdAt).toLocaleString()
+                                    : 'Unknown'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ py: 1 }}>
+                                  <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                                    <Tooltip title="Merge">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleMerge(template.id)}
+                                        color="primary"
+                                      >
+                                        <MergeIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Bulk Merge CSV">
+                                      <IconButton
+                                        size="small"
+                                        component="label"
+                                        sx={{ color: '#9c27b0' }}
+                                      >
+                                        <CsvIcon />
+                                        <input
+                                          type="file"
+                                          hidden
+                                          accept=".csv"
+                                          onChange={(e) => handleCsvMerge(template.id, e)}
+                                        />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Download">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleDownload(template.id, template.displayName)}
+                                        color="success"
+                                      >
+                                        <DownloadIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Edit">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
+                                        sx={{ color: '#B03060' }}
+                                      >
+                                        <EditIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     </Box>
                   )}
-                  <TableContainer
-                    sx={{
-                      padding: 0,
-                      bgcolor: dragOverTable ? 'primary.light' : 'transparent',
-                      transition: 'background-color 0.2s',
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (draggedTemplateId) {
-                        setDragOverTable(true);
-                        setDragOverFolderId(null);
-                      }
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      if (draggedTemplateId) {
-                        setDragOverTable(true);
-                        setDragOverFolderId(null);
-                      }
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      // Only set to false if leaving the container entirely
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const x = e.clientX;
-                      const y = e.clientY;
-                      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-                        setDragOverTable(false);
-                      }
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleDropOnTable();
-                    }}
-                  >
-                    <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
-                      <colgroup>
-                        <col style={{ width: '25%' }} />
-                        <col style={{ width: '30%' }} />
-                        <col style={{ width: '25%' }} />
-                        <col style={{ width: '20%' }} />
-                      </colgroup>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: dragOverTable ? 'primary.light' : 'grey.50' }}>
-                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
-                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
-                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
-                          <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {filteredTemplates.filter(t => t.isActive && !t.folderId).map((template) => (
-                          <TableRow
-                            key={template.id}
-                            draggable
-                            onDragStart={() => handleDragStart(template.id)}
-                            onDragEnd={handleDragEnd}
-                            sx={{
-                              cursor: 'grab',
-                              '&:active': { cursor: 'grabbing' },
-                              opacity: draggedTemplateId === template.id ? (dragOverFolderId ? 0.3 : 0.5) : 1,
-                              bgcolor: 'white'
-                            }}
-                          >
-                            <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
-                            <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {template.fields.map((f) => f.name).join(', ')}
-                            </TableCell>
-                            <TableCell sx={{ py: 1 }}>
-                              {template.createdAt
-                                ? new Date(template.createdAt).toLocaleString()
-                                : 'Unknown'}
-                            </TableCell>
-                            <TableCell align="right" sx={{ py: 1 }}>
-                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                                <Tooltip title="Merge">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleMerge(template.id)}
-                                    color="primary"
-                                  >
-                                    <MergeIcon />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Bulk Merge CSV">
-                                  <IconButton
-                                    size="small"
-                                    component="label"
-                                    sx={{ color: '#9c27b0' }}
-                                  >
-                                    <CsvIcon />
-                                    <input
-                                      type="file"
-                                      hidden
-                                      accept=".csv"
-                                      onChange={(e) => handleCsvMerge(template.id, e)}
-                                    />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Download">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleDownload(template.id, template.displayName)}
-                                    color="success"
-                                  >
-                                    <DownloadIcon />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Edit">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => navigate(`/templates/${template.id}/edit`)}
-                                    sx={{ color: '#B03060' }}
-                                  >
-                                    <EditIcon />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
-              )}
 
-              {/* Inactive Templates Section */}
-              {filteredTemplates.filter(t => !t.isActive).length > 0 && (
-                <Box>
-                  <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0, pt: 1, pb: 1, bgcolor: 'grey.200', px: 2 }}>
-                    <Typography variant="h6" sx={{ mb: 0 }}>
-                      Inactive Templates
-                    </Typography>
-                  </Box>
-                  <TableContainer sx={{ padding: 0 }}>
-                    <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
-                      <colgroup>
-                        <col style={{ width: '25%' }} />
-                        <col style={{ width: '30%' }} />
-                        <col style={{ width: '25%' }} />
-                        <col style={{ width: '20%' }} />
-                      </colgroup>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: 'grey.50' }}>
-                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
-                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
-                          <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
-                          <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {filteredTemplates.filter(t => !t.isActive).map((template) => (
-                          <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
-                            <TableCell sx={{ color: 'text.secondary', py: 1 }}>{template.displayName}</TableCell>
-                            <TableCell sx={{ color: 'text.secondary', py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {template.fields.map((f) => f.name).join(', ')}
-                            </TableCell>
-                            <TableCell sx={{ color: 'text.secondary', py: 1 }}>
-                              {template.createdAt
-                                ? new Date(template.createdAt).toLocaleString()
-                                : 'Unknown'}
-                            </TableCell>
-                            <TableCell align="center" sx={{ py: 1 }}>
-                              <Tooltip title="Activate">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleActivate(template.id, template.displayName)}
-                                  sx={{ color: '#2e7d32' }}
-                                >
-                                  <ActivateIcon />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                  {filteredTemplates.filter(t => !t.isActive).length > 0 && (
+                    <Box>
+                      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0, pt: 1, pb: 1, bgcolor: 'grey.200', px: 2 }}>
+                        <Typography variant="h6" sx={{ mb: 0 }}>
+                          Inactive Templates
+                        </Typography>
+                      </Box>
+                      <TableContainer sx={{ padding: 0 }}>
+                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
+                          <colgroup>
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '30%' }} />
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '20%' }} />
+                          </colgroup>
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: 'grey.50' }}>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
+                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {filteredTemplates.filter(t => !t.isActive).map((template) => (
+                              <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
+                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>{template.displayName}</TableCell>
+                                <TableCell sx={{ color: 'text.secondary', py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {template.fields.map((f) => f.name).join(', ')}
+                                </TableCell>
+                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>
+                                  {template.createdAt
+                                    ? new Date(template.createdAt).toLocaleString()
+                                    : 'Unknown'}
+                                </TableCell>
+                                <TableCell align="center" sx={{ py: 1 }}>
+                                  <Tooltip title="Activate">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleActivate(template.id, template.displayName)}
+                                      sx={{ color: '#2e7d32' }}
+                                    >
+                                      <ActivateIcon />
+                                    </IconButton>
+                                  </Tooltip>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
+                </>
+              ) : (
+                /* Default view — folders, drag-and-drop, full layout */
+                <>
+                  {/* Active Templates Section */}
+                  {filteredTemplates.filter(t => t.isActive).length > 0 && (
+                    <Box sx={{ mb: 0 }}>
+                      <Box sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', py: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.12)', bgcolor: 'grey.200', px: 2 }}>
+                        <Typography variant="h6" sx={{ mb: 0 }}>
+                          Active Templates
+                        </Typography>
+                      </Box>
+
+                      {/* Folder Tree */}
+                      {folders.length > 0 && (
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'baseline', px: 2, bgcolor: 'grey.50', py: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.125rem', mr: 2 }}>
+                              Folders
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              Click, drag, and drop any active template into an existing folder.
+                            </Typography>
+                          </Box>
+                          <Divider />
+                          <FolderTree
+                            folders={folders}
+                            templates={templates}
+                            selectedFolderId={selectedFolderId}
+                            expandedFolderIds={expandedFolderIds}
+                            onSelectFolder={setSelectedFolderId}
+                            onToggleFolder={handleToggleFolder}
+                            onCreateFolder={(parentId) => {
+                              setCreateFolderParentId(parentId);
+                              setCreateFolderDialogOpen(true);
+                            }}
+                            onRenameFolder={setRenameFolderDialog}
+                            onMoveFolder={setMoveFolderDialog}
+                            onRefresh={handleFolderCreated}
+                            onDrop={handleDropOnFolder}
+                            onDragOverChange={setDragOverFolderId}
+                            dragOverFolderId={dragOverFolderId}
+                            draggedTemplateId={draggedTemplateId}
+                            onTemplateDragStart={handleDragStart}
+                            onTemplateDragEnd={handleDragEnd}
+                            onMerge={handleMerge}
+                            onDownload={handleDownload}
+                            onCsvMerge={handleCsvMerge}
+                            onEdit={(templateId) => navigate(`/templates/${templateId}/edit`)}
+                          />
+                          <Divider />
+                        </Box>
+                      )}
+                      <TableContainer
+                        sx={{
+                          padding: 0,
+                          bgcolor: dragOverTable ? 'primary.light' : 'transparent',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggedTemplateId) {
+                            setDragOverTable(true);
+                            setDragOverFolderId(null);
+                          }
+                        }}
+                        onDragEnter={(e) => {
+                          e.preventDefault();
+                          if (draggedTemplateId) {
+                            setDragOverTable(true);
+                            setDragOverFolderId(null);
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          // Only set to false if leaving the container entirely
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const x = e.clientX;
+                          const y = e.clientY;
+                          if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                            setDragOverTable(false);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleDropOnTable();
+                        }}
+                      >
+                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
+                          <colgroup>
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '30%' }} />
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '20%' }} />
+                          </colgroup>
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: dragOverTable ? 'primary.light' : 'grey.50' }}>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
+                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {filteredTemplates.filter(t => t.isActive && !t.folderId).map((template) => (
+                              <TableRow
+                                key={template.id}
+                                draggable
+                                onDragStart={() => handleDragStart(template.id)}
+                                onDragEnd={handleDragEnd}
+                                sx={{
+                                  cursor: 'grab',
+                                  '&:active': { cursor: 'grabbing' },
+                                  opacity: draggedTemplateId === template.id ? (dragOverFolderId ? 0.3 : 0.5) : 1,
+                                  bgcolor: 'white'
+                                }}
+                              >
+                                <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
+                                <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {template.fields.map((f) => f.name).join(', ')}
+                                </TableCell>
+                                <TableCell sx={{ py: 1 }}>
+                                  {template.createdAt
+                                    ? new Date(template.createdAt).toLocaleString()
+                                    : 'Unknown'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ py: 1 }}>
+                                  <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                                    <Tooltip title="Merge">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleMerge(template.id)}
+                                        color="primary"
+                                      >
+                                        <MergeIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Bulk Merge CSV">
+                                      <IconButton
+                                        size="small"
+                                        component="label"
+                                        sx={{ color: '#9c27b0' }}
+                                      >
+                                        <CsvIcon />
+                                        <input
+                                          type="file"
+                                          hidden
+                                          accept=".csv"
+                                          onChange={(e) => handleCsvMerge(template.id, e)}
+                                        />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Download">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleDownload(template.id, template.displayName)}
+                                        color="success"
+                                      >
+                                        <DownloadIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Edit">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
+                                        sx={{ color: '#B03060' }}
+                                      >
+                                        <EditIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
+
+                  {/* Inactive Templates Section */}
+                  {filteredTemplates.filter(t => !t.isActive).length > 0 && (
+                    <Box>
+                      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0, pt: 1, pb: 1, bgcolor: 'grey.200', px: 2 }}>
+                        <Typography variant="h6" sx={{ mb: 0 }}>
+                          Inactive Templates
+                        </Typography>
+                      </Box>
+                      <TableContainer sx={{ padding: 0 }}>
+                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
+                          <colgroup>
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '30%' }} />
+                            <col style={{ width: '25%' }} />
+                            <col style={{ width: '20%' }} />
+                          </colgroup>
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: 'grey.50' }}>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
+                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
+                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {filteredTemplates.filter(t => !t.isActive).map((template) => (
+                              <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
+                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>{template.displayName}</TableCell>
+                                <TableCell sx={{ color: 'text.secondary', py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {template.fields.map((f) => f.name).join(', ')}
+                                </TableCell>
+                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>
+                                  {template.createdAt
+                                    ? new Date(template.createdAt).toLocaleString()
+                                    : 'Unknown'}
+                                </TableCell>
+                                <TableCell align="center" sx={{ py: 1 }}>
+                                  <Tooltip title="Activate">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleActivate(template.id, template.displayName)}
+                                      sx={{ color: '#2e7d32' }}
+                                    >
+                                      <ActivateIcon />
+                                    </IconButton>
+                                  </Tooltip>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
+                </>
               )}
             </>
           )}
