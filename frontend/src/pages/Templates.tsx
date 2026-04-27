@@ -407,6 +407,24 @@ export default function Templates() {
                                 </TableCell>
                                 <TableCell align="right" sx={{ py: 1 }}>
                                   <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                                    <Tooltip title="Edit">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
+                                        sx={{ color: '#B03060' }}
+                                      >
+                                        <EditIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Download">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleDownload(template.id, template.displayName)}
+                                        color="success"
+                                      >
+                                        <DownloadIcon />
+                                      </IconButton>
+                                    </Tooltip>
                                     <Tooltip title="Merge">
                                       <IconButton
                                         size="small"
@@ -429,24 +447,6 @@ export default function Templates() {
                                           accept=".csv"
                                           onChange={(e) => handleCsvMerge(template.id, e)}
                                         />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Download">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleDownload(template.id, template.displayName)}
-                                        color="success"
-                                      >
-                                        <DownloadIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Edit">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
-                                        sx={{ color: '#B03060' }}
-                                      >
-                                        <EditIcon />
                                       </IconButton>
                                     </Tooltip>
                                   </Box>
@@ -640,6 +640,24 @@ export default function Templates() {
                                 </TableCell>
                                 <TableCell align="right" sx={{ py: 1 }}>
                                   <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                                    <Tooltip title="Edit">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
+                                        sx={{ color: '#B03060' }}
+                                      >
+                                        <EditIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Download">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleDownload(template.id, template.displayName)}
+                                        color="success"
+                                      >
+                                        <DownloadIcon />
+                                      </IconButton>
+                                    </Tooltip>
                                     <Tooltip title="Merge">
                                       <IconButton
                                         size="small"
@@ -662,24 +680,6 @@ export default function Templates() {
                                           accept=".csv"
                                           onChange={(e) => handleCsvMerge(template.id, e)}
                                         />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Download">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleDownload(template.id, template.displayName)}
-                                        color="success"
-                                      >
-                                        <DownloadIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Edit">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
-                                        sx={{ color: '#B03060' }}
-                                      >
-                                        <EditIcon />
                                       </IconButton>
                                     </Tooltip>
                                   </Box>
