@@ -23,6 +23,10 @@ import {
   FormControlLabel,
   Radio,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -70,6 +74,7 @@ export default function Templates() {
   const [draggedTemplateId, setDraggedTemplateId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [dragOverTable, setDragOverTable] = useState(false);
+  const [activateDialog, setActivateDialog] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     loadTemplates();
@@ -89,16 +94,20 @@ export default function Templates() {
     }
   };
 
-  const handleActivate = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to reactivate the template "${name}"?`)) {
-      return;
-    }
+  const handleActivate = (id: string, name: string) => {
+    setActivateDialog({ id, name });
+  };
+
+  const handleActivateConfirm = async () => {
+    if (!activateDialog) return;
 
     try {
-      await templatesApi.activate(id);
+      await templatesApi.activate(activateDialog.id);
       await loadTemplates();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Activate failed');
+    } finally {
+      setActivateDialog(null);
     }
   };
 
@@ -791,6 +800,29 @@ export default function Templates() {
         onClose={() => setMoveTemplateDialog(null)}
         onSuccess={handleFolderCreated}
       />
+
+      {/* Activate Confirmation Dialog */}
+      <Dialog
+        open={activateDialog !== null}
+        onClose={() => setActivateDialog(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Activate Template</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mt: 1 }}>
+            Are you sure you want to reactivate "{activateDialog?.name}"?
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setActivateDialog(null)}>
+            Cancel
+          </Button>
+          <Button onClick={handleActivateConfirm}>
+            Activate
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
