@@ -16,6 +16,10 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { ArrowBack as BackIcon, CloudUpload as UploadIcon } from '@mui/icons-material';
 import { templatesApi } from '../api/client';
@@ -39,6 +43,7 @@ export default function EditTemplate() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
 
   // Form fields
   const [displayName, setDisplayName] = useState('');
@@ -158,18 +163,19 @@ export default function EditTemplate() {
     navigate('/templates');
   };
 
-  const handleDeactivate = async () => {
-    if (!templateId || !template) return;
+  const handleDeactivate = () => {
+    setDeactivateDialogOpen(true);
+  };
 
-    if (!window.confirm(`Are you sure you want to deactivate the template "${template.displayName}"? This will hide it from your templates list, but all merge outputs will be preserved. You can reactivate it later if needed.`)) {
-      return;
-    }
+  const handleDeactivateConfirm = async () => {
+    if (!templateId || !template) return;
 
     try {
       await templatesApi.delete(templateId);
       navigate('/templates');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to deactivate template');
+      setDeactivateDialogOpen(false);
     }
   };
 
@@ -398,6 +404,29 @@ export default function EditTemplate() {
           </Box>
         </Paper>
       </Container>
+
+      {/* Deactivate Confirmation Dialog */}
+      <Dialog
+        open={deactivateDialogOpen}
+        onClose={() => setDeactivateDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Deactivate Template</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mt: 1 }}>
+            Are you sure you want to deactivate "{template?.displayName}"? This will hide it from your templates list, but all merge outputs will be preserved. You can reactivate it later if needed.
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeactivateDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleDeactivateConfirm}>
+            Deactivate
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
