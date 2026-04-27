@@ -237,28 +237,13 @@ export default function FolderTree({
                     {template.displayName}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Tooltip title="Merge">
+                    <Tooltip title="Edit">
                       <IconButton
                         size="small"
-                        onClick={() => onMerge(template.id)}
-                        color="primary"
+                        onClick={() => onEdit(template.id)}
+                        sx={{ color: '#B03060' }}
                       >
-                        <MergeIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Bulk Merge CSV">
-                      <IconButton
-                        size="small"
-                        component="label"
-                        sx={{ color: '#9c27b0' }}
-                      >
-                        <CsvIcon fontSize="small" />
-                        <input
-                          type="file"
-                          hidden
-                          accept=".csv"
-                          onChange={(e) => onCsvMerge(template.id, e)}
-                        />
+                        <EditIcon />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Download">
@@ -267,16 +252,31 @@ export default function FolderTree({
                         onClick={() => onDownload(template.id, template.displayName)}
                         color="success"
                       >
-                        <DownloadIcon fontSize="small" />
+                        <DownloadIcon />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Edit">
+                    <Tooltip title="Merge">
                       <IconButton
                         size="small"
-                        onClick={() => onEdit(template.id)}
-                        sx={{ color: '#B03060' }}
+                        onClick={() => onMerge(template.id)}
+                        color="primary"
                       >
-                        <EditIcon fontSize="small" />
+                        <MergeIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Bulk Merge CSV">
+                      <IconButton
+                        size="small"
+                        component="label"
+                        sx={{ color: '#9c27b0' }}
+                      >
+                        <CsvIcon />
+                        <input
+                          type="file"
+                          hidden
+                          accept=".csv"
+                          onChange={(e) => onCsvMerge(template.id, e)}
+                        />
                       </IconButton>
                     </Tooltip>
                   </Box>
