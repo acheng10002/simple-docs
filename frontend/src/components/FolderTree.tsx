@@ -386,8 +386,7 @@ export default function FolderTree({
         <DialogTitle>Delete Folder</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete "{deleteDialog?.name}"?
-            {' '}This will also delete all subfolders and unfile all templates in this folder tree.
+            Are you sure you want to delete "{deleteDialog?.name}"? This will also delete any subfolders and unfile all templates in this folder.
           </DialogContentText>
           {error && (
             <Typography color="error" sx={{ mt: 2 }}>
@@ -399,7 +398,7 @@ export default function FolderTree({
           <Button onClick={() => setDeleteDialog(null)} disabled={deleting}>
             Cancel
           </Button>
-          <Button onClick={handleDelete} variant="contained" color="error" disabled={deleting}>
+          <Button onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
