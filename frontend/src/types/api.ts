@@ -50,6 +50,7 @@ export type Orientation = 'portrait' | 'landscape';
 export interface Template {
   id: string;
   displayName: string;  // User-friendly template name (e.g. "My Invoice.docx")
+  storageKey?: string;
   mimeType?: string;
   fields: Field[];
   createdAt?: string;
@@ -67,6 +68,7 @@ export interface TemplateVersion {
   versionNumber: number;
   displayName: string;
   mimeType: string;
+  storageKey: string;
   createdAt: string;
   fieldsSnapshot: Array<{
     id: string;

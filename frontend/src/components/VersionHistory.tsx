@@ -19,11 +19,13 @@ import type { TemplateVersion } from '../types/api';
 
 interface VersionHistoryProps {
   templateId: string;
+  currentStorageKey?: string;
   onRevertSuccess: () => void;
 }
 
 export default function VersionHistory({
   templateId,
+  currentStorageKey,
   onRevertSuccess
 }: VersionHistoryProps) {
   const [versions, setVersions] = useState<TemplateVersion[]>([]);
@@ -135,13 +137,19 @@ export default function VersionHistory({
                 primary={`${version.versionNumber}. ${formatDateTime(version.createdAt)}`}
                 secondary={`${version.fieldsSnapshot.length} field(s)`}
               />
-              <Button
-                variant="outlined"
-                onClick={() => handleRevertClick(version)}
-                disabled={reverting}
-              >
-                Revert
-              </Button>
+              {currentStorageKey && version.storageKey === currentStorageKey ? (
+                <Typography variant="body2" color="text.secondary">
+                  Current Version
+                </Typography>
+              ) : (
+                <Button
+                  variant="outlined"
+                  onClick={() => handleRevertClick(version)}
+                  disabled={reverting}
+                >
+                  Revert
+                </Button>
+              )}
             </ListItem>
           ))}
         </List>

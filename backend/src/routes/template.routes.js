@@ -369,6 +369,7 @@ router.get(
           createdAt: true,
           mimeType: true,
           fieldsSnapshot: true,
+          storageKey: true,
         },
       });
 

@@ -381,6 +381,7 @@ export default function EditTemplate() {
             {templateId && (
               <VersionHistory
                 templateId={templateId}
+                currentStorageKey={template?.storageKey}
                 onRevertSuccess={handleVersionRevert}
               />
             )}
