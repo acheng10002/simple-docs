@@ -185,11 +185,7 @@ export default function FolderTree({
           </IconButton>
 
           {/* Folder Icon */}
-          {isExpanded ? (
-            <FolderOpenIcon sx={{ mr: 1, color: 'primary.main' }} />
-          ) : (
-            <FolderIcon sx={{ mr: 1, color: 'primary.main' }} />
-          )}
+          <FolderOpenIcon sx={{ mr: 1, color: 'primary.main' }} />
 
           {/* Folder Name */}
           <Typography
