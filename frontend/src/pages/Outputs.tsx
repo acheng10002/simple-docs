@@ -19,6 +19,11 @@ import {
   Toolbar,
   Chip,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -36,6 +41,8 @@ export default function Outputs() {
   const [jobs, setJobs] = useState<MergeJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deleteDialog, setDeleteDialog] = useState<{ jobId: number; templateName: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadJobs();
@@ -71,16 +78,18 @@ export default function Outputs() {
     }
   };
 
-  const handleDelete = async (jobId: number, templateName: string) => {
-    if (!window.confirm(`Are you sure you want to delete this merge output from "${templateName}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDelete = async () => {
+    if (!deleteDialog) return;
 
     try {
-      await jobsApi.delete(jobId);
-      await loadJobs(); // Reload the list
+      setDeleting(true);
+      await jobsApi.delete(deleteDialog.jobId);
+      setDeleteDialog(null);
+      await loadJobs();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Delete failed');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -214,7 +223,7 @@ export default function Outputs() {
                         <Tooltip title="Delete">
                           <IconButton
                             size="small"
-                            onClick={() => handleDelete(job.id!, job.template?.displayName || 'Unknown')}
+                            onClick={() => setDeleteDialog({ jobId: job.id!, templateName: job.template?.displayName || 'Unknown' })}
                             color="error"
                           >
                             <DeleteIcon />
@@ -229,6 +238,27 @@ export default function Outputs() {
           )}
         </Paper>
       </Container>
+
+      <Dialog
+        open={deleteDialog !== null}
+        onClose={() => !deleting && setDeleteDialog(null)}
+        maxWidth="sm"
+      >
+        <DialogTitle>Delete Merge Output</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this merge output from "{deleteDialog?.templateName}"? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialog(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button onClick={handleDelete} disabled={deleting}>
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
