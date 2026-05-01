@@ -74,6 +74,7 @@ export default function Templates() {
   const [draggedTemplateId, setDraggedTemplateId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [dragOverTable, setDragOverTable] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [activateDialog, setActivateDialog] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -197,6 +198,10 @@ export default function Templates() {
 
   const handleDragStart = (templateId: string) => {
     setDraggedTemplateId(templateId);
+    const template = templates.find(t => t.id === templateId);
+    if (!template?.folderId) {
+      setSelectedFolderId(null);
+    }
   };
 
   const handleDragEnd = () => {
@@ -210,6 +215,8 @@ export default function Templates() {
 
     try {
       await foldersApi.moveTemplate(draggedTemplateId, { folderId });
+      setSelectedFolderId(folderId);
+      setSelectedTemplateId(null);
       await loadTemplates();
       await loadFolders();
     } catch (err: any) {
@@ -231,7 +238,10 @@ export default function Templates() {
     }
 
     try {
+      const templateId = draggedTemplateId;
       await foldersApi.moveTemplate(draggedTemplateId, { folderId: null });
+      setSelectedFolderId(null);
+      setSelectedTemplateId(templateId);
       await loadTemplates();
       await loadFolders();
     } catch (err: any) {
@@ -262,7 +272,7 @@ export default function Templates() {
   });
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ flexGrow: 1 }} onClick={() => { setSelectedFolderId(null); setSelectedTemplateId(null); }}>
       {/* App Bar */}
       <AppBar position="static">
         <Toolbar>
@@ -527,7 +537,7 @@ export default function Templates() {
 
                       {/* Folder Tree */}
                       {folders.length > 0 && (
-                        <Box>
+                        <Box onClick={(e) => e.stopPropagation()}>
                           <Box sx={{ display: 'flex', alignItems: 'baseline', px: 2, bgcolor: 'grey.50', py: 1 }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.125rem', mr: 2 }}>
                               Folders
@@ -542,7 +552,7 @@ export default function Templates() {
                             templates={templates}
                             selectedFolderId={selectedFolderId}
                             expandedFolderIds={expandedFolderIds}
-                            onSelectFolder={setSelectedFolderId}
+                            onSelectFolder={(id) => { setSelectedFolderId(id); setSelectedTemplateId(null); }}
                             onToggleFolder={handleToggleFolder}
                             onCreateFolder={(parentId) => {
                               setCreateFolderParentId(parentId);
@@ -566,6 +576,7 @@ export default function Templates() {
                         </Box>
                       )}
                       <TableContainer
+                        onClick={(e) => e.stopPropagation()}
                         sx={{
                           padding: 0,
                           bgcolor: dragOverTable ? 'primary.light' : 'transparent',
@@ -625,8 +636,8 @@ export default function Templates() {
                                 sx={{
                                   cursor: 'grab',
                                   '&:active': { cursor: 'grabbing' },
-                                  opacity: draggedTemplateId === template.id ? (dragOverFolderId ? 0.3 : 0.5) : 1,
-                                  bgcolor: 'white'
+                                  bgcolor: (draggedTemplateId === template.id || selectedTemplateId === template.id) ? 'action.selected' : 'white',
+                                  '&:hover': { bgcolor: draggedTemplateId ? (draggedTemplateId === template.id ? 'action.selected' : 'white') : 'action.hover' }
                                 }}
                               >
                                 <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>

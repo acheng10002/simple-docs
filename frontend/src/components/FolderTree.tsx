@@ -87,6 +87,7 @@ export default function FolderTree({
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, folder: Folder) => {
     event.stopPropagation();
+    onSelectFolder(folder.id);
     setMenuAnchor({ element: event.currentTarget, folder });
   };
 
@@ -160,9 +161,9 @@ export default function FolderTree({
             px: 1,
             pl: level * 2 + 1,
             cursor: 'pointer',
-            bgcolor: isDragOver ? 'primary.light' : (isSelected ? 'action.selected' : 'transparent'),
+            bgcolor: isDragOver ? 'action.selected' : (isSelected ? 'action.selected' : 'transparent'),
             '&:hover': {
-              bgcolor: isDragOver ? 'primary.light' : (isSelected ? 'action.selected' : 'action.hover'),
+              bgcolor: isDragOver ? 'action.selected' : (isSelected ? 'action.selected' : 'action.hover'),
             },
             transition: 'background-color 0.2s',
           }}
