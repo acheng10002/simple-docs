@@ -167,29 +167,69 @@ async function convertPdfToJpgInProcess(pdfBuffer) {
   const page = await browser.newPage();
 
   try {
+    const path = require('path');
+    const fs = require('fs');
+
+    const pdfBase64 = pdfBuffer.toString('base64');
+    const pdfjsDir = path.join(require.resolve('pdfjs-dist/package.json'), '..');
+    const pdfjsScript = fs.readFileSync(path.join(pdfjsDir, 'legacy', 'build', 'pdf.mjs'), 'utf-8');
+    const workerScript = fs.readFileSync(path.join(pdfjsDir, 'legacy', 'build', 'pdf.worker.mjs'), 'utf-8');
+    const workerBlob = Buffer.from(workerScript).toString('base64');
+
+    const html = `<!DOCTYPE html>
+<html><head><style>
+  * { margin: 0; padding: 0; }
+  body { background: white; }
+  canvas { display: block; }
+</style></head><body>
+<div id="pages"></div>
+<script type="module">
+${pdfjsScript}
+
+GlobalWorkerOptions.workerSrc = URL.createObjectURL(
+  new Blob([atob('${workerBlob}')], { type: 'application/javascript' })
+);
+
+const data = atob('${pdfBase64}');
+const uint8 = new Uint8Array(data.length);
+for (let i = 0; i < data.length; i++) uint8[i] = data.charCodeAt(i);
+
+const pdf = await getDocument({ data: uint8 }).promise;
+const container = document.getElementById('pages');
+
+for (let i = 1; i <= pdf.numPages; i++) {
+  const pg = await pdf.getPage(i);
+  const viewport = pg.getViewport({ scale: 2 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  container.appendChild(canvas);
+  await pg.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+}
+
+document.body.setAttribute('data-ready', 'true');
+</script></body></html>`;
+
     await page.setRequestInterception(true);
     page.on('request', (request) => {
-      if (request.url().startsWith('data:')) {
+      if (request.url().startsWith('data:') || request.url() === 'about:blank') {
         request.continue();
       } else {
         request.abort('blockedbyclient');
       }
     });
 
-    const pdfBase64 = pdfBuffer.toString('base64');
-    const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
-
     await withTimeout(
-      page.goto(dataUrl, { waitUntil: 'domcontentloaded' }),
+      page.setContent(html, { waitUntil: 'domcontentloaded' }),
       25000,
-      'PDF page load'
+      'HTML page load'
     );
 
-    await page.setViewport({
-      width: 1200,
-      height: 1600,
-      deviceScaleFactor: 2,
-    });
+    await withTimeout(
+      page.waitForFunction(() => document.body.getAttribute('data-ready') === 'true'),
+      30000,
+      'PDF rendering'
+    );
 
     const screenshot = await withTimeout(
       page.screenshot({ type: 'jpeg', quality: 90, fullPage: true }),

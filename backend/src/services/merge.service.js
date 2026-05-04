@@ -426,8 +426,15 @@ async function mergeTemplate({
     }
 
     case 'application/pdf': {
-      // PDF form template
-      mergedBuffer = await pdfService.fillPdfForm(templateBuffer, data);
+      // Detect form-based vs text-based PDF template
+      const isForm = await pdfService.isFormBasedPdf(templateBuffer);
+      logger.info({ isForm }, 'PDF template type detected');
+      if (isForm) {
+        mergedBuffer = await pdfService.fillPdfForm(templateBuffer, data);
+      } else {
+        logger.info('Using text placeholder replacement');
+        mergedBuffer = await pdfService.fillPdfTextPlaceholders(templateBuffer, data);
+      }
       intermediateFormat = 'pdf';
       break;
     }
