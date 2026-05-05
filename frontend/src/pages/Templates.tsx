@@ -51,6 +51,108 @@ import {
 } from '../components/FolderDialogs';
 import { CreateNewFolder as CreateFolderIcon } from '@mui/icons-material';
 
+interface TemplateRowProps {
+  template: Template;
+  onEdit: (id: string) => void;
+  onDownload: (id: string, displayName: string) => void;
+  onMerge: (id: string) => void;
+  onCsvMerge: (id: string, event: React.ChangeEvent<HTMLInputElement>) => void;
+  csvMergingTemplateId: string | null;
+  draggable?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  rowSx?: object;
+}
+
+function TemplateRow({
+  template,
+  onEdit,
+  onDownload,
+  onMerge,
+  onCsvMerge,
+  csvMergingTemplateId,
+  draggable: isDraggable,
+  onDragStart,
+  onDragEnd,
+  rowSx,
+}: TemplateRowProps) {
+  return (
+    <React.Fragment>
+      <TableRow
+        draggable={isDraggable}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        sx={rowSx}
+      >
+        <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
+        <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {template.fields.map((f) => f.name).join(', ')}
+        </TableCell>
+        <TableCell sx={{ py: 1 }}>
+          {template.createdAt
+            ? new Date(template.createdAt).toLocaleString()
+            : 'Unknown'}
+        </TableCell>
+        <TableCell align="right" sx={{ py: 1 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+            <Tooltip title="Edit">
+              <IconButton
+                size="small"
+                onClick={() => onEdit(template.id)}
+                sx={{ color: '#B03060' }}
+              >
+                <EditIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Download">
+              <IconButton
+                size="small"
+                onClick={() => onDownload(template.id, template.displayName)}
+                color="success"
+              >
+                <DownloadIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Merge">
+              <IconButton
+                size="small"
+                onClick={() => onMerge(template.id)}
+                color="primary"
+              >
+                <MergeIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Bulk Merge CSV">
+              <IconButton
+                size="small"
+                component="label"
+                sx={{ color: '#9c27b0' }}
+              >
+                <CsvIcon />
+                <input
+                  type="file"
+                  hidden
+                  accept=".csv"
+                  onChange={(e) => onCsvMerge(template.id, e)}
+                />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </TableCell>
+      </TableRow>
+      {csvMergingTemplateId === template.id && (
+        <TableRow>
+          <TableCell colSpan={4} sx={{ py: 2, textAlign: 'center', bgcolor: 'white' }}>
+            <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+              Merging...
+            </Typography>
+          </TableCell>
+        </TableRow>
+      )}
+    </React.Fragment>
+  );
+}
+
 export default function Templates() {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -424,74 +526,16 @@ export default function Templates() {
                           </TableHead>
                           <TableBody>
                             {filteredTemplates.filter(t => t.isActive).map((template) => (
-                              <React.Fragment key={template.id}>
-                              <TableRow sx={{ bgcolor: 'white' }}>
-                                <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
-                                <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {template.fields.map((f) => f.name).join(', ')}
-                                </TableCell>
-                                <TableCell sx={{ py: 1 }}>
-                                  {template.createdAt
-                                    ? new Date(template.createdAt).toLocaleString()
-                                    : 'Unknown'}
-                                </TableCell>
-                                <TableCell align="right" sx={{ py: 1 }}>
-                                  <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                                    <Tooltip title="Edit">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
-                                        sx={{ color: '#B03060' }}
-                                      >
-                                        <EditIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Download">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleDownload(template.id, template.displayName)}
-                                        color="success"
-                                      >
-                                        <DownloadIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Merge">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleMerge(template.id)}
-                                        color="primary"
-                                      >
-                                        <MergeIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Bulk Merge CSV">
-                                      <IconButton
-                                        size="small"
-                                        component="label"
-                                        sx={{ color: '#9c27b0' }}
-                                      >
-                                        <CsvIcon />
-                                        <input
-                                          type="file"
-                                          hidden
-                                          accept=".csv"
-                                          onChange={(e) => handleCsvMerge(template.id, e)}
-                                        />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </Box>
-                                </TableCell>
-                              </TableRow>
-                              {csvMergingTemplateId === template.id && (
-                                <TableRow>
-                                  <TableCell colSpan={4} sx={{ py: 2, textAlign: 'center', bgcolor: 'white' }}>
-                                    <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                                      Merging...
-                                    </Typography>
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                              </React.Fragment>
+                              <TemplateRow
+                                key={template.id}
+                                template={template}
+                                onEdit={(id) => navigate(`/templates/${id}/edit`)}
+                                onDownload={handleDownload}
+                                onMerge={handleMerge}
+                                onCsvMerge={handleCsvMerge}
+                                csvMergingTemplateId={csvMergingTemplateId}
+                                rowSx={{ bgcolor: 'white' }}
+                              />
                             ))}
                           </TableBody>
                         </Table>
@@ -658,84 +702,24 @@ export default function Templates() {
                           </TableHead>
                           <TableBody>
                             {filteredTemplates.filter(t => t.isActive && !t.folderId).map((template) => (
-                              <React.Fragment key={template.id}>
-                              <TableRow
+                              <TemplateRow
+                                key={template.id}
+                                template={template}
+                                onEdit={(id) => navigate(`/templates/${id}/edit`)}
+                                onDownload={handleDownload}
+                                onMerge={handleMerge}
+                                onCsvMerge={handleCsvMerge}
+                                csvMergingTemplateId={csvMergingTemplateId}
                                 draggable
                                 onDragStart={() => handleDragStart(template.id)}
                                 onDragEnd={handleDragEnd}
-                                sx={{
+                                rowSx={{
                                   cursor: 'grab',
                                   '&:active': { cursor: 'grabbing' },
                                   bgcolor: (draggedTemplateId === template.id || selectedTemplateId === template.id) ? 'action.selected' : 'white',
                                   '&:hover': { bgcolor: draggedTemplateId ? (draggedTemplateId === template.id ? 'action.selected' : 'white') : 'action.hover' }
                                 }}
-                              >
-                                <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
-                                <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {template.fields.map((f) => f.name).join(', ')}
-                                </TableCell>
-                                <TableCell sx={{ py: 1 }}>
-                                  {template.createdAt
-                                    ? new Date(template.createdAt).toLocaleString()
-                                    : 'Unknown'}
-                                </TableCell>
-                                <TableCell align="right" sx={{ py: 1 }}>
-                                  <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                                    <Tooltip title="Edit">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => navigate(`/templates/${template.id}/edit`)}
-                                        sx={{ color: '#B03060' }}
-                                      >
-                                        <EditIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Download">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleDownload(template.id, template.displayName)}
-                                        color="success"
-                                      >
-                                        <DownloadIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Merge">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleMerge(template.id)}
-                                        color="primary"
-                                      >
-                                        <MergeIcon />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Bulk Merge CSV">
-                                      <IconButton
-                                        size="small"
-                                        component="label"
-                                        sx={{ color: '#9c27b0' }}
-                                      >
-                                        <CsvIcon />
-                                        <input
-                                          type="file"
-                                          hidden
-                                          accept=".csv"
-                                          onChange={(e) => handleCsvMerge(template.id, e)}
-                                        />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </Box>
-                                </TableCell>
-                              </TableRow>
-                              {csvMergingTemplateId === template.id && (
-                                <TableRow>
-                                  <TableCell colSpan={4} sx={{ py: 2, textAlign: 'center', bgcolor: 'white' }}>
-                                    <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                                      Merging...
-                                    </Typography>
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                              </React.Fragment>
+                              />
                             ))}
                           </TableBody>
                         </Table>

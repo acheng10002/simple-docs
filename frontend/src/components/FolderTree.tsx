@@ -18,7 +18,6 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
-  Folder as FolderIcon,
   FolderOpen as FolderOpenIcon,
   MoreVert as MoreIcon,
   CreateNewFolder as CreateFolderIcon,
