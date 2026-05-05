@@ -11,6 +11,7 @@ import type {
   MergeRequest,
   MergeJob,
   BulkMergeResponse,
+  BatchJobStatus,
   ErrorResponse,
   OutputType,
   PageSize,
@@ -318,6 +319,14 @@ export const jobsApi = {
 
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/api/jobs/${id}`);
+  },
+};
+
+// Batch Jobs API
+export const batchJobsApi = {
+  getStatus: async (batchJobId: string): Promise<BatchJobStatus> => {
+    const response = await apiClient.get<BatchJobStatus>(`/api/batch-jobs/${batchJobId}`);
+    return response.data;
   },
 };
 

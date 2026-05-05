@@ -23,7 +23,7 @@ const jobIdParams = z.object({
 });
 
 const batchJobIdParams = z.object({
-  id: z.coerce.number({ error: "Invalid batch job ID" }).int("Invalid batch job ID"),
+  id: z.string({ error: "Invalid batch job ID" }).min(1, "Invalid batch job ID"),
 });
 
 const batchJobsQuery = pagination;

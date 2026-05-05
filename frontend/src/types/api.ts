@@ -120,6 +120,24 @@ export interface BulkMergeResponse {
     row: number;
     warnings: string[];
   }>;
+  // Fields present when batch job is queued (>10 rows)
+  batchJobId?: string;
+  totalRows?: number;
+  statusUrl?: string;
+  message?: string;
+}
+
+export interface BatchJobStatus {
+  id: string;
+  templateId: string;
+  status: 'pending' | 'processing' | 'succeeded' | 'failed';
+  totalRows: number;
+  processedRows: number;
+  failedRows: number;
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 export interface ErrorResponse {

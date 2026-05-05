@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -39,7 +39,7 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
-import { templatesApi, mergeApi, foldersApi } from '../api/client';
+import { templatesApi, mergeApi, foldersApi, batchJobsApi } from '../api/client';
 import type { Template, Folder } from '../types/api';
 import UploadTemplateDialog from '../components/UploadTemplateDialog';
 import FolderTree from '../components/FolderTree';
@@ -58,7 +58,7 @@ export default function Templates() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [csvMerging, setCsvMerging] = useState(false);
+  const [csvMergingTemplateId, setCsvMergingTemplateId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -144,13 +144,30 @@ export default function Templates() {
 
     try {
       setError('');
-      setCsvMerging(true);
+
+      setCsvMergingTemplateId(templateId);
 
       // Find the template to get its defaultOutputType
       const template = templates.find(t => t.id === templateId);
       const outputType = template?.defaultOutputType || 'pdf';
 
-      await mergeApi.mergeCsv(templateId, file, outputType);
+      const result = await mergeApi.mergeCsv(templateId, file, outputType);
+
+      // If batch job was queued (>10 rows), poll until complete
+      if (result.batchJobId) {
+        const pollInterval = 2000;
+        let status = await batchJobsApi.getStatus(result.batchJobId);
+
+        while (status.status === 'pending' || status.status === 'processing') {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          status = await batchJobsApi.getStatus(result.batchJobId);
+        }
+
+        if (status.status === 'failed') {
+          setError(status.error || 'Batch merge failed');
+          return;
+        }
+      }
 
       // Navigate to outputs page to see all generated files
       navigate('/outputs');
@@ -158,9 +175,11 @@ export default function Templates() {
       // Reset file input
       event.target.value = '';
     } catch (err: any) {
-      setError(err.response?.data?.error || 'CSV merge failed');
+      const errorMsg = err.response?.data?.error;
+      setError(typeof errorMsg === 'string' ? errorMsg : 'CSV merge failed');
     } finally {
-      setCsvMerging(false);
+
+      setCsvMergingTemplateId(null);
     }
   };
 
@@ -405,7 +424,8 @@ export default function Templates() {
                           </TableHead>
                           <TableBody>
                             {filteredTemplates.filter(t => t.isActive).map((template) => (
-                              <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
+                              <React.Fragment key={template.id}>
+                              <TableRow sx={{ bgcolor: 'white' }}>
                                 <TableCell sx={{ py: 1 }}>{template.displayName}</TableCell>
                                 <TableCell sx={{ py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {template.fields.map((f) => f.name).join(', ')}
@@ -462,6 +482,16 @@ export default function Templates() {
                                   </Box>
                                 </TableCell>
                               </TableRow>
+                              {csvMergingTemplateId === template.id && (
+                                <TableRow>
+                                  <TableCell colSpan={4} sx={{ py: 2, textAlign: 'center', bgcolor: 'white' }}>
+                                    <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                                      Merging...
+                                    </Typography>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                              </React.Fragment>
                             ))}
                           </TableBody>
                         </Table>
@@ -628,8 +658,8 @@ export default function Templates() {
                           </TableHead>
                           <TableBody>
                             {filteredTemplates.filter(t => t.isActive && !t.folderId).map((template) => (
+                              <React.Fragment key={template.id}>
                               <TableRow
-                                key={template.id}
                                 draggable
                                 onDragStart={() => handleDragStart(template.id)}
                                 onDragEnd={handleDragEnd}
@@ -696,6 +726,16 @@ export default function Templates() {
                                   </Box>
                                 </TableCell>
                               </TableRow>
+                              {csvMergingTemplateId === template.id && (
+                                <TableRow>
+                                  <TableCell colSpan={4} sx={{ py: 2, textAlign: 'center', bgcolor: 'white' }}>
+                                    <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                                      Merging...
+                                    </Typography>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                              </React.Fragment>
                             ))}
                           </TableBody>
                         </Table>
@@ -762,14 +802,6 @@ export default function Templates() {
             </>
           )}
 
-          {/* CSV Bulk Merge Status Indicator */}
-          {csvMerging && (
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-              <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                Merging...
-              </Typography>
-            </Box>
-          )}
         </Paper>
       </Container>
 
