@@ -292,6 +292,7 @@ export default function Templates() {
     } catch (err: any) {
       const errorMsg = err.response?.data?.error;
       setError(typeof errorMsg === 'string' ? errorMsg : 'CSV merge failed');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
 
       setCsvMergingTemplateId(null);
