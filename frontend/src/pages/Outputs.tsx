@@ -250,7 +250,8 @@ export default function Outputs() {
       <Dialog
         open={deleteDialog !== null}
         onClose={() => !deleting && setDeleteDialog(null)}
-        maxWidth="sm"
+        maxWidth="xs"
+        fullWidth
       >
         <DialogTitle>Delete Merge Output</DialogTitle>
         <DialogContent>
