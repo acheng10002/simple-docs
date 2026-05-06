@@ -41,7 +41,7 @@ const {
   getBatchJobStatus,
   listBatchJobs,
 } = require("../services/batchJob.service");
-const { s3, GetObjectCommand, withPrefix } = require("../storage/supabase-storage");
+const { s3, GetObjectCommand, DeleteObjectCommand, withPrefix } = require("../storage/supabase-storage");
 const prisma = require("../config/prisma");
 
 // Map of allowed output types per template MIME type
