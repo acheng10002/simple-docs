@@ -44,7 +44,12 @@ export default function UploadTemplateDialog({ open, onClose, existingTemplateNa
       const response = await templatesApi.upload(file);
       navigate(`/templates/${response.templateId}/edit`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Upload failed');
+      const status = err.response?.status;
+      if (status === 429) {
+        setError('Too many uploads. Please try again later.');
+      } else {
+        setError(err.response?.data?.message || 'Upload failed');
+      }
       setUploading(false);
     }
   };

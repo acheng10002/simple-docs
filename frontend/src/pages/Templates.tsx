@@ -142,10 +142,13 @@ function TemplateRow({
       </TableRow>
       {csvMergingTemplateId === template.id && (
         <TableRow>
-          <TableCell colSpan={4} sx={{ py: 2, textAlign: 'center', bgcolor: 'white' }}>
-            <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-              Merging...
-            </Typography>
+          <TableCell colSpan={4} sx={{ py: 2, bgcolor: 'white' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
+              <CircularProgress size={18} />
+              <Typography variant="body1" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                Merging...
+              </Typography>
+            </Box>
           </TableCell>
         </TableRow>
       )}

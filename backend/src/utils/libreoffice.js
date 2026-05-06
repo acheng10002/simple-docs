@@ -97,6 +97,7 @@ async function convertToPdf(inputBuffer, inputExt) {
       soffice,
       [
         '--headless',
+        `-env:UserInstallation=file://${tmpDir}`,
         '--convert-to',
         'pdf',
         '--outdir',
