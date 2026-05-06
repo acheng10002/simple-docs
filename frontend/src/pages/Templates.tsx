@@ -255,6 +255,13 @@ export default function Templates() {
 
       const result = await mergeApi.mergeCsv(templateId, file, outputType);
 
+      // Check for inline merge errors (≤10 rows)
+      if (!result.batchJobId && result.jobs?.length === 0) {
+        setError('CSV merge failed — no rows were merged. Check that CSV columns match the template fields.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
       // If batch job was queued (>10 rows), poll until complete
       if (result.batchJobId) {
         const pollInterval = 2000;
@@ -271,8 +278,14 @@ export default function Templates() {
         }
       }
 
+      // Build navigation state with partial failure warning if applicable
+      const failedCount = result.errors?.length || 0;
+      const navState = failedCount > 0
+        ? { warning: `${failedCount} of ${result.count} rows failed to merge.` }
+        : undefined;
+
       // Navigate to outputs page to see all generated files
-      navigate('/outputs');
+      navigate('/outputs', { state: navState });
 
       // Reset file input
       event.target.value = '';

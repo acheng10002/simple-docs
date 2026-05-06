@@ -120,6 +120,10 @@ export interface BulkMergeResponse {
     row: number;
     warnings: string[];
   }>;
+  errors?: Array<{
+    rowIndex: number;
+    error: string;
+  }>;
   // Fields present when batch job is queued (>10 rows)
   batchJobId?: string;
   totalRows?: number;

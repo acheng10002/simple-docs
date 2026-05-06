@@ -391,6 +391,14 @@ async function mergeTemplate({
     throw err;
   }
 
+  // Check for empty field values
+  const empty = [...allowed].filter((k) => providedSet.has(k) && (data[k] === '' || data[k] === null || data[k] === undefined));
+  if (empty.length) {
+    const err = new Error(`Empty values for required fields: ${empty.join(', ')}`);
+    err.status = 422;
+    throw err;
+  }
+
   // Validate output type for template format
   const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
   if (!allowedOutputs || !allowedOutputs.includes(outputType)) {

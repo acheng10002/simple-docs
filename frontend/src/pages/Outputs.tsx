@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Box,
@@ -37,10 +37,13 @@ import type { MergeJob } from '../types/api';
 
 export default function Outputs() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout, user } = useAuth();
   const [jobs, setJobs] = useState<MergeJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState((location.state as { warning?: string })?.warning || '');
+
   const [deleteDialog, setDeleteDialog] = useState<{ jobId: number; templateName: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -159,6 +162,11 @@ export default function Outputs() {
           {error && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
               {error}
+            </Alert>
+          )}
+          {warning && (
+            <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setWarning('')}>
+              {warning}
             </Alert>
           )}
 
