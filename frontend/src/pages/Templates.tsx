@@ -293,8 +293,13 @@ export default function Templates() {
       // Reset file input
       event.target.value = '';
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error;
-      setError(typeof errorMsg === 'string' ? errorMsg : 'CSV merge failed');
+      const status = err.response?.status;
+      if (status === 429) {
+        setError('Too many CSV merges. Please try again later.');
+      } else {
+        const errorMsg = err.response?.data?.error;
+        setError(typeof errorMsg === 'string' ? errorMsg : 'CSV merge failed');
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
 
