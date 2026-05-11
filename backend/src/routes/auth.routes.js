@@ -155,7 +155,7 @@ router.post("/auth/forgot-password", validate({ body: forgotPasswordBody }), asy
 
     // Always attempt to send reset email - Supabase handles non-existent emails gracefully
     const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password`,
+      redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
     });
 
     if (error) {

@@ -36,6 +36,8 @@ const requiredEnvVars = [
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "SUPABASE_ANON_KEY",
+  "FRONTEND_URL",
+  "S3_BUCKET",
 ];
 
 // optional environment variables with defaults
@@ -68,6 +70,8 @@ if (missing.length > 0) {
   console.error(" SUPABASE_URL           - Supabase project URL");
   console.error(" SUPABASE_SERVICE_ROLE_KEY - Supabase service role key");
   console.error(" SUPABASE_ANON_KEY      - Supabase anonymous/public key");
+  console.error(" FRONTEND_URL           - Frontend app URL (e.g. https://simple-docs.onrender.com)");
+  console.error(" S3_BUCKET              - Supabase S3 storage bucket name");
   // abort the process with exit code 1, non-zero means failure
   process.exit(1);
 }
