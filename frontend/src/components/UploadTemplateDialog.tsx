@@ -79,11 +79,6 @@ export default function UploadTemplateDialog({ open, onClose, existingTemplateNa
     }
   };
 
-  const handleDuplicateCancel = () => {
-    setDuplicateWarning('');
-    setPendingFile(null);
-  };
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
