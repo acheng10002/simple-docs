@@ -117,22 +117,20 @@ app.use((req, res, next) => {
 // clients don't need this header, and it leaks stack info, so better for security
 app.disable("x-powered-by");
 
-// CORS configuration - only enabled in development
-if (process.env.NODE_ENV !== "production") {
-  app.use(
-    cors({
-      // frontend dev server
-      origin: "http://localhost:5173",
-      // allow cookies/auth headers
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
-    })
-  );
-  console.log("CORS enabled for development (localhost:5173)");
-} else {
-  console.log("CORS disabled - production uses same origin");
-}
+// CORS configuration
+const corsOrigins = process.env.NODE_ENV === "production"
+  ? [process.env.FRONTEND_URL].filter(Boolean)
+  : ["http://localhost:5173"];
+
+app.use(
+  cors({
+    origin: corsOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+console.log(`CORS enabled for: ${corsOrigins.join(", ")}`);
 
 // RATE-LIMITING - protects upload and webhook endpoints from abuse (PostgreSQL-backed for multi-instance)
 const uploadLimiter = createRateLimiter({
