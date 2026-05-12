@@ -31,22 +31,9 @@ function getWorkerManager() {
   return workerManager;
 }
 
-let browserInstance = null;
+const { withTimeout } = require('../utils/timeout');
 
-/**
- * Timeout wrapper for promises
- */
-function withTimeout(promise, ms, operation) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`${operation} timeout after ${ms}ms`)),
-        ms
-      )
-    ),
-  ]);
-}
+let browserInstance = null;
 
 /**
  * Get or create a shared Puppeteer browser instance (for in-process mode)

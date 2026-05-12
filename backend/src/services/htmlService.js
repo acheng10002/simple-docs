@@ -9,6 +9,7 @@ const path = require('path');
 const os = require('os');
 const logger = require('../config/logger');
 const { resolveSoffice, runSoffice } = require('../utils/libreoffice');
+const { withTimeout } = require('../utils/timeout');
 
 // Use isolated worker by default in production
 const USE_ISOLATED_WORKER = process.env.CONVERSION_USE_WORKER !== 'false' &&
@@ -21,21 +22,6 @@ function getWorkerManager() {
     workerManager = require('../workers/workerManager').workerManager;
   }
   return workerManager;
-}
-
-/**
- * Timeout wrapper for promises
- */
-function withTimeout(promise, ms, operation) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`${operation} timeout after ${ms}ms`)),
-        ms
-      )
-    ),
-  ]);
 }
 
 /**

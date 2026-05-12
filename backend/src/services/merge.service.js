@@ -20,21 +20,7 @@ const xlsxService = require('./xlsxService');
 const pptxService = require('./pptxService');
 const conversionService = require('./conversionService');
 const { templateCache } = require('../utils/templateCache');
-
-/**
- * Timeout wrapper for promises
- */
-function withTimeout(promise, ms, operation) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`${operation} timeout after ${ms}ms`)),
-        ms
-      )
-    ),
-  ]);
-}
+const { withTimeout } = require('../utils/timeout');
 
 /**
  * Load template buffer from S3 with caching

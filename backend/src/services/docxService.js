@@ -12,26 +12,12 @@ const {
   renderDocxBufferOrThrow,
   TemplateParseError,
 } = require('../utils/docx-templating');
+const { withTimeout } = require('../utils/timeout');
 
 // Promisify libre.convert if needed
 const convertAsync = types.isAsyncFunction(libre.convert)
   ? libre.convert
   : promisify(libre.convert);
-
-/**
- * Timeout wrapper for promises
- */
-function withTimeout(promise, ms, operation) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`${operation} timeout after ${ms}ms`)),
-        ms
-      )
-    ),
-  ]);
-}
 
 /**
  * Extract field placeholders from DOCX template

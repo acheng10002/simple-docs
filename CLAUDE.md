@@ -40,6 +40,12 @@ npx prisma db push           # Sync schema without migration (preserves data)
 npx prisma studio            # Open database GUI
 ```
 
+## Deployment
+
+- **Backend**: Render (`https://simple-docs-9u3r.onrender.com`)
+- **Frontend**: Vercel (`https://simple-docs-two.vercel.app`) with `vercel.json` rewrite for SPA routing
+- Vercel auto-deploys on push to main
+
 ## Architecture
 
 ### Backend Structure
@@ -89,3 +95,5 @@ Supabase S3-compatible storage. Keys follow pattern: `uploads/{timestamp}-{uuid}
 **Concurrency**: `utils/concurrency.js` provides semaphore to limit parallel merge operations.
 
 **CSV security**: `csv-sanitizer.js` validates structure and prevents formula injection.
+
+**CORS**: In production, allows only the origin set in `FRONTEND_URL` env var. In development, allows `localhost:5173`.
