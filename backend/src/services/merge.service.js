@@ -21,6 +21,7 @@ const pptxService = require('./pptxService');
 const conversionService = require('./conversionService');
 const { templateCache } = require('../utils/templateCache');
 const { withTimeout } = require('../utils/timeout');
+const { ALLOWED_OUTPUTS } = require('../constants/outputs');
 
 /**
  * Load template buffer from S3 with caching
@@ -67,17 +68,6 @@ function flattenKeys(obj, prefix = '') {
   }
   return out;
 }
-
-/**
- * Map of allowed output types per template MIME type
- */
-const ALLOWED_OUTPUTS = {
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['pdf', 'docx', 'html', 'jpg'],
-  'text/html': ['pdf', 'docx', 'html'],
-  'application/pdf': ['pdf', 'jpg'],
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx', 'pdf'],
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx', 'ppsx', 'pdf', 'jpg'],
-};
 
 /**
  * Get file extension for output type
