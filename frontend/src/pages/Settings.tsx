@@ -12,19 +12,16 @@ import {
   Toolbar,
   Divider,
   CircularProgress,
-  IconButton,
-  InputAdornment,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Folder as TemplatesIcon,
   Folder as OutputsIcon,
-  Visibility,
-  VisibilityOff,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { authApi } from '../api/client';
 import PasswordCriteria, { validatePassword } from '../components/PasswordCriteria';
+import PasswordField from '../components/PasswordField';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -40,9 +37,7 @@ export default function Settings() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
@@ -233,71 +228,29 @@ export default function Settings() {
             )}
 
             <form onSubmit={handleUpdatePassword}>
-              <TextField
+              <PasswordField
                 fullWidth
                 label="Current Password"
-                type={showCurrentPassword ? 'text' : 'password'}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 sx={{ mb: 2 }}
                 disabled={passwordLoading}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle current password visibility"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        edge="end"
-                      >
-                        {showCurrentPassword ? <Visibility /> : <VisibilityOff />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
               />
-              <TextField
+              <PasswordField
                 fullWidth
                 label="New Password"
-                type={showNewPassword ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 disabled={passwordLoading}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle new password visibility"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        edge="end"
-                      >
-                        {showNewPassword ? <Visibility /> : <VisibilityOff />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
               />
               <PasswordCriteria password={newPassword} />
-              <TextField
+              <PasswordField
                 fullWidth
                 label="Confirm New Password"
-                type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 sx={{ mb: 2 }}
                 disabled={passwordLoading}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle confirm password visibility"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        edge="end"
-                      >
-                        {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
               />
               <Button
                 type="submit"

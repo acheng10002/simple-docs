@@ -4,25 +4,20 @@ import {
   Container,
   Box,
   Paper,
-  TextField,
   Button,
   Typography,
   Alert,
   CircularProgress,
-  IconButton,
-  InputAdornment,
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { supabase } from '../config/supabase';
 import { authApi } from '../api/client';
 import PasswordCriteria, { validatePassword } from '../components/PasswordCriteria';
+import PasswordField from '../components/PasswordField';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -159,59 +154,31 @@ export default function ResetPassword() {
 
             {!success && accessToken && (
               <>
-                <TextField
+                <PasswordField
                   margin="normal"
                   required
                   fullWidth
                   name="password"
                   label="New Password"
-                  type={showPassword ? 'text' : 'password'}
                   id="password"
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle password visibility"
-                          onClick={() => setShowPassword(!showPassword)}
-                          edge="end"
-                        >
-                          {showPassword ? <Visibility /> : <VisibilityOff />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
                 />
                 <PasswordCriteria password={password} />
 
-                <TextField
+                <PasswordField
                   margin="normal"
                   required
                   fullWidth
                   name="confirmPassword"
                   label="Confirm New Password"
-                  type={showConfirmPassword ? 'text' : 'password'}
                   id="confirmPassword"
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={loading}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle confirm password visibility"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          edge="end"
-                        >
-                          {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
                 />
 
                 <Button

@@ -13,11 +13,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
-  InputAdornment,
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
+import PasswordField from '../components/PasswordField';
 import { authApi } from '../api/client';
 
 export default function Login() {
@@ -27,7 +25,7 @@ export default function Login() {
   const registered = location.state?.registered;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -128,30 +126,16 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
             />
 
-            <TextField
+            <PasswordField
               margin="normal"
               required
               fullWidth
               name="password"
               label="Password"
-              type={showPassword ? 'text' : 'password'}
               id="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label="toggle password visibility"
-                      onClick={() => setShowPassword(!showPassword)}
-                      edge="end"
-                    >
-                      {showPassword ? <Visibility /> : <VisibilityOff />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
             />
 
             <Button

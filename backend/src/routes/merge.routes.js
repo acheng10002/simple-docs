@@ -45,6 +45,50 @@ const { s3, GetObjectCommand, DeleteObjectCommand, withPrefix } = require("../st
 const prisma = require("../config/prisma");
 const { ALLOWED_OUTPUTS } = require("../constants/outputs");
 
+/**
+ * Pipe an S3 stream to the HTTP response with timeout and error handling.
+ */
+function pipeS3Stream(stream, req, res, label) {
+  const timeout = setTimeout(() => {
+    req.log.warn({ label }, "Download timeout - destroying stream");
+    stream.destroy(new Error("Download timeout"));
+    if (!res.headersSent) {
+      errorResponse.timeout(res, "Download timeout");
+    }
+  }, 60000);
+
+  stream.on("error", (err) => {
+    clearTimeout(timeout);
+    req.log.error({ err, label }, "S3 stream error");
+    if (!res.headersSent) {
+      errorResponse.internal(res, "Download failed");
+    } else {
+      res.destroy();
+    }
+  });
+
+  res.on("close", () => {
+    if (!res.writableEnded) {
+      clearTimeout(timeout);
+      stream.destroy();
+      req.log.info({ label }, "Download cancelled by client");
+    }
+  });
+
+  res.on("error", (err) => {
+    clearTimeout(timeout);
+    stream.destroy();
+    req.log.error({ err, label }, "Response stream error");
+  });
+
+  res.on("finish", () => {
+    clearTimeout(timeout);
+    req.log.info({ label }, "Download completed successfully");
+  });
+
+  stream.pipe(res);
+}
+
 const router = express.Router();
 
 // PostgreSQL-backed rate limiters for multi-instance support
@@ -174,54 +218,7 @@ router.get(
         })
       );
       // S3 stream with timeout and proper cleanup
-      const stream = obj.Body;
-
-      // sets 60-second timeout for downloads
-      const timeout = setTimeout(() => {
-        req.log.warn({ templateId }, "Download timeout - destroying stream");
-        stream.destroy(new Error("Download timeout"));
-        // if HTTP headers haven't been sent yet, reply with a 504 and end the response
-        if (!res.headersSent) {
-          errorResponse.timeout(res, "Download timeout");
-        }
-      }, 60000);
-
-      // handles S3 stream errors
-      stream.on("error", (err) => {
-        clearTimeout(timeout);
-        req.log.error({ err, templateId }, "S3 stream error");
-
-        if (!res.headersSent) {
-          errorResponse.internal(res, "Download failed");
-        } else {
-          res.destroy();
-        }
-      });
-
-      // handles client disconnect
-      res.on("close", () => {
-        if (!res.writableEnded) {
-          clearTimeout(timeout);
-          stream.destroy();
-          req.log.info({ templateId }, "Download cancelled by client");
-        }
-      });
-
-      // handles response errors
-      res.on("error", (err) => {
-        clearTimeout(timeout);
-        stream.destroy();
-        req.log.error({ err, templateId }, "Response stream error");
-      });
-
-      // cleans up on successful completion
-      res.on("finish", () => {
-        clearTimeout(timeout);
-        req.log.info({ templateId }, "Download completed successfully");
-      });
-
-      // starts streaming
-      stream.pipe(res);
+      pipeS3Stream(obj.Body, req, res, templateId);
 
       // catches any other unexpected errors
     } catch (err) {
@@ -420,39 +417,7 @@ router.get(
         res.setHeader("Cache-Control", "private, no-store");
 
         // S3 stream with timeout
-        const stream = obj.Body;
-        const timeout = setTimeout(() => {
-          req.log.warn({ filePath }, "Download timeout - destroying stream");
-          stream.destroy(new Error("Download timeout"));
-          if (!res.headersSent) {
-            errorResponse.timeout(res, "Download timeout");
-          }
-        }, 60000);
-
-        stream.on("error", (err) => {
-          clearTimeout(timeout);
-          req.log.error({ err, filePath }, "S3 stream error");
-          if (!res.headersSent) {
-            errorResponse.internal(res, "Download failed");
-          } else {
-            res.destroy();
-          }
-        });
-
-        res.on("close", () => {
-          if (!res.writableEnded) {
-            clearTimeout(timeout);
-            stream.destroy();
-            req.log.info({ filePath }, "Download cancelled by client");
-          }
-        });
-
-        res.on("finish", () => {
-          clearTimeout(timeout);
-          req.log.info({ filePath }, "Download completed successfully");
-        });
-
-        stream.pipe(res);
+        pipeS3Stream(obj.Body, req, res, filePath);
       } catch (s3Err) {
         if (s3Err.name === "NoSuchKey") {
           return errorResponse.notFound(res, "File not found", ErrorCodes.FILE_NOT_FOUND);
