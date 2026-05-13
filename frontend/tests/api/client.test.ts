@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
-import apiClient, { authApi, templatesApi, mergeApi, jobsApi } from '../../src/api/client';
+import apiClient, { authApi, templatesApi, mergeApi, jobsApi, foldersApi, batchJobsApi } from '../../src/api/client';
 
 // Mock Supabase - must create mock inside factory to avoid hoisting issues
 vi.mock('../../src/config/supabase', () => ({
@@ -137,6 +137,45 @@ describe('API Client', () => {
       expect(window.location.href).toBe('/login');
     });
 
+    it('should attempt token refresh on 401 for non-auth endpoints', async () => {
+      const refreshedSession = {
+        ...mockSession,
+        access_token: 'refreshed-token',
+      };
+
+      vi.mocked(supabase.auth.refreshSession).mockResolvedValue({
+        data: { session: refreshedSession },
+        error: null,
+      });
+
+      mock.onGet('/api/test').replyOnce(401, { error: 'Unauthorized' });
+      // The retry via axios.request() bypasses mock-adapter, so the request will fail
+      // but we can verify the refresh was attempted and the retry was configured correctly
+
+      try {
+        await apiClient.get('/api/test');
+      } catch {
+        // Expected - retry goes through real axios which has no server
+      }
+
+      expect(supabase.auth.refreshSession).toHaveBeenCalled();
+      // signOut should NOT have been called since refresh succeeded
+      expect(supabase.auth.signOut).not.toHaveBeenCalled();
+    });
+
+    it('should not attempt refresh for auth endpoint 401 errors', async () => {
+      mock.onPost('/api/auth/login').reply(401, { error: 'Invalid credentials' });
+
+      try {
+        await apiClient.post('/api/auth/login', { email: 'test@test.com', password: 'wrong' });
+      } catch (error) {
+        // Error is expected
+      }
+
+      expect(supabase.auth.refreshSession).not.toHaveBeenCalled();
+      expect(supabase.auth.signOut).not.toHaveBeenCalled();
+    });
+
     it('should not attempt refresh for non-401 errors', async () => {
       mock.onGet('/api/test').reply(500, { error: 'Server Error' });
 
@@ -218,6 +257,38 @@ describe('API Client', () => {
 
       await expect(authApi.register(mockRequest)).rejects.toThrow();
     });
+
+    it('should send forgot password request', async () => {
+      mock.onPost('/api/auth/forgot-password').reply(200, { message: 'Email sent' });
+
+      const result = await authApi.forgotPassword('test@example.com');
+
+      expect(result.message).toBe('Email sent');
+    });
+
+    it('should reset password', async () => {
+      mock.onPost('/api/auth/reset-password').reply(200, { message: 'Password reset' });
+
+      const result = await authApi.resetPassword('newpass123', 'access-token');
+
+      expect(result.message).toBe('Password reset');
+    });
+
+    it('should update email', async () => {
+      mock.onPut('/api/auth/update-email').reply(200, { message: 'Email updated' });
+
+      const result = await authApi.updateEmail('new@example.com');
+
+      expect(result.message).toBe('Email updated');
+    });
+
+    it('should update password', async () => {
+      mock.onPut('/api/auth/update-password').reply(200, { message: 'Password updated' });
+
+      const result = await authApi.updatePassword('oldpass', 'newpass');
+
+      expect(result.message).toBe('Password updated');
+    });
   });
 
   describe('templatesApi', () => {
@@ -285,6 +356,32 @@ describe('API Client', () => {
       mock.onDelete('/api/templates/1').reply(204);
 
       await expect(templatesApi.delete('1')).resolves.toBeUndefined();
+    });
+
+    it('should activate a template', async () => {
+      mock.onPost('/api/templates/1/activate').reply(200);
+
+      await expect(templatesApi.activate('1')).resolves.toBeUndefined();
+    });
+
+    it('should get template versions', async () => {
+      const mockVersions = [
+        { id: 'v1', versionNumber: 1, storageKey: 'key1' },
+      ];
+      mock.onGet('/api/templates/1/versions').reply(200, mockVersions);
+
+      const result = await templatesApi.getVersions('1');
+
+      expect(result).toEqual(mockVersions);
+    });
+
+    it('should revert to a version', async () => {
+      const mockResponse = { message: 'Reverted' };
+      mock.onPost('/api/templates/1/versions/v1/revert').reply(200, mockResponse);
+
+      const result = await templatesApi.revertToVersion('1', 'v1');
+
+      expect(result).toEqual(mockResponse);
     });
 
     it('should download a template', async () => {
@@ -405,6 +502,70 @@ describe('API Client', () => {
       mock.onDelete('/api/jobs/1').reply(404, { error: 'Job not found' });
 
       await expect(jobsApi.delete(1)).rejects.toThrow();
+    });
+  });
+
+  describe('foldersApi', () => {
+    it('should get all folders', async () => {
+      const mockFolders = [{ id: 'f1', name: 'Folder 1' }];
+      mock.onGet('/api/folders').reply(200, mockFolders);
+
+      const result = await foldersApi.getAll();
+
+      expect(result).toEqual(mockFolders);
+    });
+
+    it('should create a folder', async () => {
+      const mockFolder = { id: 'f1', name: 'New Folder' };
+      mock.onPost('/api/folders').reply(201, mockFolder);
+
+      const result = await foldersApi.create({ name: 'New Folder' });
+
+      expect(result).toEqual(mockFolder);
+    });
+
+    it('should rename a folder', async () => {
+      const mockFolder = { id: 'f1', name: 'Renamed' };
+      mock.onPut('/api/folders/f1').reply(200, mockFolder);
+
+      const result = await foldersApi.rename('f1', { name: 'Renamed' });
+
+      expect(result).toEqual(mockFolder);
+    });
+
+    it('should move a folder', async () => {
+      const mockFolder = { id: 'f1', name: 'Folder 1' };
+      mock.onPut('/api/folders/f1/move').reply(200, mockFolder);
+
+      const result = await foldersApi.move('f1', { newParentId: 'f2' });
+
+      expect(result).toEqual(mockFolder);
+    });
+
+    it('should delete a folder', async () => {
+      mock.onDelete('/api/folders/f1').reply(204);
+
+      await expect(foldersApi.delete('f1')).resolves.toBeUndefined();
+    });
+
+    it('should move a template to a folder', async () => {
+      const mockTemplate = { id: 't1', folderId: 'f1' };
+      mock.onPut('/api/templates/t1/move').reply(200, mockTemplate);
+
+      const result = await foldersApi.moveTemplate('t1', { folderId: 'f1' });
+
+      expect(result).toEqual(mockTemplate);
+    });
+  });
+
+  describe('batchJobsApi', () => {
+    it('should get batch job status', async () => {
+      const mockStatus = { id: 'batch-1', status: 'completed', totalRows: 5, processedRows: 5 };
+      mock.onGet('/api/batch-jobs/batch-1').reply(200, mockStatus);
+
+      const result = await batchJobsApi.getStatus('batch-1');
+
+      expect(result).toEqual(mockStatus);
     });
   });
 
