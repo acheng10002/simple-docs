@@ -220,7 +220,7 @@ export function MoveFolderDialog({
   );
 
   const renderFolderOption = (f: Folder) => {
-    const indent = '  '.repeat(f.depth - 1);
+    const indent = '  '.repeat(Math.max(0, f.depth - 1));
     return `${indent}${f.name}`;
   };
 
@@ -304,7 +304,7 @@ export function MoveTemplateDialog({
   };
 
   const renderFolderOption = (f: Folder) => {
-    const indent = '  '.repeat(f.depth - 1);
+    const indent = '  '.repeat(Math.max(0, f.depth - 1));
     return `${indent}${f.name}`;
   };
 
