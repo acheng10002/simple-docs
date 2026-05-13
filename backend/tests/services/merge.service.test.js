@@ -99,6 +99,10 @@ beforeEach(() => {
       if (key.includes(".docx")) {
         return Promise.resolve({ Body: Readable.from([DOCX_TEMPLATE]) });
       }
+      // Generic fallback for PDF, XLSX, PPTX templates
+      if (key.includes(".pdf") || key.includes(".xlsx") || key.includes(".pptx")) {
+        return Promise.resolve({ Body: Readable.from([Buffer.from("FAKE_TEMPLATE")]) });
+      }
       const err = new Error(`No mock for S3 GetObjectKey: ${key}`);
       err.$metadata = { httpStatusCode: 404 };
       return Promise.reject(err);
@@ -348,6 +352,207 @@ describe("merge.service", () => {
         expect.objectContaining({ extras: ["extra"] }),
         expect.any(String)
       );
+    });
+  });
+
+  describe("PDF template merges", () => {
+    const pdfTemplate = {
+      id: "tpl-pdf-1",
+      storageKey: "9999-form.pdf",
+      displayName: "Form.pdf",
+      mimeType: "application/pdf",
+      outputNameFormat: "name",
+      fields: [{ name: "name" }],
+    };
+
+    beforeEach(() => {
+      // Mock PDF template bytes from S3
+      const pdfService = require("../../src/services/pdfService");
+      pdfService.isFormBasedPdf = jest.fn().mockResolvedValue(true);
+      pdfService.fillPdfForm = jest.fn().mockResolvedValue(Buffer.from("FILLED_PDF"));
+      pdfService.fillPdfTextPlaceholders = jest.fn().mockResolvedValue(Buffer.from("TEXT_PDF"));
+
+      s3.send.mockImplementation((cmd) => {
+        if (cmd instanceof GetObjectCommand) {
+          return Promise.resolve({ Body: Readable.from([Buffer.from("PDF_BYTES")]) });
+        }
+        if (cmd instanceof PutObjectCommand) {
+          return Promise.resolve({ ETag: '"deadbeef"' });
+        }
+        return Promise.reject(new Error("Unhandled"));
+      });
+    });
+
+    test("PDF form merge -> PDF output", async () => {
+      const pdfService = require("../../src/services/pdfService");
+      prisma.template.findUnique.mockResolvedValue(pdfTemplate);
+      prisma.mergeJob.create.mockResolvedValue({ id: 501 });
+
+      const result = await mergeTemplate({
+        templateId: "tpl-pdf-1",
+        data: { name: "Test" },
+        outputType: "pdf",
+      });
+
+      expect(result.jobId).toBe(501);
+      expect(pdfService.isFormBasedPdf).toHaveBeenCalled();
+      expect(pdfService.fillPdfForm).toHaveBeenCalled();
+    });
+
+    test("PDF merge -> JPG conversion", async () => {
+      const pdfService = require("../../src/services/pdfService");
+      const conversionService = require("../../src/services/conversionService");
+      prisma.template.findUnique.mockResolvedValue(pdfTemplate);
+      prisma.mergeJob.create.mockResolvedValue({ id: 502 });
+
+      const result = await mergeTemplate({
+        templateId: "tpl-pdf-1",
+        data: { name: "Test" },
+        outputType: "jpg",
+      });
+
+      expect(result.jobId).toBe(502);
+      expect(result.filePath).toMatch(/\.jpg$/);
+      expect(conversionService.convertPdfToJpg).toHaveBeenCalled();
+    });
+  });
+
+  describe("XLSX template merges", () => {
+    const xlsxTemplate = {
+      id: "tpl-xlsx-1",
+      storageKey: "9999-sheet.xlsx",
+      displayName: "Sheet.xlsx",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      outputNameFormat: "name",
+      fields: [{ name: "name" }],
+    };
+
+    test("XLSX merge -> XLSX output", async () => {
+      const xlsxService = require("../../src/services/xlsxService");
+      prisma.template.findUnique.mockResolvedValue(xlsxTemplate);
+      prisma.mergeJob.create.mockResolvedValue({ id: 601 });
+
+      const result = await mergeTemplate({
+        templateId: "tpl-xlsx-1",
+        data: { name: "Test" },
+        outputType: "xlsx",
+      });
+
+      expect(result.jobId).toBe(601);
+      expect(result.filePath).toMatch(/\.xlsx$/);
+      expect(xlsxService.fillXlsxTemplate).toHaveBeenCalled();
+    });
+  });
+
+  describe("PPTX template merges", () => {
+    const pptxTemplate = {
+      id: "tpl-pptx-1",
+      storageKey: "9999-slides.pptx",
+      displayName: "Slides.pptx",
+      mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      outputNameFormat: "name",
+      fields: [{ name: "name" }],
+    };
+
+    test("PPTX merge -> PPTX output", async () => {
+      const pptxService = require("../../src/services/pptxService");
+      prisma.template.findUnique.mockResolvedValue(pptxTemplate);
+      prisma.mergeJob.create.mockResolvedValue({ id: 701 });
+
+      const result = await mergeTemplate({
+        templateId: "tpl-pptx-1",
+        data: { name: "Test" },
+        outputType: "pptx",
+      });
+
+      expect(result.jobId).toBe(701);
+      expect(result.filePath).toMatch(/\.pptx$/);
+      expect(pptxService.fillPptxTemplate).toHaveBeenCalled();
+    });
+  });
+
+  describe("Additional validation", () => {
+    test("throws 422 for empty field values", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: "tpl-empty",
+        storageKey: "test.html",
+        displayName: "Test.html",
+        mimeType: "text/html",
+        outputNameFormat: "title",
+        fields: [{ name: "title" }],
+      });
+
+      await expect(
+        mergeTemplate({
+          templateId: "tpl-empty",
+          data: { title: "" },
+          outputType: "html",
+        })
+      ).rejects.toMatchObject({ status: 422 });
+    });
+
+    test("throws error when outputNameFormat is not configured", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: "tpl-no-format",
+        storageKey: "test.html",
+        displayName: "Test.html",
+        mimeType: "text/html",
+        outputNameFormat: null,
+        fields: [{ name: "title" }],
+      });
+      prisma.mergeJob.create.mockResolvedValue({ id: 801 });
+
+      await expect(
+        mergeTemplate({
+          templateId: "tpl-no-format",
+          data: { title: "Hello" },
+          outputType: "html",
+        })
+      ).rejects.toThrow("outputNameFormat is not configured");
+    });
+
+    test("throws error for unsupported template format", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: "tpl-bad",
+        storageKey: "test.xyz",
+        displayName: "Test.xyz",
+        mimeType: "application/x-unknown",
+        outputNameFormat: "name",
+        fields: [{ name: "name" }],
+      });
+
+      await expect(
+        mergeTemplate({
+          templateId: "tpl-bad",
+          data: { name: "Test" },
+          outputType: "pdf",
+        })
+      ).rejects.toThrow(/not supported/);
+    });
+  });
+
+  describe("DOCX -> JPG conversion", () => {
+    test("should convert DOCX to JPG via HTML intermediate", async () => {
+      const conversionService = require("../../src/services/conversionService");
+      prisma.template.findUnique.mockResolvedValue({
+        id: "tpl-docx-jpg",
+        storageKey: "1111-form.docx",
+        displayName: "Form.docx",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        outputNameFormat: "name",
+        fields: [{ name: "name" }],
+      });
+      prisma.mergeJob.create.mockResolvedValue({ id: 901 });
+
+      const result = await mergeTemplate({
+        templateId: "tpl-docx-jpg",
+        data: { name: "Test" },
+        outputType: "jpg",
+      });
+
+      expect(result.jobId).toBe(901);
+      expect(result.filePath).toMatch(/\.jpg$/);
+      expect(conversionService.convertDocxToJpg).toHaveBeenCalled();
     });
   });
 
