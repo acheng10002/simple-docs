@@ -43,8 +43,8 @@ export default function Login() {
     try {
       await login({ email, password });
       navigate('/templates');
-    } catch {
-      setError('Login failed. Please try again.');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }

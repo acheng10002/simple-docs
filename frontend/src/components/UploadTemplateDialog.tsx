@@ -48,7 +48,7 @@ export default function UploadTemplateDialog({ open, onClose, existingTemplateNa
       if (status === 429) {
         setError('Too many uploads. Please try again later.');
       } else {
-        setError(err.response?.data?.message || 'Upload failed');
+        setError(err.response?.data?.error || 'Upload failed');
       }
       setUploading(false);
     }
