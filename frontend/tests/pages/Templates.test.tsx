@@ -715,6 +715,75 @@ describe('Templates Page', () => {
     });
   });
 
+  describe('Folders', () => {
+    it('should load and display folders from API', async () => {
+      const mockFolders = [
+        { id: 'folder-1', name: 'Invoices', parentId: null, depth: 0, userId: 'user-1', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+      ];
+      const mockTemplates = [
+        {
+          id: 'template1',
+          displayName: 'Test Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+      vi.mocked(apiClient.foldersApi.getAll).mockResolvedValue(mockFolders);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoices')).toBeInTheDocument();
+      });
+
+      expect(apiClient.foldersApi.getAll).toHaveBeenCalled();
+    });
+
+    it('should show templates in a folder when folder is selected', async () => {
+      const mockFolders = [
+        { id: 'folder-1', name: 'Invoices', parentId: null, depth: 0, userId: 'user-1', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+      ];
+      const mockTemplates = [
+        {
+          id: 'template1',
+          displayName: 'Invoice Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: 'folder-1',
+        },
+        {
+          id: 'template2',
+          displayName: 'Unfiled Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+      vi.mocked(apiClient.foldersApi.getAll).mockResolvedValue(mockFolders);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoices')).toBeInTheDocument();
+      });
+
+      // Click the folder to select it
+      fireEvent.click(screen.getByText('Invoices'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Invoice Template')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('CSV Merge Error Handling', () => {
     it('should show error when CSV merge returns no successful jobs', async () => {
       const mockTemplates = [
