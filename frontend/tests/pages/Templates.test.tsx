@@ -19,6 +19,10 @@ vi.mock('../../src/api/client', () => ({
   },
   foldersApi: {
     getAll: vi.fn().mockResolvedValue([]),
+    moveTemplate: vi.fn(),
+  },
+  batchJobsApi: {
+    getStatus: vi.fn(),
   },
 }));
 
@@ -70,6 +74,9 @@ describe('Templates Page', () => {
     vi.clearAllMocks();
     mockNavigate.mockClear();
     mockConfirm.mockClear();
+    // Restore default folder mocks after clearAllMocks
+    vi.mocked(apiClient.foldersApi.getAll).mockResolvedValue([]);
+    vi.mocked((apiClient.foldersApi as any).moveTemplate).mockResolvedValue({});
   });
 
   it('should render templates page header', async () => {
@@ -705,6 +712,79 @@ describe('Templates Page', () => {
       fireEvent.click(activateButton);
 
       expect(apiClient.templatesApi.activate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('CSV Merge Error Handling', () => {
+    it('should show error when CSV merge returns no successful jobs', async () => {
+      const mockTemplates = [
+        {
+          id: 'template1',
+          displayName: 'Test Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+      vi.mocked(apiClient.mergeApi.mergeCsv).mockResolvedValue({
+        count: 0,
+        jobs: [],
+      } as any);
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Template')).toBeInTheDocument();
+      });
+
+      const csvIcon = screen.getByTestId('TableRowsIcon');
+      const csvButton = csvIcon.closest('label') as HTMLLabelElement;
+      const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
+
+      const csvFile = new File(['col1\nval1'], 'test.csv', { type: 'text/csv' });
+      fireEvent.change(fileInput, { target: { files: [csvFile] } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/CSV merge failed/)).toBeInTheDocument();
+      });
+    });
+
+    it('should show rate limit error on 429', async () => {
+      const mockTemplates = [
+        {
+          id: 'template1',
+          displayName: 'Test Template',
+          fields: [],
+          createdAt: '2024-01-01T00:00:00.000Z',
+          isActive: true,
+          folderId: null,
+        },
+      ];
+
+      vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+      vi.mocked(apiClient.mergeApi.mergeCsv).mockRejectedValue({
+        response: { status: 429, data: { error: 'Too many requests' } },
+      });
+
+      renderTemplates();
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Template')).toBeInTheDocument();
+      });
+
+      const csvIcon = screen.getByTestId('TableRowsIcon');
+      const csvButton = csvIcon.closest('label') as HTMLLabelElement;
+      const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
+
+      const csvFile = new File(['col1\nval1'], 'test.csv', { type: 'text/csv' });
+      fireEvent.change(fileInput, { target: { files: [csvFile] } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Too many CSV merges/)).toBeInTheDocument();
+      });
     });
   });
 });
