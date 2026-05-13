@@ -345,7 +345,6 @@ describe('EditTemplate Page', () => {
 
     it('should show confirmation dialog when deactivate is clicked', async () => {
       mockGetById.mockResolvedValue(mockTemplate);
-      mockConfirm.mockReturnValue(false);
 
       renderEditTemplate();
 
@@ -356,15 +355,14 @@ describe('EditTemplate Page', () => {
       const deactivateButton = screen.getByRole('button', { name: /deactivate template/i });
       fireEvent.click(deactivateButton);
 
-      expect(mockConfirm).toHaveBeenCalledWith(
-        expect.stringContaining('Are you sure you want to deactivate')
-      );
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
     });
 
     it('should call delete API when deactivate is confirmed', async () => {
       mockGetById.mockResolvedValue(mockTemplate);
       mockDelete.mockResolvedValue(undefined);
-      mockConfirm.mockReturnValue(true);
 
       renderEditTemplate();
 
@@ -374,6 +372,16 @@ describe('EditTemplate Page', () => {
 
       const deactivateButton = screen.getByRole('button', { name: /deactivate template/i });
       fireEvent.click(deactivateButton);
+
+      // Confirmation dialog should appear
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // Click Deactivate in the dialog — use getAllByRole since "Deactivate" text appears in both the page button and dialog button
+      const deactivateButtons = screen.getAllByRole('button', { name: /deactivate/i });
+      const confirmButton = deactivateButtons[deactivateButtons.length - 1];
+      fireEvent.click(confirmButton);
 
       await waitFor(() => {
         expect(mockDelete).toHaveBeenCalledWith('template-1');

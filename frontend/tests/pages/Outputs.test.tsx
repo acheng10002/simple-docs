@@ -310,7 +310,6 @@ describe('Outputs Page', () => {
 
     vi.mocked(apiClient.jobsApi.getAll).mockResolvedValue(mockJobs);
     vi.mocked(apiClient.jobsApi.delete).mockResolvedValue(undefined);
-    mockConfirm.mockReturnValue(true);
 
     renderOutputs();
 
@@ -322,10 +321,16 @@ describe('Outputs Page', () => {
     const deleteButton = deleteIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(deleteButton);
 
+    // Confirmation dialog should appear
     await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith(
-        expect.stringContaining('Are you sure you want to delete this merge output from "Test Template"?')
-      );
+      expect(screen.getByText(/Are you sure you want to delete this merge output/)).toBeInTheDocument();
+    });
+
+    // Click Delete in the dialog
+    const confirmButton = screen.getByRole('button', { name: 'Delete' });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
       expect(apiClient.jobsApi.delete).toHaveBeenCalledWith(1);
       expect(apiClient.jobsApi.getAll).toHaveBeenCalledTimes(2); // Initial load + reload after delete
     });
@@ -350,7 +355,6 @@ describe('Outputs Page', () => {
     ];
 
     vi.mocked(apiClient.jobsApi.getAll).mockResolvedValue(mockJobs);
-    mockConfirm.mockReturnValue(false);
 
     renderOutputs();
 
@@ -362,7 +366,15 @@ describe('Outputs Page', () => {
     const deleteButton = deleteIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(deleteButton);
 
-    expect(mockConfirm).toHaveBeenCalled();
+    // Confirmation dialog should appear
+    await waitFor(() => {
+      expect(screen.getByText(/Are you sure you want to delete this merge output/)).toBeInTheDocument();
+    });
+
+    // Click Cancel in the dialog
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    fireEvent.click(cancelButton);
+
     expect(apiClient.jobsApi.delete).not.toHaveBeenCalled();
   });
 
@@ -439,7 +451,6 @@ describe('Outputs Page', () => {
     vi.mocked(apiClient.jobsApi.delete).mockRejectedValue({
       response: { data: { error: 'Delete failed' } },
     });
-    mockConfirm.mockReturnValue(true);
 
     renderOutputs();
 
@@ -450,6 +461,15 @@ describe('Outputs Page', () => {
     const deleteIcon = screen.getByTestId('DeleteIcon');
     const deleteButton = deleteIcon.closest('button') as HTMLButtonElement;
     fireEvent.click(deleteButton);
+
+    // Confirmation dialog should appear
+    await waitFor(() => {
+      expect(screen.getByText(/Are you sure you want to delete this merge output/)).toBeInTheDocument();
+    });
+
+    // Click Delete in the dialog
+    const confirmButton = screen.getByRole('button', { name: 'Delete' });
+    fireEvent.click(confirmButton);
 
     await waitFor(() => {
       expect(screen.getByText('Delete failed')).toBeInTheDocument();
