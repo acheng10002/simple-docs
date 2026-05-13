@@ -582,4 +582,70 @@ describe("merge.service", () => {
       expect(putCall[0].input.ContentType).toBe("application/pdf");
     });
   });
+
+  describe("Test mode", () => {
+    const htmlTemplate = {
+      id: "tpl-test-mode",
+      storageKey: "9999-sample.html",
+      displayName: "Sample Template.html",
+      mimeType: "text/html",
+      outputNameFormat: "title",
+      fields: [{ name: "title" }],
+    };
+
+    test("returns buffer directly without uploading to S3", async () => {
+      prisma.template.findUnique.mockResolvedValue(htmlTemplate);
+
+      const result = await mergeTemplate({
+        templateId: "tpl-test-mode",
+        data: { title: "Hello" },
+        outputType: "html",
+        testMode: true,
+      });
+
+      expect(result.testMode).toBe(true);
+      expect(result.buffer).toBeInstanceOf(Buffer);
+      expect(result.filename).toMatch(/\.html$/);
+      expect(result.contentType).toBe("text/html");
+
+      // Should NOT have created a merge job or uploaded to S3
+      expect(prisma.mergeJob.create).not.toHaveBeenCalled();
+      const putCall = s3.send.mock.calls.find(
+        ([cmd]) => cmd instanceof PutObjectCommand
+      );
+      expect(putCall).toBeUndefined();
+    });
+
+    test("adds TEST footer to HTML output", async () => {
+      prisma.template.findUnique.mockResolvedValue(htmlTemplate);
+
+      const result = await mergeTemplate({
+        templateId: "tpl-test-mode",
+        data: { title: "Hello" },
+        outputType: "html",
+        testMode: true,
+      });
+
+      const html = result.buffer.toString("utf-8");
+      expect(html).toContain("TEST - NOT FOR PRODUCTION");
+    });
+
+    test("adds TEST footer before </body> tag in HTML", async () => {
+      prisma.template.findUnique.mockResolvedValue(htmlTemplate);
+
+      const result = await mergeTemplate({
+        templateId: "tpl-test-mode",
+        data: { title: "Hello" },
+        outputType: "html",
+        testMode: true,
+      });
+
+      const html = result.buffer.toString("utf-8");
+      // Footer should be inserted before </body>
+      const footerIdx = html.indexOf("TEST - NOT FOR PRODUCTION");
+      const bodyIdx = html.indexOf("</body>");
+      expect(footerIdx).toBeGreaterThan(-1);
+      expect(bodyIdx).toBeGreaterThan(footerIdx);
+    });
+  });
 });
