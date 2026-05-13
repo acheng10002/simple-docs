@@ -33,6 +33,17 @@ jest.mock("../../src/storage/supabase-storage");
 
 const { s3 } = require("../../src/storage/supabase-storage");
 
+// mocks batch job service
+jest.mock("../../src/services/batchJob.service", () => ({
+  shouldProcessInline: jest.fn(),
+  processRowsInline: jest.fn(),
+  createBatchJob: jest.fn(),
+  getBatchJobStatus: jest.fn(),
+  listBatchJobs: jest.fn(),
+}));
+
+const { shouldProcessInline, processRowsInline, getBatchJobStatus, listBatchJobs } = require("../../src/services/batchJob.service");
+
 // mocks merge service
 jest.mock("../../src/services/merge.service", () => ({
   mergeTemplate: jest.fn(),
@@ -79,6 +90,9 @@ describe("Merge Routes", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Default batch job mocks - inline processing for small CSVs
+    shouldProcessInline.mockReturnValue(true);
 
     // creates express app
     app = express();
@@ -350,15 +364,10 @@ describe("Merge Routes", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
-      mergeTemplate
-        .mockResolvedValueOnce({
-          jobId: 201,
-          filePath: "s3://test-bucket/outputs/result1.pdf",
-        })
-        .mockResolvedValueOnce({
-          jobId: 202,
-          filePath: "s3://test-bucket/outputs/result2.pdf",
-        });
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: true, job: { jobId: 201, filePath: "s3://test-bucket/outputs/result1.pdf" } },
+        { rowIndex: 1, success: true, job: { jobId: 202, filePath: "s3://test-bucket/outputs/result2.pdf" } },
+      ]);
 
       const csvContent =
         "name,email\nJohn,john@example.com\nJane,jane@example.com";
@@ -371,7 +380,7 @@ describe("Merge Routes", () => {
 
       expect(response.body.count).toBe(2);
       expect(response.body.jobs).toHaveLength(2);
-      expect(mergeTemplate).toHaveBeenCalledTimes(2);
+      expect(processRowsInline).toHaveBeenCalledTimes(1);
     });
 
     test("should return 404 when template not found", async () => {
@@ -489,9 +498,9 @@ describe("Merge Routes", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
-      const parseError = new Error("TEMPLATE_PARSE_ERROR");
-      parseError.details = [{ id: "error" }];
-      mergeTemplate.mockRejectedValue(parseError);
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: false, error: "TEMPLATE_PARSE_ERROR" },
+      ]);
 
       const csvContent = "name,email\nJohn,john@example.com";
 
@@ -813,6 +822,225 @@ describe("Merge Routes", () => {
       // Route returns 400 for missing/empty file path
       const response = await request(app).get("/api/download/");
       expect([400, 404]).toContain(response.status);
+    });
+
+    test("should set correct content-type for HTML files", async () => {
+      const mockStream = Readable.from([Buffer.from("<html></html>")]);
+
+      prisma.mergeJob.findFirst.mockResolvedValue({
+        id: "job-123",
+        filePath: "s3://test-bucket/outputs/result.html",
+        userId: "user-123",
+      });
+
+      s3.send.mockResolvedValue({
+        Body: mockStream,
+        ContentLength: 13,
+      });
+
+      const response = await request(app)
+        .get("/api/download/outputs/result.html")
+        .expect(200);
+
+      expect(response.headers["content-type"]).toContain("text/html");
+      expect(response.headers["content-security-policy"]).toBeDefined();
+    });
+
+    test("should set correct content-type for DOCX files", async () => {
+      const mockStream = Readable.from([Buffer.from("docx contents")]);
+
+      prisma.mergeJob.findFirst.mockResolvedValue({
+        id: "job-123",
+        filePath: "s3://test-bucket/outputs/result.docx",
+        userId: "user-123",
+      });
+
+      s3.send.mockResolvedValue({
+        Body: mockStream,
+      });
+
+      const response = await request(app)
+        .get("/api/download/outputs/result.docx")
+        .expect(200);
+
+      expect(response.headers["content-type"]).toContain(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+    });
+
+    test("should return 404 when S3 file not found", async () => {
+      prisma.mergeJob.findFirst.mockResolvedValue({
+        id: "job-123",
+        filePath: "s3://test-bucket/outputs/missing.pdf",
+        userId: "user-123",
+      });
+
+      const noSuchKeyErr = new Error("NoSuchKey");
+      noSuchKeyErr.name = "NoSuchKey";
+      s3.send.mockRejectedValue(noSuchKeyErr);
+
+      const response = await request(app)
+        .get("/api/download/outputs/missing.pdf")
+        .expect(404);
+
+      expect(response.body.error.message).toBe("File not found");
+    });
+  });
+
+  describe("GET /api/jobs", () => {
+    test("should return list of merge jobs for authenticated user", async () => {
+      const mockJobs = [
+        {
+          id: 1,
+          templateId: VALID_TEMPLATE_ID,
+          outputType: "pdf",
+          status: "succeeded",
+          filePath: "s3://test-bucket/outputs/result.pdf",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          template: { id: VALID_TEMPLATE_ID, displayName: "Test Template", mimeType: "text/html" },
+        },
+      ];
+
+      prisma.mergeJob.findMany.mockResolvedValue(mockJobs);
+
+      const response = await request(app)
+        .get("/api/jobs")
+        .expect(200);
+
+      expect(response.body).toEqual(mockJobs);
+      expect(prisma.mergeJob.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: "user-123" },
+        })
+      );
+    });
+
+    test("should return 500 on database error", async () => {
+      prisma.mergeJob.findMany.mockRejectedValue(new Error("DB error"));
+
+      const response = await request(app)
+        .get("/api/jobs")
+        .expect(500);
+
+      expect(response.body.error.message).toBe("Failed to load merge jobs");
+    });
+  });
+
+  describe("DELETE /api/jobs/:id", () => {
+    test("should delete job and S3 file when user owns it", async () => {
+      prisma.mergeJob.findUnique.mockResolvedValue({
+        id: 1,
+        userId: "user-123",
+        filePath: "s3://test-bucket/outputs/result.pdf",
+      });
+      prisma.mergeJob.delete.mockResolvedValue({});
+      s3.send.mockResolvedValue({});
+
+      const response = await request(app)
+        .delete("/api/jobs/1")
+        .expect(204);
+
+      expect(prisma.mergeJob.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    });
+
+    test("should return 404 when job not found", async () => {
+      prisma.mergeJob.findUnique.mockResolvedValue(null);
+
+      const response = await request(app)
+        .delete("/api/jobs/1")
+        .expect(404);
+
+      expect(response.body.error.message).toBe("Job not found");
+    });
+
+    test("should return 403 when job belongs to different user", async () => {
+      prisma.mergeJob.findUnique.mockResolvedValue({
+        id: 1,
+        userId: "other-user",
+        filePath: "s3://test-bucket/outputs/result.pdf",
+      });
+
+      const response = await request(app)
+        .delete("/api/jobs/1")
+        .expect(403);
+
+      expect(response.body.error.message).toBe("Forbidden - not your job");
+    });
+
+    test("should still delete DB record if S3 delete fails", async () => {
+      prisma.mergeJob.findUnique.mockResolvedValue({
+        id: 1,
+        userId: "user-123",
+        filePath: "s3://test-bucket/outputs/result.pdf",
+      });
+      prisma.mergeJob.delete.mockResolvedValue({});
+      s3.send.mockRejectedValue(new Error("S3 error"));
+
+      const response = await request(app)
+        .delete("/api/jobs/1")
+        .expect(204);
+
+      expect(prisma.mergeJob.delete).toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /api/batch-jobs", () => {
+    test("should return list of batch jobs for authenticated user", async () => {
+      const mockBatchJobs = [
+        { id: "batch-1", status: "completed", totalRows: 5 },
+      ];
+      listBatchJobs.mockResolvedValue(mockBatchJobs);
+
+      const response = await request(app)
+        .get("/api/batch-jobs")
+        .expect(200);
+
+      expect(response.body).toEqual(mockBatchJobs);
+      expect(listBatchJobs).toHaveBeenCalledWith("user-123", expect.any(Object));
+    });
+
+    test("should return 500 on error", async () => {
+      listBatchJobs.mockRejectedValue(new Error("DB error"));
+
+      const response = await request(app)
+        .get("/api/batch-jobs")
+        .expect(500);
+
+      expect(response.body.error.message).toBe("Failed to list batch jobs");
+    });
+  });
+
+  describe("GET /api/batch-jobs/:id", () => {
+    test("should return batch job status when user owns it", async () => {
+      const mockStatus = { id: "batch-1", status: "completed", totalRows: 5, processedRows: 5 };
+      getBatchJobStatus.mockResolvedValue(mockStatus);
+
+      const response = await request(app)
+        .get("/api/batch-jobs/batch-1")
+        .expect(200);
+
+      expect(response.body).toEqual(mockStatus);
+      expect(getBatchJobStatus).toHaveBeenCalledWith("batch-1", "user-123");
+    });
+
+    test("should return 404 when batch job not found", async () => {
+      getBatchJobStatus.mockResolvedValue(null);
+
+      const response = await request(app)
+        .get("/api/batch-jobs/batch-1")
+        .expect(404);
+
+      expect(response.body.error.message).toBe("Batch job not found");
+    });
+
+    test("should return 500 on error", async () => {
+      getBatchJobStatus.mockRejectedValue(new Error("DB error"));
+
+      const response = await request(app)
+        .get("/api/batch-jobs/batch-1")
+        .expect(500);
+
+      expect(response.body.error.message).toBe("Failed to get batch job status");
     });
   });
 });

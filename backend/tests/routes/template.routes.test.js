@@ -2,6 +2,10 @@
 jest.mock("../../src/config/prisma");
 jest.mock("../../src/middleware/supabase-auth");
 jest.mock("../../src/storage/supabase-storage");
+jest.mock("../../src/services/template.service", () => ({
+  extractFieldsFromTemplate: jest.fn(),
+  storeTemplateAndFields: jest.fn(),
+}));
 
 const request = require("supertest");
 const express = require("express");
@@ -9,6 +13,7 @@ const templateRouter = require("../../src/routes/template.routes");
 const authenticateSupabase = require("../../src/middleware/supabase-auth");
 const prisma = require("../../src/config/prisma");
 const { s3, HeadObjectCommand } = require("../../src/storage/supabase-storage");
+const { extractFieldsFromTemplate } = require("../../src/services/template.service");
 
 // Mock user for authenticated requests
 const mockUser = {
@@ -469,6 +474,133 @@ describe("Template Routes", () => {
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe("Failed to revert template");
+    });
+  });
+
+  describe("PUT /api/templates/:id", () => {
+    const templateId = "cltemplat0000000000000001";
+    const existingTemplate = {
+      id: templateId,
+      displayName: "Old Name.docx",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      storageKey: "old-key.docx",
+      isActive: true,
+      uploadedById: "cluser0000000000000000001",
+      defaultOutputType: null,
+      outputNameFormat: null,
+      pageSize: null,
+      orientation: null,
+      fields: [{ id: "field-1", name: "name" }],
+    };
+
+    test("should update template metadata when user owns it", async () => {
+      prisma.template.findUnique.mockResolvedValue(existingTemplate);
+      prisma.template.update.mockResolvedValue({
+        ...existingTemplate,
+        displayName: "New Name.docx",
+      });
+
+      const response = await request(app)
+        .put(`/api/templates/${templateId}`)
+        .field("displayName", "New Name.docx")
+        .expect(200);
+
+      expect(response.body.displayName).toBe("New Name.docx");
+      expect(prisma.template.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: templateId },
+        })
+      );
+    });
+
+    test("should return 404 when template not found", async () => {
+      prisma.template.findUnique.mockResolvedValue(null);
+
+      const response = await request(app)
+        .put(`/api/templates/${templateId}`)
+        .field("displayName", "New Name.docx")
+        .expect(404);
+
+      expect(response.body.error.message).toBe("Template not found");
+    });
+
+    test("should return 404 when template belongs to different user", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        ...existingTemplate,
+        uploadedById: "other-user",
+      });
+
+      const response = await request(app)
+        .put(`/api/templates/${templateId}`)
+        .field("displayName", "New Name.docx")
+        .expect(404);
+
+      expect(response.body.error.message).toBe("Template not found");
+    });
+
+    test("should update defaultOutputType", async () => {
+      prisma.template.findUnique.mockResolvedValue(existingTemplate);
+      prisma.template.update.mockResolvedValue({
+        ...existingTemplate,
+        defaultOutputType: "pdf",
+      });
+
+      const response = await request(app)
+        .put(`/api/templates/${templateId}`)
+        .field("defaultOutputType", "pdf")
+        .expect(200);
+
+      expect(prisma.template.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            defaultOutputType: "pdf",
+          }),
+        })
+      );
+    });
+
+    test("should replace template file and create version snapshot", async () => {
+      prisma.template.findUnique.mockResolvedValue(existingTemplate);
+      prisma.templateVersion.findFirst.mockResolvedValue({ versionNumber: 1 });
+      prisma.templateVersion.create.mockResolvedValue({});
+      s3.send.mockResolvedValue({});
+      extractFieldsFromTemplate.mockResolvedValue(["name", "email"]);
+      prisma.field.deleteMany.mockResolvedValue({});
+      prisma.field.createMany.mockResolvedValue({});
+      prisma.template.update.mockResolvedValue({
+        ...existingTemplate,
+        storageKey: "new-key.html",
+        mimeType: "text/html",
+        fields: [{ id: "f1", name: "name" }, { id: "f2", name: "email" }],
+      });
+
+      const htmlContent = "<html><body>{{name}} {{email}}</body></html>";
+
+      const response = await request(app)
+        .put(`/api/templates/${templateId}`)
+        .attach("template", Buffer.from(htmlContent), "template.html")
+        .expect(200);
+
+      // Should have created a version snapshot
+      expect(prisma.templateVersion.create).toHaveBeenCalled();
+      // Should have uploaded to S3
+      expect(s3.send).toHaveBeenCalled();
+      // Should have extracted fields from new file
+      expect(extractFieldsFromTemplate).toHaveBeenCalled();
+      // Should have replaced fields
+      expect(prisma.field.deleteMany).toHaveBeenCalledWith({ where: { templateId } });
+      expect(prisma.field.createMany).toHaveBeenCalled();
+    });
+
+    test("should return 500 on database error", async () => {
+      prisma.template.findUnique.mockRejectedValue(new Error("Database error"));
+
+      const response = await request(app)
+        .put(`/api/templates/${templateId}`)
+        .field("displayName", "New Name.docx")
+        .expect(500);
+
+      expect(response.body.error.message).toBe("Failed to update template");
     });
   });
 });
