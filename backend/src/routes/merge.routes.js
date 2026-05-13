@@ -89,6 +89,22 @@ function pipeS3Stream(stream, req, res, label) {
   stream.pipe(res);
 }
 
+/**
+ * Validate that outputType is allowed for the template's MIME type.
+ * Returns an error response if invalid, or null if valid.
+ */
+function validateOutputType(res, template, outputType) {
+  const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
+  if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
+    return errorResponse.badRequest(
+      res,
+      `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
+      ErrorCodes.VALIDATION_ERROR
+    );
+  }
+  return null;
+}
+
 const router = express.Router();
 
 // PostgreSQL-backed rate limiters for multi-instance support
@@ -461,14 +477,8 @@ router.post(
       }
 
       // Validate outputType is supported for this template's format
-      const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
-      if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
-        return errorResponse.badRequest(
-          res,
-          `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
-          ErrorCodes.VALIDATION_ERROR
-        );
-      }
+      const outputErr = validateOutputType(res, template, outputType);
+      if (outputErr) return outputErr;
 
       // ensures a CSV file was uploaded
       if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
@@ -632,14 +642,8 @@ router.post(
       }
 
       // Validate outputType is supported for this template's format
-      const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
-      if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
-        return errorResponse.badRequest(
-          res,
-          `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
-          ErrorCodes.VALIDATION_ERROR
-        );
-      }
+      const outputErr = validateOutputType(res, template, outputType);
+      if (outputErr) return outputErr;
 
       // logs the data
       req.log.info(
@@ -774,14 +778,8 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, validate
   }
 
   // Validate outputType is supported for this template's format
-  const allowedOutputs = ALLOWED_OUTPUTS[template.mimeType];
-  if (!allowedOutputs || !allowedOutputs.includes(outputType)) {
-    return errorResponse.badRequest(
-      res,
-      `Invalid outputType '${outputType}' for ${template.mimeType}. Allowed: ${allowedOutputs?.join(', ') || 'none'}`,
-      ErrorCodes.VALIDATION_ERROR
-    );
-  }
+  const outputErr = validateOutputType(res, template, outputType);
+  if (outputErr) return outputErr;
 
   req.log.info({ templateId, outputType }, "Webhook merge started");
   // gets the request Content-Type (case-insensitive), normalize, and strip parameters (e.g. charset=utf-8)

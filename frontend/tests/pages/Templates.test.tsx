@@ -200,7 +200,10 @@ describe('Templates Page', () => {
     ];
 
     vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
-    vi.mocked(apiClient.mergeApi.mergeCsv).mockResolvedValue({ jobs: [] });
+    vi.mocked(apiClient.mergeApi.mergeCsv).mockResolvedValue({
+      count: 1,
+      jobs: [{ id: 1, status: 'completed' }] as any,
+    });
 
     renderTemplates();
 
@@ -219,7 +222,7 @@ describe('Templates Page', () => {
 
     await waitFor(() => {
       expect(apiClient.mergeApi.mergeCsv).toHaveBeenCalledWith('template1', csvFile, 'pdf');
-      expect(mockNavigate).toHaveBeenCalledWith('/outputs');
+      expect(mockNavigate).toHaveBeenCalledWith('/outputs', { state: undefined });
     });
   });
 
@@ -651,7 +654,6 @@ describe('Templates Page', () => {
 
       vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
       vi.mocked(apiClient.templatesApi.activate).mockResolvedValue(undefined);
-      mockConfirm.mockReturnValue(true);
 
       renderTemplates();
 
@@ -663,10 +665,16 @@ describe('Templates Page', () => {
       const activateButton = activateIcon.closest('button') as HTMLButtonElement;
       fireEvent.click(activateButton);
 
+      // Confirmation dialog should appear
       await waitFor(() => {
-        expect(mockConfirm).toHaveBeenCalledWith(
-          expect.stringContaining('reactivate')
-        );
+        expect(screen.getByText(/reactivate/i)).toBeInTheDocument();
+      });
+
+      // Click the Activate button in the dialog
+      const confirmButton = screen.getByRole('button', { name: 'Activate' });
+      fireEvent.click(confirmButton);
+
+      await waitFor(() => {
         expect(apiClient.templatesApi.activate).toHaveBeenCalledWith('1');
       });
     });
