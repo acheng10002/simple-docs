@@ -439,6 +439,129 @@ describe('EditTemplate Page', () => {
     });
   });
 
+  describe('Form Validation', () => {
+    it('should show error when output name format is not selected', async () => {
+      const templateNoFormat = {
+        ...mockTemplate,
+        outputNameFormat: null,
+      };
+      mockGetById.mockResolvedValue(templateNoFormat);
+
+      renderEditTemplate();
+
+      await screen.findByLabelText(/template name/i);
+
+      const form = document.querySelector('form') as HTMLFormElement;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(screen.getByText(/select a field to append/i)).toBeInTheDocument();
+      });
+
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should show error when output file type is not selected', async () => {
+      const templateNoOutput = {
+        ...mockTemplate,
+        defaultOutputType: null,
+      };
+      mockGetById.mockResolvedValue(templateNoOutput);
+
+      renderEditTemplate();
+
+      await screen.findByLabelText(/template name/i);
+
+      const form = document.querySelector('form') as HTMLFormElement;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(screen.getByText(/select an output file type/i)).toBeInTheDocument();
+      });
+
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should show error when page size is not selected', async () => {
+      const templateNoPageSize = {
+        ...mockTemplate,
+        pageSize: null,
+      };
+      mockGetById.mockResolvedValue(templateNoPageSize);
+
+      renderEditTemplate();
+
+      await screen.findByLabelText(/template name/i);
+
+      const form = document.querySelector('form') as HTMLFormElement;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(screen.getByText(/select a page size/i)).toBeInTheDocument();
+      });
+
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Deactivate Error Handling', () => {
+    it('should show error message when deactivate fails', async () => {
+      mockGetById.mockResolvedValue(mockTemplate);
+      mockDelete.mockRejectedValue({
+        response: { data: { error: 'Cannot deactivate template with pending jobs' } },
+      });
+
+      renderEditTemplate();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /deactivate template/i })).toBeInTheDocument();
+      });
+
+      // Click deactivate button
+      const deactivateButton = screen.getByRole('button', { name: /deactivate template/i });
+      fireEvent.click(deactivateButton);
+
+      // Confirm in dialog
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      const deactivateButtons = screen.getAllByRole('button', { name: /deactivate/i });
+      const confirmButton = deactivateButtons[deactivateButtons.length - 1];
+      fireEvent.click(confirmButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Cannot deactivate template with pending jobs')).toBeInTheDocument();
+      });
+
+      // Should NOT have navigated
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Form Field Changes', () => {
+    it('should update display name field', async () => {
+      mockGetById.mockResolvedValue(mockTemplate);
+      mockUpdate.mockResolvedValue(mockTemplate);
+
+      renderEditTemplate();
+
+      const nameInput = await screen.findByLabelText(/template name/i) as HTMLInputElement;
+      fireEvent.change(nameInput, { target: { value: 'Updated Name.docx' } });
+
+      expect(nameInput.value).toBe('Updated Name.docx');
+
+      const form = document.querySelector('form') as HTMLFormElement;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(mockUpdate).toHaveBeenCalledWith('template-1', expect.objectContaining({
+          displayName: 'Updated Name.docx',
+        }));
+      });
+    });
+  });
+
   describe('Version History Integration', () => {
     it('should display version history section', async () => {
       mockGetById.mockResolvedValue(mockTemplate);
