@@ -475,6 +475,34 @@ describe("Template Routes", () => {
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe("Failed to revert template");
     });
+
+    test("should return 404 when version belongs to different template", async () => {
+      prisma.templateVersion.findUnique.mockResolvedValue({
+        id: "clversion0000000000000001",
+        templateId: "cltemplat9999999999999999",
+        storageKey: "key",
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      const response = await request(app).post("/api/templates/cltemplat0000000000000001/versions/clversion0000000000000001/revert");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error.message).toContain("not found for this template");
+    });
+
+    test("should return 404 when version has expired", async () => {
+      prisma.templateVersion.findUnique.mockResolvedValue({
+        id: "clversion0000000000000001",
+        templateId: "cltemplat0000000000000001",
+        storageKey: "key",
+        expiresAt: new Date(Date.now() - 86400000),
+      });
+
+      const response = await request(app).post("/api/templates/cltemplat0000000000000001/versions/clversion0000000000000001/revert");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error.message).toContain("expired");
+    });
   });
 
   describe("PUT /api/templates/:id", () => {

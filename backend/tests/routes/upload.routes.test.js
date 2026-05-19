@@ -455,5 +455,33 @@ describe("Upload Routes", () => {
       expect(lintHtmlBuffer).toHaveBeenCalled();
     });
 
+    test("should auto-increment display name when duplicate exists", async () => {
+      FileType.fromBuffer.mockResolvedValue({
+        ext: "html",
+        mime: "text/html",
+      });
+
+      // First call finds a duplicate, second call finds no duplicate
+      prisma.template.findFirst
+        .mockResolvedValueOnce({ id: "existing", displayName: "sample.html" })
+        .mockResolvedValueOnce(null);
+
+      const htmlBuffer = Buffer.from("<html><body>{{name}}</body></html>");
+
+      const response = await request(app)
+        .post("/api/upload")
+        .attach("template", htmlBuffer, "sample.html")
+        .expect(200);
+
+      expect(response.body.templateId).toBe("template-123");
+      expect(storeTemplateAndFields).toHaveBeenCalledWith(
+        expect.any(String),       // storageKey
+        "sample (1).html",        // displayName (auto-incremented)
+        "text/html",              // mimeType
+        expect.any(Array),        // fields
+        "user-123"                // userId
+      );
+    });
+
   });
 });
