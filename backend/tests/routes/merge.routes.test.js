@@ -526,6 +526,114 @@ describe("Merge Routes", () => {
 
       expect(response.body.error.message).toBe("Invalid template ID format");
     });
+
+    test("should handle CSV with BOM character", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: VALID_TEMPLATE_ID,
+        uploadedById: "user-123",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: true, job: { jobId: 301 } },
+      ]);
+
+      const csvContent = "\uFEFFname,email\nJohn,john@example.com";
+
+      const response = await request(app)
+        .post(`/api/templates/${VALID_TEMPLATE_ID}/merge-csv`)
+        .field("outputType", "pdf")
+        .attach("csv", Buffer.from(csvContent), "data.csv")
+        .expect(200);
+
+      expect(response.body.count).toBe(1);
+    });
+
+    test("should return 400 for empty CSV", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: VALID_TEMPLATE_ID,
+        uploadedById: "user-123",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      const response = await request(app)
+        .post(`/api/templates/${VALID_TEMPLATE_ID}/merge-csv`)
+        .field("outputType", "pdf")
+        .attach("csv", Buffer.from("   "), "data.csv")
+        .expect(400);
+
+      expect(response.body.error.message).toContain("empty");
+    });
+
+    test("should return 413 for CSV with more than 1000 rows", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: VALID_TEMPLATE_ID,
+        uploadedById: "user-123",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      const header = "name\n";
+      const rows = Array(1001).fill("John\n").join("");
+      const csvContent = header + rows;
+
+      const response = await request(app)
+        .post(`/api/templates/${VALID_TEMPLATE_ID}/merge-csv`)
+        .field("outputType", "pdf")
+        .attach("csv", Buffer.from(csvContent), "data.csv")
+        .expect(413);
+
+      expect(response.body.error.message).toContain("Too many rows");
+    });
+
+    test("should queue batch job for large CSV when not inline", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: VALID_TEMPLATE_ID,
+        uploadedById: "user-123",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      shouldProcessInline.mockReturnValue(false);
+      const { createBatchJob } = require("../../src/services/batchJob.service");
+      createBatchJob.mockResolvedValue({ id: "batch-123" });
+
+      const csvContent = "name\nJohn\nJane";
+
+      const response = await request(app)
+        .post(`/api/templates/${VALID_TEMPLATE_ID}/merge-csv`)
+        .field("outputType", "pdf")
+        .attach("csv", Buffer.from(csvContent), "data.csv")
+        .expect(202);
+
+      expect(response.body.batchJobId).toBe("batch-123");
+      expect(response.body.totalRows).toBe(2);
+      expect(response.body.statusUrl).toBe("/api/batch-jobs/batch-123");
+    });
+
+    test("should return partial success with errors for failed rows", async () => {
+      prisma.template.findUnique.mockResolvedValue({
+        id: VALID_TEMPLATE_ID,
+        uploadedById: "user-123",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: true, job: { jobId: 401 } },
+        { rowIndex: 1, success: false, error: "Missing field: name" },
+      ]);
+
+      const csvContent = "name,email\nJohn,john@example.com\n,missing@example.com";
+
+      const response = await request(app)
+        .post(`/api/templates/${VALID_TEMPLATE_ID}/merge-csv`)
+        .field("outputType", "pdf")
+        .attach("csv", Buffer.from(csvContent), "data.csv")
+        .expect(200);
+
+      expect(response.body.count).toBe(2);
+      expect(response.body.jobs).toHaveLength(1);
+      expect(response.body.errors).toHaveLength(1);
+      expect(response.body.errors[0].rowIndex).toBe(1);
+    });
   });
 
   describe("POST /api/webhooks/templates/:templateId", () => {
