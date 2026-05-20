@@ -358,6 +358,47 @@ describe('API Client', () => {
       await expect(templatesApi.delete('1')).resolves.toBeUndefined();
     });
 
+    it('should update a template with metadata', async () => {
+      const mockResponse = {
+        id: '1',
+        displayName: 'Updated.docx',
+        defaultOutputType: 'pdf',
+        outputNameFormat: 'name',
+        pageSize: 'letter',
+        orientation: 'portrait',
+      };
+
+      mock.onPut('/api/templates/1').reply((config) => {
+        expect(config.headers?.['Content-Type']).toBe('multipart/form-data');
+        return [200, mockResponse];
+      });
+
+      const result = await templatesApi.update('1', {
+        displayName: 'Updated.docx',
+        defaultOutputType: 'pdf',
+        outputNameFormat: 'name',
+        pageSize: 'letter',
+        orientation: 'portrait',
+      });
+
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should update a template with replacement file', async () => {
+      const mockFile = new File(['content'], 'new.docx', {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+
+      mock.onPut('/api/templates/1').reply(200, { id: '1', displayName: 'new.docx' });
+
+      const result = await templatesApi.update('1', {
+        displayName: 'new.docx',
+        file: mockFile,
+      });
+
+      expect(result.id).toBe('1');
+    });
+
     it('should activate a template', async () => {
       mock.onPost('/api/templates/1/activate').reply(200);
 
@@ -422,6 +463,36 @@ describe('API Client', () => {
       const result = await mergeApi.mergeSingle('template1', mockRequest);
 
       expect(result).toEqual(mockResponse);
+    });
+
+    it('should test merge and extract filename from content-disposition', async () => {
+      const mockBlob = new Blob(['pdf content'], { type: 'application/pdf' });
+
+      mock.onPost('/api/templates/template1/merge').reply(200, mockBlob, {
+        'content-disposition': 'attachment; filename="test-output.pdf"',
+      });
+
+      const result = await mergeApi.testMerge('template1', {
+        data: { name: 'John' },
+        outputType: 'pdf' as const,
+      });
+
+      expect(result.blob).toBeInstanceOf(Blob);
+      expect(result.filename).toBe('test-output.pdf');
+    });
+
+    it('should test merge with default filename when no content-disposition', async () => {
+      const mockBlob = new Blob(['pdf content'], { type: 'application/pdf' });
+
+      mock.onPost('/api/templates/template1/merge').reply(200, mockBlob);
+
+      const result = await mergeApi.testMerge('template1', {
+        data: { name: 'John' },
+        outputType: 'pdf' as const,
+      });
+
+      expect(result.blob).toBeInstanceOf(Blob);
+      expect(result.filename).toBe('test-output');
     });
 
     it('should merge CSV', async () => {
