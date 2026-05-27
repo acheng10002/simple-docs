@@ -29,7 +29,7 @@ function verifyCleanupSecret(req, res, next) {
 
 /**
  * POST /api/admin/cleanup
- * Runs cleanup for expired template versions and old merge outputs
+ * Runs cleanup for old merge outputs
  * Protected by CLEANUP_SECRET
  */
 router.post("/admin/cleanup", verifyCleanupSecret, async (req, res) => {
@@ -42,10 +42,6 @@ router.post("/admin/cleanup", verifyCleanupSecret, async (req, res) => {
       success: true,
       message: "Cleanup completed",
       result: {
-        templateVersions: {
-          deleted: result.versions.deleted,
-          errors: result.versions.errors,
-        },
         mergeOutputs: {
           deleted: result.outputs.deleted,
           errors: result.outputs.errors,

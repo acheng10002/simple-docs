@@ -1,5 +1,4 @@
-/* CLEANUP SERVICE - Scheduled cleanup for expired data
-   Handles deletion of old merge outputs (template versions never expire) */
+/* CLEANUP SERVICE - Scheduled cleanup for old merge outputs */
 
 const prisma = require("../config/prisma");
 const { s3, DeleteObjectCommand, withPrefix } = require("../storage/supabase-storage");
@@ -7,69 +6,6 @@ const logger = require("../config/logger");
 
 // Default retention period for merge outputs (90 days)
 const OUTPUT_RETENTION_DAYS = parseInt(process.env.OUTPUT_RETENTION_DAYS, 10) || 90;
-
-/**
- * Delete expired template versions (DB records + S3 files)
- * @returns {Promise<{deleted: number, errors: number}>}
- */
-async function cleanupExpiredVersions() {
-  const now = new Date();
-  let deleted = 0;
-  let errors = 0;
-
-  try {
-    // Find all expired versions
-    const expiredVersions = await prisma.templateVersion.findMany({
-      where: {
-        expiresAt: { lt: now },
-      },
-      select: {
-        id: true,
-        storageKey: true,
-        templateId: true,
-        versionNumber: true,
-      },
-    });
-
-    logger.info({ count: expiredVersions.length }, "Found expired template versions");
-
-    for (const version of expiredVersions) {
-      try {
-        // Delete S3 file first
-        if (version.storageKey) {
-          const s3Key = withPrefix(version.storageKey);
-          await s3.send(
-            new DeleteObjectCommand({
-              Bucket: process.env.S3_BUCKET,
-              Key: s3Key,
-            })
-          );
-          logger.debug({ s3Key, versionId: version.id }, "Deleted S3 file for expired version");
-        }
-
-        // Delete DB record
-        await prisma.templateVersion.delete({
-          where: { id: version.id },
-        });
-
-        deleted++;
-        logger.debug({ versionId: version.id }, "Deleted expired template version");
-      } catch (err) {
-        errors++;
-        logger.error(
-          { err, versionId: version.id, storageKey: version.storageKey },
-          "Failed to delete expired template version"
-        );
-      }
-    }
-
-    logger.info({ deleted, errors }, "Completed expired versions cleanup");
-    return { deleted, errors };
-  } catch (err) {
-    logger.error({ err }, "Failed to query expired versions");
-    throw err;
-  }
-}
 
 /**
  * Delete old merge outputs (DB records + S3 files)
@@ -145,23 +81,19 @@ async function cleanupOldOutputs(retentionDays = OUTPUT_RETENTION_DAYS) {
 
 /**
  * Run all cleanup tasks
- * Template versions no longer expire, so only merge outputs are cleaned up
- * @returns {Promise<{versions: {deleted: number, errors: number}, outputs: {deleted: number, errors: number}}>}
+ * @returns {Promise<{outputs: {deleted: number, errors: number}}>}
  */
 async function runCleanup() {
   logger.info("Starting scheduled cleanup");
 
-  // Template versions never expire (set to 100 years in the future)
-  // Only clean up old merge outputs
   const outputs = await cleanupOldOutputs();
 
   logger.info({ outputs }, "Cleanup completed");
 
-  return { versions: { deleted: 0, errors: 0 }, outputs };
+  return { outputs };
 }
 
 module.exports = {
-  cleanupExpiredVersions,
   cleanupOldOutputs,
   runCleanup,
   OUTPUT_RETENTION_DAYS,
