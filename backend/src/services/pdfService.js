@@ -81,48 +81,6 @@ async function fillPdfForm(pdfBuffer, data) {
 }
 
 /**
- * Convert PDF to JPG (first page only)
- * @param {Buffer} pdfBuffer - PDF file buffer
- * @param {Object} puppeteerInstance - Puppeteer browser instance
- * @returns {Promise<Buffer>} - JPG image buffer
- */
-async function convertPdfToJpg(pdfBuffer, puppeteerInstance) {
-  try {
-    const page = await puppeteerInstance.newPage();
-
-    // SSRF protection: Block all network requests (defense-in-depth)
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-      // Only allow data: URLs (inline content), block everything else
-      if (request.url().startsWith('data:')) {
-        request.continue();
-      } else {
-        request.abort('blockedbyclient');
-      }
-    });
-
-    // Convert PDF buffer to base64
-    const pdfBase64 = pdfBuffer.toString('base64');
-    const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
-
-    await page.goto(dataUrl, { waitUntil: 'domcontentloaded' });
-
-    // Take screenshot of the first page
-    const screenshot = await page.screenshot({
-      type: 'jpeg',
-      quality: 90,
-      fullPage: true,
-    });
-
-    await page.close();
-    return screenshot;
-  } catch (error) {
-    console.error('Error converting PDF to JPG:', error);
-    throw new Error(`Failed to convert PDF to JPG: ${error.message}`);
-  }
-}
-
-/**
  * Extract text-based {{placeholder}} names from PDF content
  * @param {Buffer} pdfBuffer - PDF file buffer
  * @returns {Promise<string[]>} - Array of placeholder names
@@ -347,5 +305,4 @@ module.exports = {
   isFormBasedPdf,
   fillPdfForm,
   fillPdfTextPlaceholders,
-  convertPdfToJpg,
 };
