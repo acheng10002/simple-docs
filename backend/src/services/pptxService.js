@@ -1,4 +1,3 @@
-const PptxGenJS = require('pptxgenjs');
 const AdmZip = require('adm-zip');
 const { convertPptxToPdf } = require('../utils/libreoffice');
 const { escapeRegExp } = require('../utils/regex');
