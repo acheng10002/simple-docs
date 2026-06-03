@@ -1,4 +1,4 @@
-const { hashForLog, maskEmail } = require("../../src/utils/pii");
+const { hashForLog } = require("../../src/utils/pii");
 
 describe("PII utility functions", () => {
   describe("hashForLog", () => {
@@ -64,51 +64,4 @@ describe("PII utility functions", () => {
     });
   });
 
-  describe("maskEmail", () => {
-    test("should return [invalid] for null input", () => {
-      expect(maskEmail(null)).toBe("[invalid]");
-    });
-
-    test("should return [invalid] for undefined input", () => {
-      expect(maskEmail(undefined)).toBe("[invalid]");
-    });
-
-    test("should return [invalid] for empty string", () => {
-      expect(maskEmail("")).toBe("[invalid]");
-    });
-
-    test("should return [invalid] for string without @ symbol", () => {
-      expect(maskEmail("notanemail")).toBe("[invalid]");
-    });
-
-    test("should mask local part and preserve domain", () => {
-      expect(maskEmail("user@example.com")).toBe("***@example.com");
-    });
-
-    test("should handle complex local parts", () => {
-      expect(maskEmail("john.doe+tag@example.com")).toBe("***@example.com");
-    });
-
-    test("should handle subdomains", () => {
-      expect(maskEmail("user@mail.example.com")).toBe("***@mail.example.com");
-    });
-
-    test("should handle short local parts", () => {
-      expect(maskEmail("a@example.com")).toBe("***@example.com");
-    });
-
-    test("should handle emails with multiple @ symbols (uses first split)", () => {
-      // Edge case: split creates array, destructuring takes second element only
-      const result = maskEmail("user@weird@example.com");
-      expect(result).toBe("***@weird");
-    });
-
-    test("should handle email with only @ symbol", () => {
-      expect(maskEmail("@")).toBe("***@");
-    });
-
-    test("should handle international domains", () => {
-      expect(maskEmail("user@例え.jp")).toBe("***@例え.jp");
-    });
-  });
 });

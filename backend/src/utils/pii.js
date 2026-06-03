@@ -14,16 +14,4 @@ function hashForLog(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 12);
 }
 
-/**
- * Mask email for logging (shows domain only)
- * user@example.com → ***@example.com
- * @param {string} email - Email to mask
- * @returns {string} - Masked email
- */
-function maskEmail(email) {
-  if (!email || !email.includes('@')) return '[invalid]';
-  const [, domain] = email.split('@');
-  return `***@${domain}`;
-}
-
-module.exports = { hashForLog, maskEmail };
+module.exports = { hashForLog };
