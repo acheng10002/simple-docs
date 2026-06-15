@@ -95,7 +95,7 @@ async function detectFileType(file) {
         ? FALLBACK_MIME_MAP[".html"]
         : null);
 
-  if (!finalMime || !ALLOWED_MIME_TYPES.includes(finalMime)) {
+  if (!finalMime || !fileType || !ALLOWED_MIME_TYPES.includes(finalMime)) {
     return { error: true };
   }
 
@@ -123,15 +123,27 @@ function lintTemplate(fileType, buffer) {
   return null;
 }
 
+// Wraps multer middleware to catch fileFilter rejections and return 415 instead of 500
+function handleMulterError(multerMiddleware) {
+  return (req, res, next) => {
+    multerMiddleware(req, res, (err) => {
+      if (err) {
+        return errorResponse.unsupportedMediaType(res, err.message);
+      }
+      next();
+    });
+  };
+}
+
 /* upload route
-- multer.memoryStorage() middleware, async/await (which runs before the route handler accepts a file)... 
+- multer.memoryStorage() middleware, async/await (which runs before the route handler accepts a file)...
 -- gets plugged into this route
 -- finds the field name named template (must match -F "template=@file", DOCX or HTML, or in curl)
 -- and, for client-server alignment, populates:
 --- req.file.buffer - raw file bytes, Buffer
 --- req.file.originalname - e.g. sample.html
 --- req.file.mimetype - e.g. text/html */
-router.post("/upload", authenticateSupabase, uploadTemplate.single("template"), async (req, res) => {
+router.post("/upload", authenticateSupabase, handleMulterError(uploadTemplate.single("template")), async (req, res) => {
   try {
     /* gets the uploaded file from the request, and responds with 400 Bad Request if no file found 
     
@@ -628,7 +640,7 @@ router.post(
 router.put(
   "/templates/:id",
   authenticateSupabase,
-  uploadTemplate.single("template"),
+  handleMulterError(uploadTemplate.single("template")),
   validate({ params: templateIdParams }),
   async (req, res) => {
     try {

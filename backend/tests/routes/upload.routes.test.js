@@ -183,9 +183,6 @@ describe("Upload Routes", () => {
     });
 
     test("should reject unsupported file type", async () => {
-      // Use PNG which is genuinely unsupported
-      // Note: Route currently returns 500 instead of 415 due to a bug where
-      // the code accesses fileType.ext after the MIME check for linting
       FileType.fromBuffer.mockResolvedValue({
         ext: "png",
         mime: "image/png",
@@ -195,25 +192,23 @@ describe("Upload Routes", () => {
 
       const response = await request(app)
         .post("/api/upload")
-        .attach("template", pngBuffer, "image.png");
+        .attach("template", pngBuffer, "image.png")
+        .expect(415);
 
-      // Route should return 415 but currently returns 500 due to bug
-      expect([415, 500]).toContain(response.status);
+      expect(response.body.error.message).toBe("Unsupported template type");
     });
 
     test("should reject file with unknown extension and no magic bytes", async () => {
-      // File with unknown extension and no detectable magic bytes
-      // Note: Route currently returns 500 instead of 415 due to a bug
       FileType.fromBuffer.mockResolvedValue(null);
 
       const buffer = Buffer.from("some random content");
 
       const response = await request(app)
         .post("/api/upload")
-        .attach("template", buffer, "unknown.xyz");
+        .attach("template", buffer, "unknown.xyz")
+        .expect(415);
 
-      // Route should return 415 but currently returns 500 due to bug
-      expect([415, 500]).toContain(response.status);
+      expect(response.body.error.message).toBe("Unsupported template type");
     });
 
     test("should use extension fallback for DOCX with ZIP signature", async () => {
@@ -257,15 +252,12 @@ describe("Upload Routes", () => {
       // DOCX file without proper ZIP magic bytes
       const badDocxBuffer = Buffer.from("not a real docx");
 
-      // Note: Route currently returns 500 because the fallback MIME logic allows
-      // the file to pass validation, but fileType remains null and causes an error
-      // when trying to access fileType.ext for linting. This should ideally return 415.
       const response = await request(app)
         .post("/api/upload")
         .attach("template", badDocxBuffer, "sample.docx")
-        .expect(500);
+        .expect(415);
 
-      expect(response.body.error.message).toBe("Internal server error");
+      expect(response.body.error.message).toBe("Unsupported or undetectable file type");
     });
 
     test("should return 422 when HTML has lint errors", async () => {
