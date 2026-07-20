@@ -114,5 +114,6 @@ module.exports = {
   createRateLimiter,
   createUserRateLimiter,
   createWeightedLimiter,
+  parseConnectionUrl,
   dbConfig,
 };
