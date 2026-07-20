@@ -107,4 +107,26 @@ describe("parseConnectionUrl", () => {
 
     expect(config.ssl).toBe(false);
   });
+
+  it("warns when sslmode=disable is used in production", () => {
+    process.env.NODE_ENV = "production";
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation();
+
+    parseConnectionUrl("postgresql://user:pass@host:5432/db?sslmode=disable");
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "WARNING: sslmode=disable in production — database connection is unencrypted"
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("does not warn when sslmode=disable is used in development", () => {
+    process.env.NODE_ENV = "development";
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation();
+
+    parseConnectionUrl("postgresql://user:pass@host:5432/db?sslmode=disable");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
 });

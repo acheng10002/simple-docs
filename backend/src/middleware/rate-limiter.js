@@ -14,7 +14,9 @@ function parseConnectionUrl(url) {
   const sslmode = parsed.searchParams.get("sslmode");
   let ssl = false;
   if (sslmode === "disable") {
-    // Explicit opt-out — no SSL
+    if (process.env.NODE_ENV === "production") {
+      console.warn("WARNING: sslmode=disable in production — database connection is unencrypted");
+    }
     ssl = false;
   } else if (process.env.NODE_ENV !== "production" && !sslmode) {
     // Dev/test with no explicit sslmode — default to no SSL for zero-friction local setup
