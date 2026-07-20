@@ -11,9 +11,15 @@ const { errorResponse } = require("../utils/errorResponse");
 function parseConnectionUrl(url) {
   const parsed = new URL(url);
 
-  const sslDisabled = parsed.searchParams.get("sslmode") === "disable";
+  const sslmode = parsed.searchParams.get("sslmode");
   let ssl = false;
-  if (!sslDisabled) {
+  if (sslmode === "disable") {
+    // Explicit opt-out — no SSL
+    ssl = false;
+  } else if (process.env.NODE_ENV !== "production" && !sslmode) {
+    // Dev/test with no explicit sslmode — default to no SSL for zero-friction local setup
+    ssl = false;
+  } else {
     ssl = { rejectUnauthorized: true };
     if (process.env.DATABASE_CA_CERT) {
       ssl.ca = process.env.DATABASE_CA_CERT;

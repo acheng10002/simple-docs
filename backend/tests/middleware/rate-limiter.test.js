@@ -44,7 +44,29 @@ describe("parseConnectionUrl", () => {
     expect(config.ssl).toBe(false);
   });
 
-  it("enables SSL with rejectUnauthorized: true when sslmode is not disable", () => {
+  it("defaults to no SSL in non-production when sslmode is not set", () => {
+    process.env.NODE_ENV = "development";
+
+    const config = parseConnectionUrl(
+      "postgresql://user:pass@host:5432/db"
+    );
+
+    expect(config.ssl).toBe(false);
+  });
+
+  it("defaults to no SSL in test when sslmode is not set", () => {
+    process.env.NODE_ENV = "test";
+
+    const config = parseConnectionUrl(
+      "postgresql://user:pass@host:5432/db"
+    );
+
+    expect(config.ssl).toBe(false);
+  });
+
+  it("enables SSL with rejectUnauthorized: true in production when sslmode is not set", () => {
+    process.env.NODE_ENV = "production";
+
     const config = parseConnectionUrl(
       "postgresql://user:pass@host:5432/db"
     );
@@ -52,7 +74,18 @@ describe("parseConnectionUrl", () => {
     expect(config.ssl).toEqual({ rejectUnauthorized: true });
   });
 
+  it("enables SSL when sslmode is explicitly set to a non-disable value", () => {
+    process.env.NODE_ENV = "development";
+
+    const config = parseConnectionUrl(
+      "postgresql://user:pass@host:5432/db?sslmode=require"
+    );
+
+    expect(config.ssl).toEqual({ rejectUnauthorized: true });
+  });
+
   it("includes CA cert when DATABASE_CA_CERT is set", () => {
+    process.env.NODE_ENV = "production";
     process.env.DATABASE_CA_CERT = "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----";
 
     const config = parseConnectionUrl(
