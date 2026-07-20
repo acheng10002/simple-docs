@@ -10,13 +10,23 @@ const { errorResponse } = require("../utils/errorResponse");
  */
 function parseConnectionUrl(url) {
   const parsed = new URL(url);
+
+  const sslDisabled = parsed.searchParams.get("sslmode") === "disable";
+  let ssl = false;
+  if (!sslDisabled) {
+    ssl = { rejectUnauthorized: true };
+    if (process.env.DATABASE_CA_CERT) {
+      ssl.ca = process.env.DATABASE_CA_CERT;
+    }
+  }
+
   return {
     user: parsed.username,
     password: parsed.password,
     host: parsed.hostname,
     port: parseInt(parsed.port, 10) || 5432,
     database: parsed.pathname.slice(1), // Remove leading slash
-    ssl: parsed.searchParams.get("sslmode") !== "disable" ? { rejectUnauthorized: false } : false,
+    ssl,
   };
 }
 
