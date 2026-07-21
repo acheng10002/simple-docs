@@ -217,6 +217,41 @@ app.use("/api", adminRouter);
 
 app.use(errorLogger.expressErrorHandler);
 
+const { execFile } = require("child_process");
+const { resolveSoffice } = require("./utils/libreoffice");
+
+function checkConversionDependencies() {
+  // Check LibreOffice (DOCX/XLSX/PPTX → PDF/JPG)
+  resolveSoffice()
+    .then((soffice) => {
+      execFile(soffice, ["--version"], (err) => {
+        if (err) {
+          logger.warn("LibreOffice not found — DOCX/XLSX/PPTX conversions will fail. Install: https://www.libreoffice.org/download/");
+        } else {
+          logger.info("LibreOffice found");
+        }
+      });
+    })
+    .catch(() => {
+      logger.warn("LibreOffice not found — DOCX/XLSX/PPTX conversions will fail. Install: https://www.libreoffice.org/download/");
+    });
+
+  // Check Puppeteer's Chromium (HTML → PDF/JPG)
+  try {
+    const puppeteer = require("puppeteer");
+    const chromePath = puppeteer.executablePath();
+    execFile(chromePath, ["--version"], (err) => {
+      if (err) {
+        logger.warn("Chromium not found — HTML conversions will fail. Run: npm install puppeteer (to download bundled Chromium)");
+      } else {
+        logger.info("Chromium found");
+      }
+    });
+  } catch {
+    logger.warn("Chromium not found — HTML conversions will fail. Run: npm install puppeteer (to download bundled Chromium)");
+  }
+}
+
 const PORT = process.env.PORT || 3000;
 
 // STARTS HTTP SERVER
@@ -229,6 +264,9 @@ const server = app.listen(PORT, async () => {
   } catch (err) {
     logger.error({ err }, "Failed to resume pending batch jobs");
   }
+
+  // Check for document conversion dependencies
+  checkConversionDependencies();
 });
 
 async function gracefulShutdown(signal) {
