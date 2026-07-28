@@ -12,7 +12,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
-import { templatesApi } from '../api/client';
+import { templatesApi, getErrorMessage } from '../api/client';
 
 interface UploadTemplateDialogProps {
   open: boolean;
@@ -48,7 +48,7 @@ export default function UploadTemplateDialog({ open, onClose, existingTemplateNa
       if (status === 429) {
         setError('Too many uploads. Please try again later.');
       } else {
-        setError(err.response?.data?.error || 'Upload failed');
+        setError(getErrorMessage(err, 'Upload failed'));
       }
       setUploading(false);
     }

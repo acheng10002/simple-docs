@@ -14,7 +14,7 @@ import {
   IconButton,
 } from '@mui/material';
 import { ArrowBack as BackIcon } from '@mui/icons-material';
-import { templatesApi, mergeApi } from '../api/client';
+import { templatesApi, mergeApi, getErrorMessage } from '../api/client';
 import type { Template, OutputType } from '../types/api';
 
 // Map of template MIME types to allowed output types
@@ -58,7 +58,7 @@ export default function Merge() {
 
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load template');
+      setError(getErrorMessage(err, 'Failed to load template'));
     } finally {
       setLoading(false);
     }
@@ -104,7 +104,7 @@ export default function Merge() {
         navigate('/outputs');
       }, 1500);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Merge failed. Please try again.');
+      setError(getErrorMessage(err, 'Merge failed. Please try again.'));
     } finally {
       setMerging(false);
     }
@@ -147,7 +147,7 @@ export default function Merge() {
 
       setSuccess('Test document downloaded! This document includes a "TEST - NOT FOR PRODUCTION" footer.');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Test merge failed. Please try again.');
+      setError(getErrorMessage(err, 'Test merge failed. Please try again.'));
     } finally {
       setTesting(false);
     }

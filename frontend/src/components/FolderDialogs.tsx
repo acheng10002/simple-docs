@@ -13,7 +13,7 @@ import {
   MenuItem,
 } from '@mui/material';
 import type { Folder } from '../types/api';
-import { foldersApi } from '../api/client';
+import { foldersApi, getErrorMessage } from '../api/client';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -46,7 +46,7 @@ export function CreateFolderDialog({
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create folder');
+      setError(getErrorMessage(err, 'Failed to create folder'));
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export function RenameFolderDialog({
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to rename folder');
+      setError(getErrorMessage(err, 'Failed to rename folder'));
     } finally {
       setLoading(false);
     }
@@ -193,7 +193,7 @@ export function MoveFolderDialog({
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to move folder');
+      setError(getErrorMessage(err, 'Failed to move folder'));
     } finally {
       setLoading(false);
     }
@@ -297,7 +297,7 @@ export function MoveTemplateDialog({
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to move template');
+      setError(getErrorMessage(err, 'Failed to move template'));
     } finally {
       setLoading(false);
     }

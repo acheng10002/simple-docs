@@ -32,7 +32,7 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
-import { jobsApi, mergeApi } from '../api/client';
+import { jobsApi, mergeApi, getErrorMessage } from '../api/client';
 import type { MergeJob } from '../types/api';
 
 export default function Outputs() {
@@ -58,7 +58,7 @@ export default function Outputs() {
       setJobs(data);
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load merge outputs');
+      setError(getErrorMessage(err, 'Failed to load merge outputs'));
     } finally {
       setLoading(false);
     }
@@ -77,7 +77,7 @@ export default function Outputs() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Download failed');
+      setError(getErrorMessage(err, 'Download failed'));
     }
   };
 
@@ -90,7 +90,7 @@ export default function Outputs() {
       setDeleteDialog(null);
       await loadJobs();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Delete failed');
+      setError(getErrorMessage(err, 'Delete failed'));
     } finally {
       setDeleting(false);
     }

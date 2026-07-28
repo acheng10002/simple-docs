@@ -17,6 +17,10 @@ vi.mock('../../src/config/supabase', () => ({
 
 // Mock API client - create mocks inside factory to avoid hoisting issues
 vi.mock('../../src/api/client', () => ({
+  getErrorMessage: (err: any, fallback: string) => {
+    const d = err?.response?.data?.error;
+    return typeof d === 'string' ? d : d?.message || fallback;
+  },
   default: {
     post: vi.fn(),
     get: vi.fn(),

@@ -14,7 +14,7 @@ import {
   DialogContentText,
   DialogActions,
 } from '@mui/material';
-import { templatesApi } from '../api/client';
+import { templatesApi, getErrorMessage } from '../api/client';
 import type { TemplateVersion } from '../types/api';
 
 interface VersionHistoryProps {
@@ -45,7 +45,7 @@ export default function VersionHistory({
       setVersions(data);
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load version history');
+      setError(getErrorMessage(err, 'Failed to load version history'));
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export default function VersionHistory({
       onRevertSuccess();
       setConfirmRevert(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to revert to version');
+      setError(getErrorMessage(err, 'Failed to revert to version'));
     } finally {
       setReverting(false);
     }

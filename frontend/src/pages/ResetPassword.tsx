@@ -10,7 +10,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { supabase } from '../config/supabase';
-import { authApi } from '../api/client';
+import { authApi, getErrorMessage } from '../api/client';
 import PasswordCriteria, { validatePassword } from '../components/PasswordCriteria';
 import PasswordField from '../components/PasswordField';
 
@@ -87,7 +87,7 @@ export default function ResetPassword() {
       // Redirect to login after 3 seconds
       setTimeout(() => navigate('/login'), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to reset password. Please try again.');
+      setError(getErrorMessage(err, 'Failed to reset password. Please try again.'));
     } finally {
       setLoading(false);
     }

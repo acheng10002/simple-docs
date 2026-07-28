@@ -32,7 +32,7 @@ import {
   Edit as EditIcon,
 } from '@mui/icons-material';
 import type { Folder, Template } from '../types/api';
-import { foldersApi } from '../api/client';
+import { foldersApi, getErrorMessage } from '../api/client';
 
 interface FolderTreeProps {
   folders: Folder[];
@@ -104,7 +104,7 @@ export default function FolderTree({
       setDeleteDialog(null);
       onRefresh();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to delete folder');
+      setError(getErrorMessage(err, 'Failed to delete folder'));
     } finally {
       setDeleting(false);
     }

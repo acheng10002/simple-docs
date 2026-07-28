@@ -6,6 +6,10 @@ import type { Folder, Template } from '../../src/types/api';
 
 // Mock the API client
 vi.mock('../../src/api/client', () => ({
+  getErrorMessage: (err: any, fallback: string) => {
+    const d = err?.response?.data?.error;
+    return typeof d === 'string' ? d : d?.message || fallback;
+  },
   foldersApi: {
     delete: vi.fn(),
   },

@@ -22,7 +22,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import { ArrowBack as BackIcon, CloudUpload as UploadIcon } from '@mui/icons-material';
-import { templatesApi } from '../api/client';
+import { templatesApi, getErrorMessage } from '../api/client';
 import type { Template, OutputType, PageSize, Orientation } from '../types/api';
 import VersionHistory from '../components/VersionHistory';
 
@@ -74,7 +74,7 @@ export default function EditTemplate() {
 
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load template');
+      setError(getErrorMessage(err, 'Failed to load template'));
     } finally {
       setLoading(false);
     }
@@ -153,7 +153,7 @@ export default function EditTemplate() {
         navigate('/templates');
       }, 1500);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update template');
+      setError(getErrorMessage(err, 'Failed to update template'));
     } finally {
       setSaving(false);
     }
@@ -174,7 +174,7 @@ export default function EditTemplate() {
       await templatesApi.delete(templateId);
       navigate('/templates');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to deactivate template');
+      setError(getErrorMessage(err, 'Failed to deactivate template'));
       setDeactivateDialogOpen(false);
     }
   };

@@ -5,6 +5,10 @@ import ResetPassword from '../../src/pages/ResetPassword';
 
 // Mock the API client
 vi.mock('../../src/api/client', () => ({
+  getErrorMessage: (err: any, fallback: string) => {
+    const d = err?.response?.data?.error;
+    return typeof d === 'string' ? d : d?.message || fallback;
+  },
   authApi: {
     resetPassword: vi.fn(),
   },

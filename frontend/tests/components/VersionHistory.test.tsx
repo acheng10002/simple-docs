@@ -6,6 +6,10 @@ import type { TemplateVersion } from '../../src/types/api';
 
 // Mock the API client
 vi.mock('../../src/api/client', () => ({
+  getErrorMessage: (err: any, fallback: string) => {
+    const d = err?.response?.data?.error;
+    return typeof d === 'string' ? d : d?.message || fallback;
+  },
   templatesApi: {
     getVersions: vi.fn(),
     revertToVersion: vi.fn(),

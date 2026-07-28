@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../context/SupabaseAuthContext';
 import PasswordField from '../components/PasswordField';
-import { authApi } from '../api/client';
+import { authApi, getErrorMessage } from '../api/client';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ export default function Login() {
       await login({ email, password });
       navigate('/templates');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed. Please try again.');
+      setError(getErrorMessage(err, 'Login failed. Please try again.'));
     } finally {
       setLoading(false);
     }

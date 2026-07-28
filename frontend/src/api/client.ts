@@ -330,4 +330,16 @@ export const batchJobsApi = {
   },
 };
 
+/**
+ * Extract a human-readable error message from an Axios error.
+ * The backend returns { error: { code, message } }, so err.response.data.error
+ * is an object — not a string. This helper safely extracts the message.
+ */
+export function getErrorMessage(err: any, fallback: string): string {
+  const errorData = err?.response?.data?.error;
+  if (typeof errorData === 'string') return errorData;
+  if (errorData?.message) return errorData.message;
+  return fallback;
+}
+
 export default apiClient;

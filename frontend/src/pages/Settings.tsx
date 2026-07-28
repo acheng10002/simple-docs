@@ -19,7 +19,7 @@ import {
   Folder as OutputsIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
-import { authApi } from '../api/client';
+import { authApi, getErrorMessage } from '../api/client';
 import PasswordCriteria, { validatePassword } from '../components/PasswordCriteria';
 import PasswordField from '../components/PasswordField';
 
@@ -74,7 +74,7 @@ export default function Settings() {
         navigate('/login');
       }, 2000);
     } catch (err: any) {
-      setEmailError(err.response?.data?.error || 'Failed to update email');
+      setEmailError(getErrorMessage(err, 'Failed to update email'));
     } finally {
       setEmailLoading(false);
     }
@@ -113,7 +113,7 @@ export default function Settings() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      setPasswordError(err.response?.data?.error || 'Failed to update password');
+      setPasswordError(getErrorMessage(err, 'Failed to update password'));
     } finally {
       setPasswordLoading(false);
     }

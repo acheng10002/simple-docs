@@ -39,7 +39,7 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/SupabaseAuthContext';
-import { templatesApi, mergeApi, foldersApi, batchJobsApi } from '../api/client';
+import { templatesApi, mergeApi, foldersApi, batchJobsApi, getErrorMessage } from '../api/client';
 import type { Template, Folder } from '../types/api';
 import UploadTemplateDialog from '../components/UploadTemplateDialog';
 import FolderTree from '../components/FolderTree';
@@ -194,7 +194,7 @@ export default function Templates() {
       setTemplates(data);
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load templates');
+      setError(getErrorMessage(err, 'Failed to load templates'));
     } finally {
       setLoading(false);
     }
@@ -211,7 +211,7 @@ export default function Templates() {
       await templatesApi.activate(activateDialog.id);
       await loadTemplates();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Activate failed');
+      setError(getErrorMessage(err, 'Activate failed'));
     } finally {
       setActivateDialog(null);
     }
@@ -229,7 +229,7 @@ export default function Templates() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Download failed');
+      setError(getErrorMessage(err, 'Download failed'));
     }
   };
 
@@ -297,8 +297,7 @@ export default function Templates() {
       if (status === 429) {
         setError('Too many CSV merges. Please try again later.');
       } else {
-        const errorMsg = err.response?.data?.error;
-        setError(typeof errorMsg === 'string' ? errorMsg : 'CSV merge failed');
+        setError(getErrorMessage(err, 'CSV merge failed'));
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
@@ -363,7 +362,7 @@ export default function Templates() {
       await loadTemplates();
       await loadFolders();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to move template');
+      setError(getErrorMessage(err, 'Failed to move template'));
     } finally {
       setDraggedTemplateId(null);
     }
@@ -388,7 +387,7 @@ export default function Templates() {
       await loadTemplates();
       await loadFolders();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to remove template from folder');
+      setError(getErrorMessage(err, 'Failed to remove template from folder'));
     } finally {
       setDraggedTemplateId(null);
       setDragOverTable(false);

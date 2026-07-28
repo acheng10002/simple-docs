@@ -14,6 +14,10 @@ const { mockPost, mockForgotPassword, mockGetSession, mockSetSession } = vi.hois
 
 // Mock the API client
 vi.mock('../../src/api/client', () => ({
+  getErrorMessage: (err: any, fallback: string) => {
+    const d = err?.response?.data?.error;
+    return typeof d === 'string' ? d : d?.message || fallback;
+  },
   default: {
     post: mockPost,
   },
