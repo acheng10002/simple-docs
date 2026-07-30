@@ -197,7 +197,7 @@ describe('MoveFolderDialog', () => {
   it('should render move dialog', () => {
     render(<MoveFolderDialog {...defaultProps} />);
 
-    expect(screen.getByText('Move Folder')).toBeInTheDocument();
+    expect(screen.getByText('Move "Archive"')).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
@@ -250,15 +250,15 @@ describe('MoveTemplateDialog', () => {
   it('should render move template dialog', () => {
     render(<MoveTemplateDialog {...defaultProps} />);
 
-    expect(screen.getByText('Move Template to Folder')).toBeInTheDocument();
-    expect(screen.getByLabelText(/folder/i)).toBeInTheDocument();
+    expect(screen.getByText('Move Template')).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
   it('should render move template dialog with select', () => {
     render(<MoveTemplateDialog {...defaultProps} />);
 
     // Just verify the dialog is rendered
-    expect(screen.getByText('Move Template to Folder')).toBeInTheDocument();
+    expect(screen.getByText('Move Template')).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 

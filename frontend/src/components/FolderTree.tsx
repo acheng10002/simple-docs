@@ -14,7 +14,6 @@ import {
   DialogContentText,
   DialogActions,
   Button,
-  Divider,
   Tooltip,
 } from '@mui/material';
 import {
@@ -80,6 +79,7 @@ export default function FolderTree({
   onEdit,
 }: FolderTreeProps) {
   const [menuAnchor, setMenuAnchor] = useState<{ element: HTMLElement; folder: Folder } | null>(null);
+  const [templateMenuAnchor, setTemplateMenuAnchor] = useState<{ element: HTMLElement; template: Template } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<Folder | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -148,6 +148,7 @@ export default function FolderTree({
     const isExpanded = expandedFolderIds.has(folder.id);
     const isSelected = selectedFolderId === folder.id;
     const hasChildren = childFolders.length > 0;
+    const hasContents = hasChildren || folderTemplates.length > 0;
     const isDragOver = dragOverFolderId === folder.id;
 
     return (
@@ -160,13 +161,15 @@ export default function FolderTree({
             px: 1,
             pl: level * 2 + 1,
             cursor: 'pointer',
-            bgcolor: isDragOver ? 'action.selected' : (isSelected ? 'action.selected' : 'transparent'),
-            '&:hover': {
-              bgcolor: isDragOver ? 'action.selected' : (isSelected ? 'action.selected' : 'action.hover'),
+            bgcolor: isDragOver ? 'grey.50' : 'transparent',
+            '&:hover:not(:has(.menu-button:hover))': {
+              bgcolor: isDragOver ? 'grey.50' : 'action.hover',
             },
+            borderRadius: 0.75,
+            mx: 0.5,
             transition: 'background-color 0.2s',
           }}
-          onClick={() => onSelectFolder(isSelected ? null : folder.id)}
+          onClick={() => onToggleFolder(folder.id)}
           onDragOver={(e) => handleDragOver(e, folder.id)}
           onDragEnter={(e) => handleDragEnter(e, folder.id)}
           onDragLeave={handleDragLeave}
@@ -179,7 +182,7 @@ export default function FolderTree({
               e.stopPropagation();
               onToggleFolder(folder.id);
             }}
-            sx={{ mr: 0.5, visibility: hasChildren ? 'visible' : 'hidden' }}
+            sx={{ mr: 0.5, visibility: hasContents ? 'visible' : 'hidden' }}
           >
             {isExpanded ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
           </IconButton>
@@ -202,17 +205,16 @@ export default function FolderTree({
           </Typography>
 
           {/* Menu Button */}
-          <IconButton size="small" onClick={(e) => handleMenuOpen(e, folder)}>
-            <MoreIcon fontSize="small" />
+          <IconButton className="menu-button" size="small" onClick={(e) => handleMenuOpen(e, folder)} sx={{ '&:hover': { bgcolor: 'action.hover', borderRadius: 0.5 } }}>
+            <MoreIcon sx={{ fontSize: 19 }} />
           </IconButton>
         </Box>
 
         {/* Templates in this folder */}
-        {isSelected && folderTemplates.length > 0 && (
-          <Box sx={{ pl: level * 2 + 8.5, py: 0.5 }}>
+        {(isSelected || isExpanded) && folderTemplates.length > 0 && (
+          <Box sx={{ pl: level * 2 + 8.5, pr: 0.5, py: 0.5 }}>
             {folderTemplates.map((template, index) => (
               <React.Fragment key={template.id}>
-                {index > 0 && <Divider />}
                 <Box
                   draggable
                   onDragStart={() => onTemplateDragStart(template.id)}
@@ -222,82 +224,40 @@ export default function FolderTree({
                     alignItems: 'center',
                     py: 0.75,
                     px: 1,
-                    bgcolor: 'white',
+                    bgcolor: 'transparent',
                     cursor: 'grab',
                     '&:active': { cursor: 'grabbing' },
-                    '&:hover': { bgcolor: 'action.hover' },
+                    '&:hover:not(:has(.menu-button:hover))': { bgcolor: 'action.hover' },
+                    borderRadius: 0.75,
                     opacity: draggedTemplateId === template.id ? (dragOverFolderId ? 0.3 : 0.5) : 1,
                   }}
                 >
-                  <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                  <Typography variant="body2" sx={{ flexGrow: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {template.displayName}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        onClick={() => onEdit(template.id)}
-                        sx={{ color: '#B03060' }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Download">
-                      <IconButton
-                        size="small"
-                        onClick={() => onDownload(template.id, template.displayName)}
-                        color="success"
-                      >
-                        <DownloadIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Merge">
-                      <IconButton
-                        size="small"
-                        onClick={() => onMerge(template.id)}
-                        color="primary"
-                      >
-                        <MergeIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Bulk Merge CSV">
-                      <IconButton
-                        size="small"
-                        component="label"
-                        sx={{ color: '#9c27b0' }}
-                      >
-                        <CsvIcon />
-                        <input
-                          type="file"
-                          hidden
-                          accept=".csv"
-                          onChange={(e) => onCsvMerge(template.id, e)}
-                        />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTemplateMenuAnchor({ element: e.currentTarget, template });
+                    }}
+                    className="menu-button"
+                    sx={{ '&:hover': { bgcolor: 'action.hover', borderRadius: 0.5 } }}
+                  >
+                    <MoreIcon sx={{ fontSize: 19 }} />
+                  </IconButton>
                 </Box>
               </React.Fragment>
             ))}
           </Box>
         )}
 
-        {/* Divider between templates and nested folders */}
-        {isSelected && folderTemplates.length > 0 && hasChildren && (
-          <Divider sx={{ my: 1 }} />
-        )}
-
         {/* Children */}
         {hasChildren && (
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-            {/* Divider between parent folder and first child (only if templates aren't showing) */}
-            {!(isSelected && folderTemplates.length > 0) && (
-              <Divider sx={{ ml: level * 2 + 1 }} />
-            )}
-            {childFolders.map((child, index) => (
+            {childFolders.map((child) => (
               <React.Fragment key={child.id}>
                 {renderFolder(child, level + 1)}
-                {index < childFolders.length - 1 && <Divider sx={{ ml: (level + 1) * 2 + 1 }} />}
               </React.Fragment>
             ))}
           </Collapse>
@@ -309,11 +269,10 @@ export default function FolderTree({
   const rootFolders = foldersByParent['root'] || [];
 
   return (
-    <Box>
-      {rootFolders.map((folder, index) => (
+    <Box sx={{ pt: 0.5 }}>
+      {rootFolders.map((folder) => (
         <React.Fragment key={folder.id}>
           {renderFolder(folder, 0)}
-          {index < rootFolders.length - 1 && <Divider />}
         </React.Fragment>
       ))}
 
@@ -323,6 +282,9 @@ export default function FolderTree({
           anchorEl={menuAnchor.element}
           open={Boolean(menuAnchor)}
           onClose={handleMenuClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { maxWidth: 200, py: 0, '& .MuiList-root': { py: '3.5px' }, '& .MuiMenuItem-root': { borderRadius: 0.75, mx: 0.5 } } } }}
         >
           {menuAnchor.folder.depth < 4 && (
             <MenuItem
@@ -334,7 +296,7 @@ export default function FolderTree({
               <ListItemIcon>
                 <CreateFolderIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>New Subfolder</ListItemText>
+              <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>New Subfolder</ListItemText>
             </MenuItem>
           )}
           <MenuItem
@@ -346,7 +308,7 @@ export default function FolderTree({
             <ListItemIcon>
               <RenameIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Rename</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Rename</ListItemText>
           </MenuItem>
           <MenuItem
             onClick={() => {
@@ -357,18 +319,93 @@ export default function FolderTree({
             <ListItemIcon>
               <MoveIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Move</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Move</ListItemText>
           </MenuItem>
           <MenuItem
             onClick={() => {
               handleMenuClose();
               setDeleteDialog(menuAnchor.folder);
             }}
+            sx={{
+              color: '#b71c1c',
+              '& .MuiListItemIcon-root': { color: '#b71c1c' },
+              '&:hover': {
+                bgcolor: '#d32f2f',
+                color: '#fff',
+                '& .MuiListItemIcon-root': { color: '#fff' },
+              },
+            }}
           >
             <ListItemIcon>
               <DeleteIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Delete</ListItemText>
+          </MenuItem>
+        </Menu>
+      )}
+
+      {/* Template Context Menu */}
+      {templateMenuAnchor && (
+        <Menu
+          anchorEl={templateMenuAnchor.element}
+          open={Boolean(templateMenuAnchor)}
+          onClose={() => setTemplateMenuAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { maxWidth: 200, py: 0, '& .MuiList-root': { py: '3.5px' }, '& .MuiMenuItem-root': { borderRadius: 0.75, mx: 0.5 } } } }}
+        >
+          <MenuItem
+            onClick={() => {
+              onEdit(templateMenuAnchor.template.id);
+              setTemplateMenuAnchor(null);
+            }}
+          >
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Edit</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              onDownload(templateMenuAnchor.template.id, templateMenuAnchor.template.displayName);
+              setTemplateMenuAnchor(null);
+            }}
+          >
+            <ListItemIcon>
+              <DownloadIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Download</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              onMerge(templateMenuAnchor.template.id);
+              setTemplateMenuAnchor(null);
+            }}
+          >
+            <ListItemIcon>
+              <MergeIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Merge</ListItemText>
+          </MenuItem>
+          <MenuItem
+            component="label"
+            onClick={() => {}}
+          >
+            <ListItemIcon>
+              <CsvIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Bulk Merge CSV</ListItemText>
+            <input
+              type="file"
+              hidden
+              accept=".csv"
+              onChange={(e) => {
+                if (templateMenuAnchor) {
+                  onCsvMerge(templateMenuAnchor.template.id, e);
+                }
+                setTemplateMenuAnchor(null);
+              }}
+            />
           </MenuItem>
         </Menu>
       )}

@@ -11,25 +11,78 @@ import EditTemplate from './pages/EditTemplate';
 import Outputs from './pages/Outputs';
 import Settings from './pages/Settings';
 
-// Create Material-UI theme with Google-esque design
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#1976d2', // Google Blue
+      main: '#2e72c2',
+      light: '#a2b4d7',
+      dark: '#1a4a8a',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#cbb2b9',
+    },
+    background: {
+      default: '#f5f7fa',
+      paper: '#ffffff',
+    },
+    text: {
+      primary: '#1a2138',
+      secondary: '#566d92',
     },
   },
   typography: {
-    fontFamily: 'Roboto, Arial, sans-serif',
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h4: {
+      fontWeight: 650,
+      letterSpacing: '-0.02em',
+    },
+    h5: {
+      fontWeight: 550,
+      letterSpacing: '-0.01em',
+    },
+    body2: {
+      lineHeight: 1.6,
+    },
+  },
+  shape: {
+    borderRadius: 12,
   },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none', // Google-style buttons don't use uppercase
-          borderRadius: 4,
+          textTransform: 'none',
+          fontWeight: 600,
+          padding: '10px 24px',
+        },
+        contained: {
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: '0 2px 8px rgba(57, 83, 132, 0.25)',
+          },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 10,
+          },
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 16,
         },
       },
     },

@@ -54,7 +54,7 @@ export function CreateFolderDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Create New Folder</DialogTitle>
+      <DialogTitle>{parentId ? 'Create New Subfolder' : 'Create New Folder'}</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
@@ -226,7 +226,7 @@ export function MoveFolderDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Move Folder</DialogTitle>
+      <DialogTitle>Move "{folder?.name}"</DialogTitle>
       <DialogContent>
         <FormControl fullWidth sx={{ mt: 1 }}>
           <InputLabel>Parent Folder</InputLabel>
@@ -265,6 +265,7 @@ export function MoveFolderDialog({
 interface MoveTemplateDialogProps {
   open: boolean;
   templateId: string | null;
+  templateName?: string;
   currentFolderId: string | null;
   folders: Folder[];
   onClose: () => void;
@@ -274,6 +275,7 @@ interface MoveTemplateDialogProps {
 export function MoveTemplateDialog({
   open,
   templateId,
+  templateName,
   currentFolderId,
   folders,
   onClose,
@@ -310,7 +312,7 @@ export function MoveTemplateDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Move Template to Folder</DialogTitle>
+      <DialogTitle>{templateName ? `Move "${templateName}"` : 'Move Template'}</DialogTitle>
       <DialogContent>
         <FormControl fullWidth sx={{ mt: 1 }}>
           <InputLabel>Folder</InputLabel>

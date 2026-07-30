@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Container,
   Box,
   Paper,
   Typography,
@@ -27,6 +26,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Collapse,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -49,7 +49,12 @@ import {
   MoveFolderDialog,
   MoveTemplateDialog,
 } from '../components/FolderDialogs';
-import { CreateNewFolder as CreateFolderIcon } from '@mui/icons-material';
+import {
+  CreateNewFolder as CreateFolderIcon,
+  VerticalSplit as VerticalSplitIcon,
+  ExpandMore as ExpandMoreIcon,
+  ChevronRight as ChevronRightIcon,
+} from '@mui/icons-material';
 
 interface TemplateRowProps {
   template: Template;
@@ -99,7 +104,7 @@ function TemplateRow({
               <IconButton
                 size="small"
                 onClick={() => onEdit(template.id)}
-                sx={{ color: '#B03060' }}
+                sx={{ color: '#B03060', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
               >
                 <EditIcon />
               </IconButton>
@@ -108,7 +113,7 @@ function TemplateRow({
               <IconButton
                 size="small"
                 onClick={() => onDownload(template.id, template.displayName)}
-                color="success"
+                sx={{ color: '#2e7d32', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
               >
                 <DownloadIcon />
               </IconButton>
@@ -117,7 +122,7 @@ function TemplateRow({
               <IconButton
                 size="small"
                 onClick={() => onMerge(template.id)}
-                color="primary"
+                sx={{ color: 'primary.main', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
               >
                 <MergeIcon />
               </IconButton>
@@ -126,7 +131,7 @@ function TemplateRow({
               <IconButton
                 size="small"
                 component="label"
-                sx={{ color: '#9c27b0' }}
+                sx={{ color: '#9c27b0', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
               >
                 <CsvIcon />
                 <input
@@ -181,6 +186,9 @@ export default function Templates() {
   const [dragOverTable, setDragOverTable] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [activateDialog, setActivateDialog] = useState<{ id: string; name: string } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeExpanded, setActiveExpanded] = useState(true);
+  const [inactiveExpanded, setInactiveExpanded] = useState(true);
 
   useEffect(() => {
     loadTemplates();
@@ -413,19 +421,63 @@ export default function Templates() {
     return matchesSearch;
   });
 
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const isResizing = React.useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = Math.max(200, Math.min(500, startWidth + (e.clientX - startX)));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   return (
-    <Box sx={{ flexGrow: 1 }} onClick={() => { setSelectedFolderId(null); setSelectedTemplateId(null); }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }} onClick={() => { setSelectedFolderId(null); setSelectedTemplateId(null); }}>
       {/* App Bar */}
-      <AppBar position="static">
+      <AppBar position="static" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            MergeMyDocs - Templates
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexGrow: 1 }}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: '8px',
+                bgcolor: 'rgba(255,255,255,0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Typography sx={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>M</Typography>
+            </Box>
+            <Typography variant="h6" component="div">
+              MergeMyDocs
+            </Typography>
+          </Box>
           <Button
             color="inherit"
             startIcon={<OutputsIcon />}
             onClick={() => navigate('/outputs')}
-            sx={{ mr: 2 }}
+            sx={{ mr: 1 }}
           >
             Outputs
           </Button>
@@ -433,11 +485,11 @@ export default function Templates() {
             color="inherit"
             startIcon={<SettingsIcon />}
             onClick={() => navigate('/settings')}
-            sx={{ mr: 2 }}
+            sx={{ mr: 1 }}
           >
             Settings
           </Button>
-          <Typography variant="body2" sx={{ mr: 2 }}>
+          <Typography variant="body2" sx={{ mr: 2, color: 'rgba(255,255,255,0.8)' }}>
             {user?.email}
           </Typography>
           <Button color="inherit" onClick={handleLogout}>
@@ -446,57 +498,147 @@ export default function Templates() {
         </Toolbar>
       </AppBar>
 
-      {/* Main Content */}
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Paper sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 3 }}>
-            <Typography variant="h5" component="h1" sx={{ flexGrow: 1 }}>
+      <Box sx={{ display: 'flex', flexGrow: 1 }}>
+        {/* Sidebar */}
+        {!sidebarOpen && (
+          <Box sx={{ borderRight: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', pt: 2, px: 0.5 }}>
+            <Tooltip title="Open Sidebar" placement="right">
+              <IconButton size="small" onClick={() => setSidebarOpen(true)} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}>
+                <VerticalSplitIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
+        {sidebarOpen && <Box sx={{ display: 'flex', position: 'relative' }}>
+          <Paper
+          square
+          elevation={0}
+          onClick={(e) => e.stopPropagation()}
+          sx={{
+            width: sidebarWidth,
+            minWidth: sidebarWidth,
+            borderRight: '1px solid',
+            borderColor: 'divider',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'auto',
+            bgcolor: 'background.default',
+          }}
+        >
+          <Box sx={{ pt: 3, pb: 2, px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+              Folders
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <Tooltip title="Add Folder">
+                <IconButton size="small" onClick={handleCreateFolder} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}>
+                  <CreateFolderIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Close Sidebar">
+                <IconButton size="small" onClick={() => setSidebarOpen(false)} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}>
+                  <VerticalSplitIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+          <Divider />
+          {folders.length > 0 ? (
+            <FolderTree
+              folders={folders}
+              templates={templates}
+              selectedFolderId={selectedFolderId}
+              expandedFolderIds={expandedFolderIds}
+              onSelectFolder={(id) => { setSelectedFolderId(id); setSelectedTemplateId(null); }}
+              onToggleFolder={handleToggleFolder}
+              onCreateFolder={(parentId) => {
+                setCreateFolderParentId(parentId);
+                setCreateFolderDialogOpen(true);
+              }}
+              onRenameFolder={setRenameFolderDialog}
+              onMoveFolder={setMoveFolderDialog}
+              onRefresh={handleFolderCreated}
+              onDrop={handleDropOnFolder}
+              onDragOverChange={setDragOverFolderId}
+              dragOverFolderId={dragOverFolderId}
+              draggedTemplateId={draggedTemplateId}
+              onTemplateDragStart={handleDragStart}
+              onTemplateDragEnd={handleDragEnd}
+              onMerge={handleMerge}
+              onDownload={handleDownload}
+              onCsvMerge={handleCsvMerge}
+              onEdit={(templateId) => navigate(`/templates/${templateId}/edit`)}
+            />
+          ) : (
+            <Box sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                No folders yet
+              </Typography>
+            </Box>
+          )}
+          <Box sx={{ flexGrow: 1 }} />
+          <Divider />
+          <Box sx={{ p: 1.5 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', px: 1 }}>
+              Drag templates into folders to organize
+            </Typography>
+          </Box>
+        </Paper>
+          <Box
+            onMouseDown={handleMouseDown}
+            sx={{
+              width: 4,
+              cursor: 'col-resize',
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              '&:hover': { bgcolor: 'primary.light' },
+              transition: 'background-color 0.2s',
+            }}
+          />
+        </Box>}
+
+        {/* Main Content */}
+        <Box sx={{ flexGrow: 1, p: 3, overflow: 'auto' }}>
+          {/* Toolbar */}
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 2 }}>
+            <Typography variant="h5" component="h1" sx={{ mr: 'auto' }}>
               My Templates
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mr: 9 }}>
-              <TextField
-                variant="outlined"
-                placeholder="Search templates by name or field..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                size="small"
-                sx={{ width: 400, mb: 0.5 }}
-              />
-              <RadioGroup
-                row
-                value={searchScope}
-                onChange={(e) => setSearchScope(e.target.value as 'all' | 'active' | 'inactive')}
-                sx={{
-                  '& .MuiFormControlLabel-label': { fontSize: '0.875rem' },
-                  '& .MuiFormControlLabel-root': { ml: -1, mr: 5 },
-                  '& .MuiRadio-root': { pr: 0.5 }
-                }}
-              >
-                <FormControlLabel value="all" control={<Radio size="small" />} label="All" />
-                <FormControlLabel value="active" control={<Radio size="small" />} label="Active" />
-                <FormControlLabel value="inactive" control={<Radio size="small" />} label="Inactive" />
-              </RadioGroup>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 3 }}>
-              <Button
-                variant="outlined"
-                startIcon={<CreateFolderIcon />}
-                onClick={handleCreateFolder}
-              >
-                + Folder
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<UploadIcon />}
-                onClick={() => setUploadDialogOpen(true)}
-              >
-                Upload Template
-              </Button>
-            </Box>
+            <TextField
+              variant="outlined"
+              placeholder="Search by name or field..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              size="small"
+              sx={{ width: 280 }}
+            />
+            <RadioGroup
+              row
+              value={searchScope}
+              onChange={(e) => setSearchScope(e.target.value as 'all' | 'active' | 'inactive')}
+              sx={{
+                '& .MuiFormControlLabel-label': { fontSize: '0.8rem' },
+                '& .MuiFormControlLabel-root': { ml: -0.5, mr: 1.5 },
+                '& .MuiRadio-root': { pr: 0.5 }
+              }}
+            >
+              <FormControlLabel value="all" control={<Radio size="small" />} label="All" />
+              <FormControlLabel value="active" control={<Radio size="small" />} label="Active" />
+              <FormControlLabel value="inactive" control={<Radio size="small" />} label="Inactive" />
+            </RadioGroup>
+            <Button
+              variant="contained"
+              startIcon={<UploadIcon />}
+              onClick={() => setUploadDialogOpen(true)}
+            >
+              Upload
+            </Button>
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>
               {error}
             </Alert>
           )}
@@ -506,309 +648,201 @@ export default function Templates() {
               <CircularProgress />
             </Box>
           ) : templates.length === 0 ? (
-            <Box sx={{ textAlign: 'center', p: 4 }}>
+            <Paper sx={{ textAlign: 'center', p: 6 }}>
               <Typography variant="body1" color="text.secondary">
                 No templates yet. Upload your first template to get started!
               </Typography>
-            </Box>
+            </Paper>
           ) : filteredTemplates.length === 0 ? (
-            <Box sx={{ textAlign: 'center', p: 4 }}>
+            <Paper sx={{ textAlign: 'center', p: 6 }}>
               <Typography variant="body1" color="text.secondary">
                 No templates found matching your search.
               </Typography>
-            </Box>
+            </Paper>
           ) : (
             <>
-              {searchQuery ? (
-                /* Flat search results view — no folders, no drag-and-drop */
-                <>
-                  {filteredTemplates.filter(t => t.isActive).length > 0 && (
-                    <Box sx={{ mb: 0 }}>
-                      <Box sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', py: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.12)', bgcolor: 'grey.200', px: 2 }}>
-                        <Typography variant="h6" sx={{ mb: 0 }}>
-                          Active Templates
-                        </Typography>
-                      </Box>
-                      <TableContainer sx={{ padding: 0 }}>
-                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
-                          <colgroup>
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '30%' }} />
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '20%' }} />
-                          </colgroup>
-                          <TableHead>
-                            <TableRow sx={{ bgcolor: 'grey.50' }}>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
-                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {filteredTemplates.filter(t => t.isActive).map((template) => (
-                              <TemplateRow
-                                key={template.id}
-                                template={template}
-                                onEdit={(id) => navigate(`/templates/${id}/edit`)}
-                                onDownload={handleDownload}
-                                onMerge={handleMerge}
-                                onCsvMerge={handleCsvMerge}
-                                csvMergingTemplateId={csvMergingTemplateId}
-                                rowSx={{ bgcolor: 'white' }}
-                              />
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  )}
-
-                  {filteredTemplates.filter(t => !t.isActive).length > 0 && (
-                    <Box>
-                      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0, pt: 1, pb: 1, bgcolor: 'grey.200', px: 2 }}>
-                        <Typography variant="h6" sx={{ mb: 0 }}>
-                          Inactive Templates
-                        </Typography>
-                      </Box>
-                      <TableContainer sx={{ padding: 0 }}>
-                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
-                          <colgroup>
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '30%' }} />
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '20%' }} />
-                          </colgroup>
-                          <TableHead>
-                            <TableRow sx={{ bgcolor: 'grey.50' }}>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
-                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {filteredTemplates.filter(t => !t.isActive).map((template) => (
-                              <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
-                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>{template.displayName}</TableCell>
-                                <TableCell sx={{ color: 'text.secondary', py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {template.fields.map((f) => f.name).join(', ')}
-                                </TableCell>
-                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>
-                                  {template.createdAt
-                                    ? new Date(template.createdAt).toLocaleString()
-                                    : 'Unknown'}
-                                </TableCell>
-                                <TableCell align="center" sx={{ py: 1 }}>
-                                  <Tooltip title="Activate">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleActivate(template.id, template.displayName)}
-                                      sx={{ color: '#2e7d32' }}
-                                    >
-                                      <ActivateIcon />
-                                    </IconButton>
-                                  </Tooltip>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  )}
-                </>
-              ) : (
-                /* Default view — folders, drag-and-drop, full layout */
-                <>
-                  {/* Active Templates Section */}
-                  {filteredTemplates.filter(t => t.isActive).length > 0 && (
-                    <Box sx={{ mb: 0 }}>
-                      <Box sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', py: 1, borderBottom: '1px solid rgba(0, 0, 0, 0.12)', bgcolor: 'grey.200', px: 2 }}>
-                        <Typography variant="h6" sx={{ mb: 0 }}>
-                          Active Templates
-                        </Typography>
-                      </Box>
-
-                      {/* Folder Tree */}
-                      {folders.length > 0 && (
-                        <Box onClick={(e) => e.stopPropagation()}>
-                          <Box sx={{ display: 'flex', alignItems: 'baseline', px: 2, bgcolor: 'grey.50', py: 1 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.125rem', mr: 2 }}>
-                              Folders
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              Click, drag, and drop any active template into an existing folder.
-                            </Typography>
-                          </Box>
-                          <Divider />
-                          <FolderTree
-                            folders={folders}
-                            templates={templates}
-                            selectedFolderId={selectedFolderId}
-                            expandedFolderIds={expandedFolderIds}
-                            onSelectFolder={(id) => { setSelectedFolderId(id); setSelectedTemplateId(null); }}
-                            onToggleFolder={handleToggleFolder}
-                            onCreateFolder={(parentId) => {
-                              setCreateFolderParentId(parentId);
-                              setCreateFolderDialogOpen(true);
-                            }}
-                            onRenameFolder={setRenameFolderDialog}
-                            onMoveFolder={setMoveFolderDialog}
-                            onRefresh={handleFolderCreated}
-                            onDrop={handleDropOnFolder}
-                            onDragOverChange={setDragOverFolderId}
-                            dragOverFolderId={dragOverFolderId}
-                            draggedTemplateId={draggedTemplateId}
-                            onTemplateDragStart={handleDragStart}
-                            onTemplateDragEnd={handleDragEnd}
-                            onMerge={handleMerge}
+              {/* Active Templates */}
+              {filteredTemplates.filter(t => t.isActive).length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                  <Paper
+                    sx={{
+                      py: 0.75,
+                      px: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      mb: activeExpanded ? 1 : 0,
+                      bgcolor: 'grey.50',
+                    }}
+                    onClick={() => setActiveExpanded(!activeExpanded)}
+                  >
+                    <IconButton size="small" sx={{ mr: 1 }}>
+                      {activeExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+                    </IconButton>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Active Templates
+                    </Typography>
+                  </Paper>
+                  <Collapse in={activeExpanded}>
+                  <Paper sx={{ overflow: 'hidden' }}>
+                  <TableContainer
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{
+                      padding: 0,
+                      bgcolor: dragOverTable ? 'primary.light' : 'transparent',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedTemplateId) {
+                        setDragOverTable(true);
+                        setDragOverFolderId(null);
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      if (draggedTemplateId) {
+                        setDragOverTable(true);
+                        setDragOverFolderId(null);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = e.clientX;
+                      const y = e.clientY;
+                      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                        setDragOverTable(false);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropOnTable();
+                    }}
+                  >
+                    <Table sx={{ tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: '28%' }} />
+                        <col style={{ width: '32%' }} />
+                        <col style={{ width: '22%' }} />
+                        <col style={{ width: '18%' }} />
+                      </colgroup>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: dragOverTable ? 'primary.light' : 'grey.50' }}>
+                          <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Name</TableCell>
+                          <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Fields</TableCell>
+                          <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Created</TableCell>
+                          <TableCell align="center" sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(searchQuery
+                          ? filteredTemplates.filter(t => t.isActive)
+                          : filteredTemplates.filter(t => t.isActive && !t.folderId)
+                        ).map((template) => (
+                          <TemplateRow
+                            key={template.id}
+                            template={template}
+                            onEdit={(id) => navigate(`/templates/${id}/edit`)}
                             onDownload={handleDownload}
+                            onMerge={handleMerge}
                             onCsvMerge={handleCsvMerge}
-                            onEdit={(templateId) => navigate(`/templates/${templateId}/edit`)}
+                            csvMergingTemplateId={csvMergingTemplateId}
+                            draggable={!searchQuery}
+                            onDragStart={() => handleDragStart(template.id)}
+                            onDragEnd={handleDragEnd}
+                            rowSx={{
+                              cursor: searchQuery ? 'default' : 'grab',
+                              '&:active': { cursor: searchQuery ? 'default' : 'grabbing' },
+                              bgcolor: (draggedTemplateId === template.id || selectedTemplateId === template.id) ? 'action.selected' : 'white',
+                              '&:hover': { bgcolor: draggedTemplateId ? (draggedTemplateId === template.id ? 'action.selected' : 'white') : 'action.hover' }
+                            }}
                           />
-                          <Divider />
-                        </Box>
-                      )}
-                      <TableContainer
-                        onClick={(e) => e.stopPropagation()}
-                        sx={{
-                          padding: 0,
-                          bgcolor: dragOverTable ? 'primary.light' : 'transparent',
-                          transition: 'background-color 0.2s',
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          if (draggedTemplateId) {
-                            setDragOverTable(true);
-                            setDragOverFolderId(null);
-                          }
-                        }}
-                        onDragEnter={(e) => {
-                          e.preventDefault();
-                          if (draggedTemplateId) {
-                            setDragOverTable(true);
-                            setDragOverFolderId(null);
-                          }
-                        }}
-                        onDragLeave={(e) => {
-                          e.preventDefault();
-                          // Only set to false if leaving the container entirely
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const x = e.clientX;
-                          const y = e.clientY;
-                          if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-                            setDragOverTable(false);
-                          }
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          handleDropOnTable();
-                        }}
-                      >
-                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
-                          <colgroup>
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '30%' }} />
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '20%' }} />
-                          </colgroup>
-                          <TableHead>
-                            <TableRow sx={{ bgcolor: dragOverTable ? 'primary.light' : 'grey.50' }}>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
-                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {filteredTemplates.filter(t => t.isActive && !t.folderId).map((template) => (
-                              <TemplateRow
-                                key={template.id}
-                                template={template}
-                                onEdit={(id) => navigate(`/templates/${id}/edit`)}
-                                onDownload={handleDownload}
-                                onMerge={handleMerge}
-                                onCsvMerge={handleCsvMerge}
-                                csvMergingTemplateId={csvMergingTemplateId}
-                                draggable
-                                onDragStart={() => handleDragStart(template.id)}
-                                onDragEnd={handleDragEnd}
-                                rowSx={{
-                                  cursor: 'grab',
-                                  '&:active': { cursor: 'grabbing' },
-                                  bgcolor: (draggedTemplateId === template.id || selectedTemplateId === template.id) ? 'action.selected' : 'white',
-                                  '&:hover': { bgcolor: draggedTemplateId ? (draggedTemplateId === template.id ? 'action.selected' : 'white') : 'action.hover' }
-                                }}
-                              />
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  )}
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  </Paper>
+                  </Collapse>
+                </Box>
+              )}
 
-                  {/* Inactive Templates Section */}
-                  {filteredTemplates.filter(t => !t.isActive).length > 0 && (
-                    <Box>
-                      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0, pt: 1, pb: 1, bgcolor: 'grey.200', px: 2 }}>
-                        <Typography variant="h6" sx={{ mb: 0 }}>
-                          Inactive Templates
-                        </Typography>
-                      </Box>
-                      <TableContainer sx={{ padding: 0 }}>
-                        <Table sx={{ tableLayout: 'fixed', marginTop: 0 }}>
-                          <colgroup>
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '30%' }} />
-                            <col style={{ width: '25%' }} />
-                            <col style={{ width: '20%' }} />
-                          </colgroup>
-                          <TableHead>
-                            <TableRow sx={{ bgcolor: 'grey.50' }}>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Name</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Fields</TableCell>
-                              <TableCell sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Created</TableCell>
-                              <TableCell align="center" sx={{ pt: 1.5, pb: 1.5, color: 'rgba(0, 0, 0, 0.87)' }}>Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {filteredTemplates.filter(t => !t.isActive).map((template) => (
-                              <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
-                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>{template.displayName}</TableCell>
-                                <TableCell sx={{ color: 'text.secondary', py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {template.fields.map((f) => f.name).join(', ')}
-                                </TableCell>
-                                <TableCell sx={{ color: 'text.secondary', py: 1 }}>
-                                  {template.createdAt
-                                    ? new Date(template.createdAt).toLocaleString()
-                                    : 'Unknown'}
-                                </TableCell>
-                                <TableCell align="center" sx={{ py: 1 }}>
-                                  <Tooltip title="Activate">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleActivate(template.id, template.displayName)}
-                                      sx={{ color: '#2e7d32' }}
-                                    >
-                                      <ActivateIcon />
-                                    </IconButton>
-                                  </Tooltip>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  )}
-                </>
+              {/* Inactive Templates */}
+              {filteredTemplates.filter(t => !t.isActive).length > 0 && (
+                <Box>
+                  <Paper
+                    sx={{
+                      py: 0.75,
+                      px: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      mb: inactiveExpanded ? 1 : 0,
+                      bgcolor: 'grey.50',
+                    }}
+                    onClick={() => setInactiveExpanded(!inactiveExpanded)}
+                  >
+                    <IconButton size="small" sx={{ mr: 1 }}>
+                      {inactiveExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+                    </IconButton>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Inactive Templates
+                    </Typography>
+                  </Paper>
+                  <Collapse in={inactiveExpanded}>
+                  <Paper sx={{ overflow: 'hidden' }}>
+                  <TableContainer sx={{ padding: 0 }}>
+                    <Table sx={{ tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: '28%' }} />
+                        <col style={{ width: '32%' }} />
+                        <col style={{ width: '22%' }} />
+                        <col style={{ width: '18%' }} />
+                      </colgroup>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
+                          <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Name</TableCell>
+                          <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Fields</TableCell>
+                          <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Created</TableCell>
+                          <TableCell align="center" sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredTemplates.filter(t => !t.isActive).map((template) => (
+                          <TableRow key={template.id} sx={{ bgcolor: 'white' }}>
+                            <TableCell sx={{ color: 'text.secondary', py: 1 }}>{template.displayName}</TableCell>
+                            <TableCell sx={{ color: 'text.secondary', py: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {template.fields.map((f) => f.name).join(', ')}
+                            </TableCell>
+                            <TableCell sx={{ color: 'text.secondary', py: 1 }}>
+                              {template.createdAt
+                                ? new Date(template.createdAt).toLocaleString()
+                                : 'Unknown'}
+                            </TableCell>
+                            <TableCell align="center" sx={{ py: 1 }}>
+                              <Tooltip title="Activate">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleActivate(template.id, template.displayName)}
+                                  sx={{ color: '#2e7d32' }}
+                                >
+                                  <ActivateIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  </Paper>
+                  </Collapse>
+                </Box>
               )}
             </>
           )}
-
-        </Paper>
-      </Container>
+        </Box>
+      </Box>
 
       {/* Upload Template Dialog */}
       <UploadTemplateDialog
@@ -843,6 +877,7 @@ export default function Templates() {
       <MoveTemplateDialog
         open={moveTemplateDialog !== null}
         templateId={moveTemplateDialog?.templateId || null}
+        templateName={templates.find(t => t.id === moveTemplateDialog?.templateId)?.displayName}
         currentFolderId={moveTemplateDialog?.folderId || null}
         folders={folders}
         onClose={() => setMoveTemplateDialog(null)}

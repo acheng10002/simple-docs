@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Divider,
 } from '@mui/material';
 import { templatesApi, getErrorMessage } from '../api/client';
 import type { TemplateVersion } from '../types/api';
@@ -98,7 +99,7 @@ export default function VersionHistory({
   }
 
   return (
-    <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
+    <Box>
       <Typography variant="h6" gutterBottom>
         Version History
       </Typography>
@@ -119,20 +120,17 @@ export default function VersionHistory({
           the template file.
         </Typography>
       ) : (
-        <List>
-          {versions.map((version) => (
-            <ListItem
-              key={version.id}
-              sx={{
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 1,
-                mb: 1,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
+        <List disablePadding>
+          {versions.map((version, index) => (
+            <React.Fragment key={version.id}>
+              {index === 0 && <Divider />}
+              <ListItem
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
               <ListItemText
                 primary={`${version.versionNumber}. ${formatDateTime(version.createdAt)}`}
                 secondary={`${version.fieldsSnapshot.length} field(s)`}
@@ -151,6 +149,8 @@ export default function VersionHistory({
                 </Button>
               )}
             </ListItem>
+              <Divider />
+            </React.Fragment>
           ))}
         </List>
       )}

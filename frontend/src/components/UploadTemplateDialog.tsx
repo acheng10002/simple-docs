@@ -202,12 +202,12 @@ export default function UploadTemplateDialog({ open, onClose, existingTemplateNa
         )}
       </DialogContent>
 
-      <DialogActions>
+      <DialogActions sx={{ px: 3, pb: 2.5 }}>
         <Button onClick={handleClose} disabled={uploading}>
           Cancel
         </Button>
         {duplicateWarning && (
-          <Button onClick={handleDuplicateProceed}>
+          <Button onClick={handleDuplicateProceed} variant="contained">
             Upload
           </Button>
         )}

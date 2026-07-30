@@ -158,7 +158,7 @@ export default function Settings() {
           <Button
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate('/templates')}
-            sx={{ mb: 2 }}
+            sx={{ mb: 2, px: 1 }}
           >
             Back
           </Button>

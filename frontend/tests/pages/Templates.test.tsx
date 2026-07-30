@@ -89,9 +89,9 @@ describe('Templates Page', () => {
     renderTemplates();
 
     await waitFor(() => {
-      expect(screen.getByText('MergeMyDocs - Templates')).toBeInTheDocument();
+      expect(screen.getByText('MergeMyDocs')).toBeInTheDocument();
       expect(screen.getByText('My Templates')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /upload template/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /upload/i })).toBeInTheDocument();
     });
   });
 
@@ -159,10 +159,10 @@ describe('Templates Page', () => {
     renderTemplates();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /upload template/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /upload/i })).toBeInTheDocument();
     });
 
-    const uploadButton = screen.getByRole('button', { name: /upload template/i });
+    const uploadButton = screen.getByRole('button', { name: /upload/i });
     fireEvent.click(uploadButton);
 
     await waitFor(() => {
@@ -407,7 +407,7 @@ describe('Templates Page', () => {
       renderTemplates();
 
       // Wait for loading to complete and search input to appear
-      const searchInput = await screen.findByPlaceholderText(/search templates by name or field/i);
+      const searchInput = await screen.findByPlaceholderText(/search by name or field/i);
       expect(searchInput).toBeInTheDocument();
 
       // Check radio buttons exist (they're part of a RadioGroup)
@@ -448,7 +448,7 @@ describe('Templates Page', () => {
         expect(screen.getByText('Report Template')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText(/search templates by name or field/i);
+      const searchInput = screen.getByPlaceholderText(/search by name or field/i);
       fireEvent.change(searchInput, { target: { value: 'Invoice' } });
 
       await waitFor(() => {
@@ -486,7 +486,7 @@ describe('Templates Page', () => {
         expect(screen.getByText('Report Template')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText(/search templates by name or field/i);
+      const searchInput = screen.getByPlaceholderText(/search by name or field/i);
       fireEvent.change(searchInput, { target: { value: 'customer' } });
 
       await waitFor(() => {
@@ -515,7 +515,7 @@ describe('Templates Page', () => {
         expect(screen.getByText('Invoice Template')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText(/search templates by name or field/i);
+      const searchInput = screen.getByPlaceholderText(/search by name or field/i);
       fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
 
       await waitFor(() => {
@@ -747,7 +747,7 @@ describe('Templates Page', () => {
       expect(apiClient.foldersApi.getAll).toHaveBeenCalled();
     });
 
-    it('should show templates in a folder when folder is selected', async () => {
+    it('should show templates in a folder when folder is expanded', async () => {
       const mockFolders = [
         { id: 'folder-1', name: 'Invoices', parentId: null, depth: 0, userId: 'user-1', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
       ];
@@ -775,14 +775,9 @@ describe('Templates Page', () => {
 
       renderTemplates();
 
+      // Folders are auto-expanded on load, so templates should be visible
       await waitFor(() => {
         expect(screen.getByText('Invoices')).toBeInTheDocument();
-      });
-
-      // Click the folder to select it
-      fireEvent.click(screen.getByText('Invoices'));
-
-      await waitFor(() => {
         expect(screen.getByText('Invoice Template')).toBeInTheDocument();
       });
     });

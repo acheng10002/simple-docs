@@ -158,7 +158,7 @@ describe('Login Page', () => {
   it('should have link to register page', async () => {
     await renderLogin();
 
-    const registerLink = screen.getByText(/don't have an account/i).closest('a');
+    const registerLink = screen.getByText(/sign up/i).closest('a');
     expect(registerLink).toHaveAttribute('href', '/register');
   });
 

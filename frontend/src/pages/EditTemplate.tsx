@@ -220,174 +220,183 @@ export default function EditTemplate() {
       </AppBar>
 
       {/* Main Content */}
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Paper sx={{ p: 4 }}>
-          <Typography variant="h5" component="h1" gutterBottom>
-            Edit Template
-          </Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
-            Update template name, default output type, and output filename format
-          </Typography>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+          {/* Left — Edit Form */}
+          <Paper sx={{ p: 4, flex: 1 }}>
+            <Typography variant="h5" component="h1" gutterBottom>
+              Edit Template
+            </Typography>
+            <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
+              Update template name, default output type, and output filename format
+            </Typography>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-              {error}
-            </Alert>
-          )}
-
-          {success && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-              {success}
-            </Alert>
-          )}
-
-          <Box component="form" onSubmit={handleSubmit}>
-            {/* Template Name */}
-            <TextField
-              fullWidth
-              margin="normal"
-              label="Template Name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-              placeholder="Enter template name"
-            />
-
-            {/* Output File Type */}
-            <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
-              <InputLabel>Output File Type</InputLabel>
-              <Select
-                value={defaultOutputType}
-                label="Output File Type"
-                onChange={(e) => setDefaultOutputType(e.target.value as OutputType)}
-                required
-              >
-                {(template.mimeType ? ALLOWED_OUTPUTS[template.mimeType] : ['pdf']).map((type) => (
-                  <MenuItem key={type} value={type}>
-                    {type.toUpperCase()}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {/* Page Size */}
-            <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
-              <InputLabel>Page Size</InputLabel>
-              <Select
-                value={pageSize}
-                label="Page Size"
-                onChange={(e) => setPageSize(e.target.value as PageSize)}
-                required
-              >
-                <MenuItem value="letter">Letter (8.5" x 11")</MenuItem>
-                <MenuItem value="legal">Legal (8.5" x 14")</MenuItem>
-                <MenuItem value="a4">A4 (210mm x 297mm)</MenuItem>
-                <MenuItem value="a3">A3 (297mm x 420mm)</MenuItem>
-                <MenuItem value="tabloid">Tabloid (11" x 17")</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Orientation */}
-            <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
-              <InputLabel>Orientation</InputLabel>
-              <Select
-                value={orientation}
-                label="Orientation"
-                onChange={(e) => setOrientation(e.target.value as Orientation)}
-                required
-              >
-                <MenuItem value="portrait">Portrait</MenuItem>
-                <MenuItem value="landscape">Landscape</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Output Filename */}
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="caption" color="text.secondary" gutterBottom sx={{ mb: 1, display: 'block', ml: 1.75 }}>
-                Output Filename *
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0, ml: 1.75 }}>
-                <Typography variant="body1">
-                  {(displayName || 'TemplateName').replace(/\.[^.]+$/, '')}-
-                </Typography>
-                <FormControl sx={{ flex: 1 }} required>
-                  <InputLabel>Field to Append</InputLabel>
-                  <Select
-                    value={outputNameFormat}
-                    label="Field to Append"
-                    onChange={(e) => setOutputNameFormat(e.target.value)}
-                    required
-                    displayEmpty
-                  >
-                    {template.fields.map((field) => (
-                      <MenuItem key={field.id} value={field.name}>
-                        {field.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Typography variant="body1">
-                  .{defaultOutputType || 'pdf'}
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, ml: 1.75 }}>
-                {outputNameFormat && '(incremental counter added if duplicate)'}
-              </Typography>
-            </Box>
-
-            {/* Replace Template File */}
-            <Box sx={{ mt: 3 }}>
-              <Button
-                variant="outlined"
-                component="label"
-                startIcon={<UploadIcon />}
-                fullWidth
-              >
-                {replacementFile ? `Selected: ${replacementFile.name}` : 'Replace Template File (Optional)'}
-                <input
-                  type="file"
-                  hidden
-                  accept=".docx,.html,.pdf,.xlsx,.pptx"
-                  onChange={handleFileChange}
-                />
-              </Button>
-              <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                Upload a new file to replace the current template. Leave empty to keep the existing file.
-              </Typography>
-            </Box>
-
-            {/* Action Buttons */}
-            <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                disabled={saving}
-                fullWidth
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
-              <Button
-                variant="outlined"
-                size="large"
-                onClick={handleCancel}
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-            </Box>
-
-            {/* Version History Section */}
-            {templateId && (
-              <VersionHistory
-                templateId={templateId}
-                currentStorageKey={template?.storageKey}
-                onRevertSuccess={handleVersionRevert}
-              />
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                {error}
+              </Alert>
             )}
 
-            {/* Deactivate Template Button */}
-            <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
+            {success && (
+              <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+                {success}
+              </Alert>
+            )}
+
+            <Box component="form" onSubmit={handleSubmit}>
+              {/* Template Name */}
+              <TextField
+                fullWidth
+                margin="normal"
+                label="Template Name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                required
+                placeholder="Enter template name"
+              />
+
+              {/* Output File Type */}
+              <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
+                <InputLabel>Output File Type</InputLabel>
+                <Select
+                  value={defaultOutputType}
+                  label="Output File Type"
+                  onChange={(e) => setDefaultOutputType(e.target.value as OutputType)}
+                  required
+                >
+                  {(template.mimeType ? ALLOWED_OUTPUTS[template.mimeType] : ['pdf']).map((type) => (
+                    <MenuItem key={type} value={type}>
+                      {type.toUpperCase()}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Page Size */}
+              <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
+                <InputLabel>Page Size</InputLabel>
+                <Select
+                  value={pageSize}
+                  label="Page Size"
+                  onChange={(e) => setPageSize(e.target.value as PageSize)}
+                  required
+                >
+                  <MenuItem value="letter">Letter (8.5" x 11")</MenuItem>
+                  <MenuItem value="legal">Legal (8.5" x 14")</MenuItem>
+                  <MenuItem value="a4">A4 (210mm x 297mm)</MenuItem>
+                  <MenuItem value="a3">A3 (297mm x 420mm)</MenuItem>
+                  <MenuItem value="tabloid">Tabloid (11" x 17")</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Orientation */}
+              <FormControl fullWidth margin="normal" sx={{ mt: 2 }} required>
+                <InputLabel>Orientation</InputLabel>
+                <Select
+                  value={orientation}
+                  label="Orientation"
+                  onChange={(e) => setOrientation(e.target.value as Orientation)}
+                  required
+                >
+                  <MenuItem value="portrait">Portrait</MenuItem>
+                  <MenuItem value="landscape">Landscape</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Output Filename */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="caption" color="text.secondary" gutterBottom sx={{ mb: 1, display: 'block', ml: 1.75 }}>
+                  Output Filename *
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0, ml: 1.75 }}>
+                  <Typography variant="body1">
+                    {(displayName || 'TemplateName').replace(/\.[^.]+$/, '')}-
+                  </Typography>
+                  <FormControl sx={{ flex: 1 }} required>
+                    <InputLabel>Field to Append</InputLabel>
+                    <Select
+                      value={outputNameFormat}
+                      label="Field to Append"
+                      onChange={(e) => setOutputNameFormat(e.target.value)}
+                      required
+                      displayEmpty
+                    >
+                      {template.fields.map((field) => (
+                        <MenuItem key={field.id} value={field.name}>
+                          {field.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Typography variant="body1">
+                    .{defaultOutputType || 'pdf'}
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, ml: 1.75 }}>
+                  {outputNameFormat && '(incremental counter added if duplicate)'}
+                </Typography>
+              </Box>
+
+              {/* Replace Template File */}
+              <Box sx={{ mt: 3 }}>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<UploadIcon />}
+                  fullWidth
+                >
+                  {replacementFile ? `Selected: ${replacementFile.name}` : 'Replace Template File (Optional)'}
+                  <input
+                    type="file"
+                    hidden
+                    accept=".docx,.html,.pdf,.xlsx,.pptx"
+                    onChange={handleFileChange}
+                  />
+                </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  Upload a new file to replace the current template. Leave empty to keep the existing file.
+                </Typography>
+              </Box>
+
+              {/* Action Buttons */}
+              <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  size="large"
+                  disabled={saving}
+                  fullWidth
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  onClick={handleCancel}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+              </Box>
+
+            </Box>
+          </Paper>
+
+          {/* Right column */}
+          <Box sx={{ width: 420, minWidth: 420, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Version History */}
+            {templateId && (
+              <Paper sx={{ p: 4, maxHeight: 500, overflow: 'auto' }}>
+                <VersionHistory
+                  templateId={templateId}
+                  currentStorageKey={template?.storageKey}
+                  onRevertSuccess={handleVersionRevert}
+                />
+              </Paper>
+            )}
+
+            {/* Deactivate Template */}
+            <Paper sx={{ p: 4 }}>
               <Button
                 variant="outlined"
                 color="error"
@@ -401,9 +410,9 @@ export default function EditTemplate() {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
                 This will hide the template from your list. Merge outputs will be preserved.
               </Typography>
-            </Box>
+            </Paper>
           </Box>
-        </Paper>
+        </Box>
       </Container>
 
       {/* Deactivate Confirmation Dialog */}

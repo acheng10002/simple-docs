@@ -184,12 +184,12 @@ export default function Outputs() {
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Output File</TableCell>
-                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Template</TableCell>
-                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Status</TableCell>
-                    <TableCell sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5 }}>Created</TableCell>
-                    <TableCell align="right" sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.12)', pt: 2, pb: 1.5, pr: 3 }}>Actions</TableCell>
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem', borderTop: '1px solid rgba(0, 0, 0, 0.12)' }}>Output File</TableCell>
+                    <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem', borderTop: '1px solid rgba(0, 0, 0, 0.12)' }}>Template</TableCell>
+                    <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem', borderTop: '1px solid rgba(0, 0, 0, 0.12)' }}>Status</TableCell>
+                    <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem', borderTop: '1px solid rgba(0, 0, 0, 0.12)' }}>Created</TableCell>
+                    <TableCell align="right" sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem', pr: 3, borderTop: '1px solid rgba(0, 0, 0, 0.12)' }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -222,7 +222,7 @@ export default function Outputs() {
                               size="small"
                               onClick={() => handleDownload(job.filePath)}
                               disabled={job.status === 'failed'}
-                              color="success"
+                              sx={{ color: '#2e7d32', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
                             >
                               <DownloadIcon />
                             </IconButton>
@@ -232,7 +232,7 @@ export default function Outputs() {
                           <IconButton
                             size="small"
                             onClick={() => setDeleteDialog({ jobId: job.id!, templateName: job.template?.displayName || 'Unknown' })}
-                            color="error"
+                            sx={{ color: '#d32f2f', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
                           >
                             <DeleteIcon />
                           </IconButton>

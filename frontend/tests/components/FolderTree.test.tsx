@@ -122,27 +122,13 @@ describe('FolderTree', () => {
   });
 
   describe('Interactions', () => {
-    it('should call onSelectFolder when folder is clicked', () => {
+    it('should call onToggleFolder when folder name is clicked', () => {
       render(<FolderTree {...defaultProps} />);
 
       const folder = screen.getByText('Documents');
       fireEvent.click(folder);
 
-      expect(defaultProps.onSelectFolder).toHaveBeenCalledWith('folder-1');
-    });
-
-    it('should deselect folder when clicking selected folder', () => {
-      render(
-        <FolderTree
-          {...defaultProps}
-          selectedFolderId="folder-1"
-        />
-      );
-
-      const folder = screen.getByText('Documents');
-      fireEvent.click(folder);
-
-      expect(defaultProps.onSelectFolder).toHaveBeenCalledWith(null);
+      expect(defaultProps.onToggleFolder).toHaveBeenCalledWith('folder-1');
     });
 
     it('should call onToggleFolder when expand button is clicked', () => {
