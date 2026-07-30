@@ -14,8 +14,6 @@ import {
   IconButton,
   Alert,
   CircularProgress,
-  AppBar,
-  Toolbar,
   Tooltip,
   TextField,
   RadioGroup,
@@ -27,6 +25,11 @@ import {
   DialogContent,
   DialogActions,
   Collapse,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Avatar,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -54,6 +57,9 @@ import {
   VerticalSplit as VerticalSplitIcon,
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
+  Logout as LogoutIcon,
+  Search as SearchIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 
 interface TemplateRowProps {
@@ -189,6 +195,8 @@ export default function Templates() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeExpanded, setActiveExpanded] = useState(true);
   const [inactiveExpanded, setInactiveExpanded] = useState(true);
+  const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     loadTemplates();
@@ -452,60 +460,32 @@ export default function Templates() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }} onClick={() => { setSelectedFolderId(null); setSelectedTemplateId(null); }}>
-      {/* App Bar */}
-      <AppBar position="static" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Toolbar>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexGrow: 1 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                bgcolor: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Typography sx={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>M</Typography>
-            </Box>
-            <Typography variant="h6" component="div">
-              MergeMyDocs
-            </Typography>
-          </Box>
-          <Button
-            color="inherit"
-            startIcon={<OutputsIcon />}
-            onClick={() => navigate('/outputs')}
-            sx={{ mr: 1 }}
-          >
-            Outputs
-          </Button>
-          <Button
-            color="inherit"
-            startIcon={<SettingsIcon />}
-            onClick={() => navigate('/settings')}
-            sx={{ mr: 1 }}
-          >
-            Settings
-          </Button>
-          <Typography variant="body2" sx={{ mr: 2, color: 'rgba(255,255,255,0.8)' }}>
-            {user?.email}
-          </Typography>
-          <Button color="inherit" onClick={handleLogout}>
-            Log Out
-          </Button>
-        </Toolbar>
-      </AppBar>
-
       <Box sx={{ display: 'flex', flexGrow: 1 }}>
         {/* Sidebar */}
         {!sidebarOpen && (
-          <Box sx={{ borderRight: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', pt: 2, px: 0.5 }}>
+          <Box sx={{ borderRight: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', pt: 2, px: 0.5, bgcolor: 'background.default' }}>
             <Tooltip title="Open Sidebar" placement="right">
               <IconButton size="small" onClick={() => setSidebarOpen(true)} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}>
                 <VerticalSplitIcon />
               </IconButton>
+            </Tooltip>
+            <Box sx={{ flexGrow: 1 }} />
+            <Tooltip title={user?.email || ''} placement="right">
+              <Avatar
+                onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: 'primary.main',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  mb: 2,
+                  '&:hover': { filter: 'brightness(0.85)' },
+                }}
+              >
+                {(user?.email || '?')[0].toUpperCase()}
+              </Avatar>
             </Tooltip>
           </Box>
         )}
@@ -525,8 +505,31 @@ export default function Templates() {
             bgcolor: 'background.default',
           }}
         >
-          <Box sx={{ pt: 3, pb: 2, px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+          {/* Branding */}
+          <Box sx={{ pt: 3, pb: 1.5, px: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: '8px',
+                bgcolor: 'primary.main',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Typography sx={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>M</Typography>
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+              MergeMyDocs
+            </Typography>
+          </Box>
+          <Divider />
+
+          {/* Folders header */}
+          <Box sx={{ pt: 2, pb: 1, px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '1.05rem' }}>
               Folders
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -542,7 +545,6 @@ export default function Templates() {
               </Tooltip>
             </Box>
           </Box>
-          <Divider />
           {folders.length > 0 ? (
             <FolderTree
               folders={folders}
@@ -578,9 +580,34 @@ export default function Templates() {
           )}
           <Box sx={{ flexGrow: 1 }} />
           <Divider />
-          <Box sx={{ p: 1.5 }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', px: 1 }}>
-              Drag templates into folders to organize
+          {/* User section */}
+          <Box
+            onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+            sx={{
+              p: 1.5,
+              mx: 0.5,
+              my: 0.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              cursor: 'pointer',
+              borderRadius: 0.75,
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            <Avatar
+              sx={{
+                width: 32,
+                height: 32,
+                bgcolor: 'primary.main',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              {(user?.email || '?')[0].toUpperCase()}
+            </Avatar>
+            <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.primary' }}>
+              {user?.email}
             </Typography>
           </Box>
         </Paper>
@@ -602,32 +629,18 @@ export default function Templates() {
         {/* Main Content */}
         <Box sx={{ flexGrow: 1, p: 3, overflow: 'auto' }}>
           {/* Toolbar */}
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 2 }}>
-            <Typography variant="h5" component="h1" sx={{ mr: 'auto' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: searchOpen ? 1.5 : 3, gap: 2 }}>
+            <Typography variant="h6" component="h1" sx={{ mr: 'auto', fontWeight: 700, mt: -1 }}>
               My Templates
             </Typography>
-            <TextField
-              variant="outlined"
-              placeholder="Search by name or field..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              size="small"
-              sx={{ width: 280 }}
-            />
-            <RadioGroup
-              row
-              value={searchScope}
-              onChange={(e) => setSearchScope(e.target.value as 'all' | 'active' | 'inactive')}
-              sx={{
-                '& .MuiFormControlLabel-label': { fontSize: '0.8rem' },
-                '& .MuiFormControlLabel-root': { ml: -0.5, mr: 1.5 },
-                '& .MuiRadio-root': { pr: 0.5 }
-              }}
-            >
-              <FormControlLabel value="all" control={<Radio size="small" />} label="All" />
-              <FormControlLabel value="active" control={<Radio size="small" />} label="Active" />
-              <FormControlLabel value="inactive" control={<Radio size="small" />} label="Inactive" />
-            </RadioGroup>
+            <Tooltip title="Search">
+              <IconButton
+                onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) { setSearchQuery(''); setSearchScope('all'); } }}
+                sx={{ color: searchOpen ? 'primary.main' : 'text.secondary', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
+              >
+                {searchOpen ? <CloseIcon /> : <SearchIcon />}
+              </IconButton>
+            </Tooltip>
             <Button
               variant="contained"
               startIcon={<UploadIcon />}
@@ -636,6 +649,34 @@ export default function Templates() {
               Upload
             </Button>
           </Box>
+          {/* Search panel */}
+          <Collapse in={searchOpen}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <TextField
+                variant="outlined"
+                placeholder="Search template by name or field..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                size="small"
+                autoFocus
+                sx={{ flex: 1 }}
+              />
+              <RadioGroup
+                row
+                value={searchScope}
+                onChange={(e) => setSearchScope(e.target.value as 'all' | 'active' | 'inactive')}
+                sx={{
+                  '& .MuiFormControlLabel-label': { fontSize: '0.8rem' },
+                  '& .MuiFormControlLabel-root': { ml: -0.5, mr: 1.5 },
+                  '& .MuiRadio-root': { pr: 0.5 }
+                }}
+              >
+                <FormControlLabel value="all" control={<Radio size="small" />} label="All" />
+                <FormControlLabel value="active" control={<Radio size="small" />} label="Active" />
+                <FormControlLabel value="inactive" control={<Radio size="small" />} label="Inactive" />
+              </RadioGroup>
+            </Box>
+          </Collapse>
 
           {error && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>
@@ -843,6 +884,40 @@ export default function Templates() {
           )}
         </Box>
       </Box>
+
+      {/* User Menu */}
+      <Menu
+        anchorEl={userMenuAnchor}
+        open={Boolean(userMenuAnchor)}
+        onClose={() => setUserMenuAnchor(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{ paper: { sx: { minWidth: 180, py: 0, '& .MuiList-root': { py: '3.5px' }, '& .MuiMenuItem-root': { borderRadius: 0.75, mx: 0.5 } } } }}
+      >
+        <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/outputs'); }}>
+          <ListItemIcon><OutputsIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Outputs</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => { setUserMenuAnchor(null); navigate('/settings'); }}>
+          <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Settings</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => { setUserMenuAnchor(null); handleLogout(); }}
+          sx={{
+            color: '#b71c1c',
+            '& .MuiListItemIcon-root': { color: '#b71c1c' },
+            '&:hover': {
+              bgcolor: '#d32f2f',
+              color: '#fff',
+              '& .MuiListItemIcon-root': { color: '#fff' },
+            },
+          }}
+        >
+          <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Log Out</ListItemText>
+        </MenuItem>
+      </Menu>
 
       {/* Upload Template Dialog */}
       <UploadTemplateDialog

@@ -14,7 +14,6 @@ import {
   DialogContentText,
   DialogActions,
   Button,
-  Tooltip,
 } from '@mui/material';
 import {
   FolderOpen as FolderOpenIcon,
@@ -213,7 +212,7 @@ export default function FolderTree({
         {/* Templates in this folder */}
         {(isSelected || isExpanded) && folderTemplates.length > 0 && (
           <Box sx={{ pl: level * 2 + 8.5, pr: 0.5, py: 0.5 }}>
-            {folderTemplates.map((template, index) => (
+            {folderTemplates.map((template) => (
               <React.Fragment key={template.id}>
                 <Box
                   draggable

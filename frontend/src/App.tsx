@@ -31,7 +31,7 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"DM Sans", "Roboto", "Helvetica", "Arial", sans-serif',
     h4: {
       fontWeight: 650,
       letterSpacing: '-0.02em',
