@@ -121,7 +121,7 @@ function TemplateRow({
             <Tooltip title="Move Into Folder">
               <IconButton
                 size="small"
-                onClick={() => onMove(template.id, template.folderId)}
+                onClick={() => onMove(template.id, template.folderId ?? null)}
                 sx={{ color: '#e67300', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
               >
                 <MoveToFolderIcon />
@@ -201,7 +201,6 @@ export default function Templates() {
   const [moveTemplateDialog, setMoveTemplateDialog] = useState<{ templateId: string; folderId: string | null } | null>(null);
   const [draggedTemplateId, setDraggedTemplateId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
-  const [dragOverTable, setDragOverTable] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [activateDialog, setActivateDialog] = useState<{ id: string; name: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -377,7 +376,6 @@ export default function Templates() {
   const handleDragEnd = () => {
     setDraggedTemplateId(null);
     setDragOverFolderId(null);
-    setDragOverTable(false);
   };
 
   const handleDropOnFolder = async (folderId: string) => {
@@ -393,32 +391,6 @@ export default function Templates() {
       setError(getErrorMessage(err, 'Failed to move template'));
     } finally {
       setDraggedTemplateId(null);
-    }
-  };
-
-  const handleDropOnTable = async () => {
-    if (!draggedTemplateId) return;
-
-    // Check if the template is already unfiled
-    const template = templates.find(t => t.id === draggedTemplateId);
-    if (!template?.folderId) {
-      setDraggedTemplateId(null);
-      setDragOverTable(false);
-      return;
-    }
-
-    try {
-      const templateId = draggedTemplateId;
-      await foldersApi.moveTemplate(draggedTemplateId, { folderId: null });
-      setSelectedFolderId(null);
-      setSelectedTemplateId(templateId);
-      await loadTemplates();
-      await loadFolders();
-    } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to remove template from folder'));
-    } finally {
-      setDraggedTemplateId(null);
-      setDragOverTable(false);
     }
   };
 

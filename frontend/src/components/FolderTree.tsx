@@ -370,7 +370,7 @@ export default function FolderTree({
           <MenuItem
             onClick={() => {
               if (templateMenuAnchor) {
-                onMoveTemplate(templateMenuAnchor.template.id, templateMenuAnchor.template.folderId);
+                onMoveTemplate(templateMenuAnchor.template.id, templateMenuAnchor.template.folderId ?? null);
               }
               setTemplateMenuAnchor(null);
             }}
