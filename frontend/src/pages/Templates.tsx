@@ -60,6 +60,7 @@ import {
   Logout as LogoutIcon,
   Search as SearchIcon,
   Close as CloseIcon,
+  DriveFileMove as MoveToFolderIcon,
 } from '@mui/icons-material';
 
 interface TemplateRowProps {
@@ -67,6 +68,7 @@ interface TemplateRowProps {
   onEdit: (id: string) => void;
   onDownload: (id: string, displayName: string) => void;
   onMerge: (id: string) => void;
+  onMove: (id: string, folderId: string | null) => void;
   onCsvMerge: (id: string, event: React.ChangeEvent<HTMLInputElement>) => void;
   csvMergingTemplateId: string | null;
   draggable?: boolean;
@@ -80,6 +82,7 @@ function TemplateRow({
   onEdit,
   onDownload,
   onMerge,
+  onMove,
   onCsvMerge,
   csvMergingTemplateId,
   draggable: isDraggable,
@@ -113,6 +116,15 @@ function TemplateRow({
                 sx={{ color: '#B03060', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
               >
                 <EditIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Move Into Folder">
+              <IconButton
+                size="small"
+                onClick={() => onMove(template.id, template.folderId)}
+                sx={{ color: '#e67300', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
+              >
+                <MoveToFolderIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="Download">
@@ -429,7 +441,7 @@ export default function Templates() {
     return matchesSearch;
   });
 
-  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
   const isResizing = React.useRef(false);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -570,6 +582,7 @@ export default function Templates() {
               onDownload={handleDownload}
               onCsvMerge={handleCsvMerge}
               onEdit={(templateId) => navigate(`/templates/${templateId}/edit`)}
+              onMoveTemplate={(id, folderId) => setMoveTemplateDialog({ templateId: id, folderId })}
             />
           ) : (
             <Box sx={{ p: 2 }}>
@@ -627,7 +640,7 @@ export default function Templates() {
         </Box>}
 
         {/* Main Content */}
-        <Box sx={{ flexGrow: 1, p: 3, overflow: 'auto' }}>
+        <Box sx={{ flexGrow: 1, py: 3, px: 6, overflow: 'auto' }}>
           {/* Toolbar */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: searchOpen ? 1.5 : 3, gap: 2 }}>
             <Typography variant="h6" component="h1" sx={{ mr: 'auto', fontWeight: 700, mt: -1 }}>
@@ -728,38 +741,7 @@ export default function Templates() {
                   <Paper sx={{ overflow: 'hidden' }}>
                   <TableContainer
                     onClick={(e) => e.stopPropagation()}
-                    sx={{
-                      padding: 0,
-                      bgcolor: dragOverTable ? 'primary.light' : 'transparent',
-                      transition: 'background-color 0.2s',
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (draggedTemplateId) {
-                        setDragOverTable(true);
-                        setDragOverFolderId(null);
-                      }
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      if (draggedTemplateId) {
-                        setDragOverTable(true);
-                        setDragOverFolderId(null);
-                      }
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const x = e.clientX;
-                      const y = e.clientY;
-                      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-                        setDragOverTable(false);
-                      }
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleDropOnTable();
-                    }}
+                    sx={{ padding: 0 }}
                   >
                     <Table sx={{ tableLayout: 'fixed' }}>
                       <colgroup>
@@ -769,7 +751,7 @@ export default function Templates() {
                         <col style={{ width: '18%' }} />
                       </colgroup>
                       <TableHead>
-                        <TableRow sx={{ bgcolor: dragOverTable ? 'primary.light' : 'grey.50' }}>
+                        <TableRow sx={{ bgcolor: 'grey.50' }}>
                           <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Name</TableCell>
                           <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Fields</TableCell>
                           <TableCell sx={{ py: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.875rem' }}>Created</TableCell>
@@ -787,16 +769,12 @@ export default function Templates() {
                             onEdit={(id) => navigate(`/templates/${id}/edit`)}
                             onDownload={handleDownload}
                             onMerge={handleMerge}
+                            onMove={(id, folderId) => setMoveTemplateDialog({ templateId: id, folderId })}
                             onCsvMerge={handleCsvMerge}
                             csvMergingTemplateId={csvMergingTemplateId}
-                            draggable={!searchQuery}
-                            onDragStart={() => handleDragStart(template.id)}
-                            onDragEnd={handleDragEnd}
                             rowSx={{
-                              cursor: searchQuery ? 'default' : 'grab',
-                              '&:active': { cursor: searchQuery ? 'default' : 'grabbing' },
-                              bgcolor: (draggedTemplateId === template.id || selectedTemplateId === template.id) ? 'action.selected' : 'white',
-                              '&:hover': { bgcolor: draggedTemplateId ? (draggedTemplateId === template.id ? 'action.selected' : 'white') : 'action.hover' }
+                              bgcolor: selectedTemplateId === template.id ? 'action.selected' : 'white',
+                              '&:hover': { bgcolor: 'action.hover' }
                             }}
                           />
                         ))}

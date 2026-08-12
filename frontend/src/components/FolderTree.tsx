@@ -21,7 +21,8 @@ import {
   CreateNewFolder as CreateFolderIcon,
   Edit as RenameIcon,
   Delete as DeleteIcon,
-  DriveFileMove as MoveIcon,
+  ArrowForward as MoveIcon,
+  DriveFileMove as MoveToFolderIcon,
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
   MergeType as MergeIcon,
@@ -53,6 +54,7 @@ interface FolderTreeProps {
   onDownload: (templateId: string, displayName: string) => void;
   onCsvMerge: (templateId: string, event: React.ChangeEvent<HTMLInputElement>) => void;
   onEdit: (templateId: string) => void;
+  onMoveTemplate: (templateId: string, folderId: string | null) => void;
 }
 
 export default function FolderTree({
@@ -76,6 +78,7 @@ export default function FolderTree({
   onDownload,
   onCsvMerge,
   onEdit,
+  onMoveTemplate,
 }: FolderTreeProps) {
   const [menuAnchor, setMenuAnchor] = useState<{ element: HTMLElement; folder: Folder } | null>(null);
   const [templateMenuAnchor, setTemplateMenuAnchor] = useState<{ element: HTMLElement; template: Template } | null>(null);
@@ -363,6 +366,19 @@ export default function FolderTree({
               <EditIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Edit</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              if (templateMenuAnchor) {
+                onMoveTemplate(templateMenuAnchor.template.id, templateMenuAnchor.template.folderId);
+              }
+              setTemplateMenuAnchor(null);
+            }}
+          >
+            <ListItemIcon>
+              <MoveToFolderIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Move Into Folder</ListItemText>
           </MenuItem>
           <MenuItem
             onClick={() => {

@@ -305,14 +305,24 @@ export function MoveTemplateDialog({
     }
   };
 
-  const renderFolderOption = (f: Folder) => {
-    const indent = '  '.repeat(Math.max(0, f.depth - 1));
-    return `${indent}${f.name}`;
+  // Build hierarchical folder list: parent followed by its children
+  const buildHierarchicalList = (parentId: string | null, depth: number): Folder[] => {
+    const children = folders
+      .filter((f) => f.parentId === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const result: Folder[] = [];
+    for (const child of children) {
+      result.push(child);
+      result.push(...buildHierarchicalList(child.id, depth + 1));
+    }
+    return result;
   };
+
+  const orderedFolders = buildHierarchicalList(null, 0);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{templateName ? `Move "${templateName}"` : 'Move Template'}</DialogTitle>
+      <DialogTitle>{templateName ? `Move "${templateName}" Into Folder` : 'Move Into Folder'}</DialogTitle>
       <DialogContent>
         <FormControl fullWidth sx={{ mt: 1 }}>
           <InputLabel>Folder</InputLabel>
@@ -320,18 +330,14 @@ export function MoveTemplateDialog({
             value={folderId || 'unfiled'}
             onChange={(e) => setFolderId(e.target.value === 'unfiled' ? null : e.target.value)}
             disabled={loading}
+            label="Folder"
           >
             <MenuItem value="unfiled">(Unfiled)</MenuItem>
-            {folders
-              .sort((a, b) => {
-                if (a.depth !== b.depth) return a.depth - b.depth;
-                return a.name.localeCompare(b.name);
-              })
-              .map((f) => (
-                <MenuItem key={f.id} value={f.id}>
-                  {renderFolderOption(f)}
-                </MenuItem>
-              ))}
+            {orderedFolders.map((f) => (
+              <MenuItem key={f.id} value={f.id} sx={{ pl: 2 + f.depth * 2 }}>
+                {f.name}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
         {error && (
