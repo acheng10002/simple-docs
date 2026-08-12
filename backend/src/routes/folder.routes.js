@@ -13,13 +13,10 @@ const {
   moveTemplateBody,
 } = require('../schemas/folder.schemas');
 
-// All routes require authentication
-router.use(authenticateSupabase);
-
 /**
  * GET /api/folders - List all folders for current user (hierarchical tree)
  */
-router.get('/folders', async (req, res) => {
+router.get('/folders', authenticateSupabase, async (req, res) => {
   try {
     const folders = await folderService.getUserFolders(req.user.id);
     res.json(folders);
@@ -32,7 +29,7 @@ router.get('/folders', async (req, res) => {
 /**
  * POST /api/folders - Create new folder
  */
-router.post('/folders', validate({ body: createFolderBody }), async (req, res) => {
+router.post('/folders', authenticateSupabase, validate({ body: createFolderBody }), async (req, res) => {
   try {
     const { name, parentId } = req.body; // Already validated and trimmed by Zod
 
@@ -56,7 +53,7 @@ router.post('/folders', validate({ body: createFolderBody }), async (req, res) =
 /**
  * PUT /api/folders/:id - Rename folder
  */
-router.put('/folders/:id', validate({ params: folderIdParams, body: renameFolderBody }), async (req, res) => {
+router.put('/folders/:id', authenticateSupabase, validate({ params: folderIdParams, body: renameFolderBody }), async (req, res) => {
   try {
     const { id } = req.params;
     const { name } = req.body; // Already validated and trimmed by Zod
@@ -78,7 +75,7 @@ router.put('/folders/:id', validate({ params: folderIdParams, body: renameFolder
 /**
  * PUT /api/folders/:id/move - Move folder to new parent
  */
-router.put('/folders/:id/move', validate({ params: folderIdParams, body: moveFolderBody }), async (req, res) => {
+router.put('/folders/:id/move', authenticateSupabase, validate({ params: folderIdParams, body: moveFolderBody }), async (req, res) => {
   try {
     const { id } = req.params;
     const { newParentId } = req.body;
@@ -103,7 +100,7 @@ router.put('/folders/:id/move', validate({ params: folderIdParams, body: moveFol
 /**
  * DELETE /api/folders/:id - Delete folder and unfile all templates
  */
-router.delete('/folders/:id', validate({ params: folderIdParams }), async (req, res) => {
+router.delete('/folders/:id', authenticateSupabase, validate({ params: folderIdParams }), async (req, res) => {
   try {
     const { id } = req.params;
     await folderService.deleteFolder(req.user.id, id);
@@ -120,7 +117,7 @@ router.delete('/folders/:id', validate({ params: folderIdParams }), async (req, 
 /**
  * PUT /api/templates/:id/move - Move template to folder (or unfile)
  */
-router.put('/templates/:id/move', validate({ params: moveTemplateParams, body: moveTemplateBody }), async (req, res) => {
+router.put('/templates/:id/move', authenticateSupabase, validate({ params: moveTemplateParams, body: moveTemplateBody }), async (req, res) => {
   try {
     const { id } = req.params;
     const { folderId } = req.body; // null to unfile
