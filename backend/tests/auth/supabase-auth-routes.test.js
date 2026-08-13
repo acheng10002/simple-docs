@@ -30,7 +30,7 @@ const createTestApp = () => {
     next();
   });
 
-  app.use("/api", authRouter);
+  app.use("/api/auth", authRouter);
   return app;
 };
 

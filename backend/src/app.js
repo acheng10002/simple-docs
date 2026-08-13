@@ -203,17 +203,16 @@ app.use("/api/webhooks", rawJson);
 B1. MANUAL DATA INPUT REQUEST LIFECYCLE (JWT-PROTECTED): body parsing */
 app.use(express.json({ limit: "10mb" }));
 
-// Auth routes first - login/register should not require authentication
-app.use("/api", authRouter);
-// Folder routes must come before template routes to match /templates/:id/move before /templates/:id
-app.use("/api", folderRouter);
-// POST /api/upload - mounts the upload routes from ./templateUploadHandler under /api
+// Auth routes - login/register do not require authentication
+app.use("/api/auth", authRouter);
+// Folder routes - mounted at /api/folders so auth middleware is scoped
+app.use("/api/folders", folderRouter);
+// Template routes - upload, CRUD, and template move
 app.use("/api", uploadRouter);
-/* POST /api/templates/:templateId/merge, /api/webhooks, etc. - mounts the merge and download routes
-from ./merge.routes under /api */
+// Merge routes - merge, CSV, webhooks, downloads, jobs
 app.use("/api", mergeRouter);
-// Admin routes for scheduled tasks (cleanup, etc.)
-app.use("/api", adminRouter);
+// Admin routes - cleanup, health (protected by CLEANUP_SECRET, not Supabase auth)
+app.use("/api/admin", adminRouter);
 
 app.use(errorLogger.expressErrorHandler);
 

@@ -25,6 +25,11 @@ const {
   templateVersionParams,
   updateTemplateBody,
 } = require("../schemas/template.schemas");
+const {
+  moveTemplateParams,
+  moveTemplateBody,
+} = require("../schemas/folder.schemas");
+const folderService = require("../services/folder.service");
 
 // shared linter utilities
 const { lintDocxBuffer } = require("../utils/docx-templating");
@@ -797,6 +802,30 @@ router.put(
     } catch (err) {
       req.log.error({ err, templateId: req.params.id }, "Failed to update template");
       errorResponse.internal(res, "Failed to update template");
+    }
+  }
+);
+
+/**
+ * PUT /api/templates/:id/move - Move template to folder (or unfile)
+ */
+router.put(
+  "/templates/:id/move",
+  authenticateSupabase,
+  validate({ params: moveTemplateParams, body: moveTemplateBody }),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { folderId } = req.body;
+
+      const template = await folderService.moveTemplate(req.user.id, id, folderId || null);
+      res.json(template);
+    } catch (err) {
+      if (err.message.includes('not found')) {
+        return errorResponse.notFound(res, err.message, ErrorCodes.NOT_FOUND);
+      }
+      req.log.error({ err, templateId: req.params.id }, 'Failed to move template');
+      errorResponse.internal(res, 'Failed to move template');
     }
   }
 );

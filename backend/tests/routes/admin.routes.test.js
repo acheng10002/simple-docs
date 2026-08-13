@@ -25,7 +25,7 @@ beforeAll(() => {
     next();
   });
   app.use(express.json());
-  app.use("/api", require("../../src/routes/admin.routes"));
+  app.use("/api/admin", require("../../src/routes/admin.routes"));
 });
 
 afterAll(() => {

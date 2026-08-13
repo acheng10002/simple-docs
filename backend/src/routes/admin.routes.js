@@ -32,7 +32,7 @@ function verifyCleanupSecret(req, res, next) {
  * Runs cleanup for old merge outputs
  * Protected by CLEANUP_SECRET
  */
-router.post("/admin/cleanup", verifyCleanupSecret, async (req, res) => {
+router.post("/cleanup", verifyCleanupSecret, async (req, res) => {
   try {
     req.log.info("Cleanup endpoint triggered");
 
@@ -61,7 +61,7 @@ router.post("/admin/cleanup", verifyCleanupSecret, async (req, res) => {
  * Simple health check for admin endpoints
  * Protected by CLEANUP_SECRET
  */
-router.get("/admin/health", verifyCleanupSecret, (req, res) => {
+router.get("/health", verifyCleanupSecret, (req, res) => {
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),

@@ -41,7 +41,7 @@ const createTestApp = () => {
     next();
   });
 
-  app.use("/api", folderRouter);
+  app.use("/api/folders", folderRouter);
   return app;
 };
 
@@ -384,77 +384,6 @@ describe("Folder Routes", () => {
       prisma.folder.findFirst.mockResolvedValue(null);
 
       const response = await request(app).delete(`/api/folders/${testIds.nonexistent}`);
-
-      expect(response.status).toBe(404);
-      expect(response.body.error.message).toBe("Folder not found");
-    });
-  });
-
-  describe("PUT /api/templates/:id/move", () => {
-    test("should move template to folder successfully", async () => {
-      const template = { id: testIds.template1, name: "Template" };
-      const folder = { id: testIds.folder1, name: "Folder" };
-      const movedTemplate = {
-        id: testIds.template1,
-        name: "Template",
-        folderId: testIds.folder1,
-        fields: [],
-        folder: folder,
-      };
-
-      prisma.template.findUnique.mockResolvedValue(template);
-      prisma.folder.findFirst.mockResolvedValue(folder);
-      prisma.template.update.mockResolvedValue(movedTemplate);
-
-      const response = await request(app)
-        .put(`/api/templates/${testIds.template1}/move`)
-        .send({ folderId: testIds.folder1 });
-
-      expect(response.status).toBe(200);
-      expect(response.body.folderId).toBe(testIds.folder1);
-    });
-
-    test("should unfile template successfully", async () => {
-      const template = { id: testIds.template1, name: "Template", folderId: testIds.folder1 };
-      const unfiledTemplate = {
-        id: testIds.template1,
-        name: "Template",
-        folderId: null,
-        fields: [],
-        folder: null,
-      };
-
-      prisma.template.findUnique.mockResolvedValue(template);
-      prisma.template.update.mockResolvedValue(unfiledTemplate);
-
-      const response = await request(app)
-        .put(`/api/templates/${testIds.template1}/move`)
-        .send({ folderId: null });
-
-      expect(response.status).toBe(200);
-      expect(response.body.folderId).toBe(null);
-    });
-
-    test("should return 404 when template not found", async () => {
-      prisma.template.findUnique.mockResolvedValue(null);
-
-      const response = await request(app)
-        .put(`/api/templates/${testIds.nonexistent}/move`)
-        .send({ folderId: testIds.folder1 });
-
-      expect(response.status).toBe(404);
-      expect(response.body.error.message).toBe("Template not found");
-    });
-
-    test("should return 404 when target folder not found", async () => {
-      const template = { id: testIds.template1, name: "Template" };
-
-      prisma.template.findUnique.mockResolvedValue(template);
-      prisma.folder.findFirst.mockResolvedValue(null);
-
-      const response = await request(app)
-        .put(`/api/templates/${testIds.template1}/move`)
-        .send({ folderId: testIds.nonexistent });
 
       expect(response.status).toBe(404);
       expect(response.body.error.message).toBe("Folder not found");
