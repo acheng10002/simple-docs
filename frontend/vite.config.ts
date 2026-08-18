@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Proxy API requests to the backend during dev (no effect on `vite build`).
         // Defaults to local backend; set DEV_PROXY_TARGET in .env.local to override
-        // (e.g. https://simple-docs-9u3r.onrender.com for the deployed backend).
+        // (e.g. https://mergemydocs.onrender.com for the deployed backend).
         '/api': {
           target: env.DEV_PROXY_TARGET || 'http://localhost:3000',
           changeOrigin: true,

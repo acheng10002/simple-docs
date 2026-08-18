@@ -42,8 +42,8 @@ npx prisma studio            # Open database GUI
 
 ## Deployment
 
-- **Backend**: Render (`https://simple-docs-9u3r.onrender.com`)
-- **Frontend**: Vercel (`https://simple-docs-two.vercel.app`) with `vercel.json` rewrite for SPA routing
+- **Backend**: Render (`https://mergemydocs.onrender.com`)
+- **Frontend**: Vercel (`https://mergemydocs.vercel.app`) with `vercel.json` rewrite for SPA routing
 - Vercel auto-deploys on push to main
 
 ## Architecture
