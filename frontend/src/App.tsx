@@ -10,6 +10,7 @@ import Merge from './pages/Merge';
 import EditTemplate from './pages/EditTemplate';
 import Outputs from './pages/Outputs';
 import Settings from './pages/Settings';
+import Landing from './pages/Landing';
 
 const theme = createTheme({
   palette: {
@@ -143,9 +144,9 @@ function App() {
               }
             />
 
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/templates" replace />} />
-            <Route path="*" element={<Navigate to="/templates" replace />} />
+            {/* Landing page */}
+            <Route path="/" element={<Landing />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </SupabaseAuthProvider>
