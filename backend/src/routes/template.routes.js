@@ -781,20 +781,31 @@ router.put(
         // Reset outputNameFormat since fields have changed
         updateData.outputNameFormat = null;
 
-        // Delete old fields and create new ones
-        await prisma.field.deleteMany({
-          where: { templateId: id },
+        // Atomic: swap fields and update template together
+        const updatedTemplate = await prisma.$transaction(async (tx) => {
+          await tx.field.deleteMany({
+            where: { templateId: id },
+          });
+
+          await tx.field.createMany({
+            data: fieldNames.map((name) => ({
+              templateId: id,
+              name,
+            })),
+          });
+
+          return await tx.template.update({
+            where: { id },
+            data: updateData,
+            include: { fields: true },
+          });
         });
 
-        await prisma.field.createMany({
-          data: fieldNames.map((name) => ({
-            templateId: id,
-            name,
-          })),
-        });
+        req.log.info({ templateId: id }, "Template updated successfully");
+        return res.json(updatedTemplate);
       }
 
-      // Update template in database
+      // Metadata-only update (no file replacement)
       const updatedTemplate = await prisma.template.update({
         where: { id },
         data: updateData,
