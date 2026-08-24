@@ -43,6 +43,7 @@ class WorkerManager extends EventEmitter {
     this.lastRestartTime = 0;
     this.isShuttingDown = false;
     this.rl = null;
+    this._readyTimeout = null;
   }
 
   /**
@@ -95,12 +96,14 @@ class WorkerManager extends EventEmitter {
       });
 
       // Wait for ready signal with timeout
-      const readyTimeout = setTimeout(() => {
+      this._readyTimeout = setTimeout(() => {
+        this._readyTimeout = null;
         reject(new Error('Worker failed to start within timeout'));
       }, 10000);
 
       this.once('ready', () => {
-        clearTimeout(readyTimeout);
+        clearTimeout(this._readyTimeout);
+        this._readyTimeout = null;
         this.restartCount = 0;
         resolve();
       });
@@ -292,6 +295,12 @@ class WorkerManager extends EventEmitter {
    */
   async shutdown() {
     this.isShuttingDown = true;
+
+    // Clear any pending start timeout
+    if (this._readyTimeout) {
+      clearTimeout(this._readyTimeout);
+      this._readyTimeout = null;
+    }
 
     // Reject queued requests
     for (const queued of this.requestQueue) {

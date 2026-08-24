@@ -55,6 +55,10 @@ beforeEach(() => {
 
 afterEach(async () => {
   manager.isShuttingDown = true;
+  if (manager._readyTimeout) {
+    clearTimeout(manager._readyTimeout);
+    manager._readyTimeout = null;
+  }
   if (manager.worker) {
     manager.worker.kill();
     manager.worker = null;
@@ -66,6 +70,7 @@ afterEach(async () => {
   }
   manager.pendingRequests.clear();
   manager.requestQueue = [];
+  manager.removeAllListeners();
 });
 
 describe("WorkerManager", () => {
