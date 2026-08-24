@@ -252,8 +252,11 @@ describe("folder.service", () => {
         .mockResolvedValueOnce({ id: "f1", name: "Parent", depth: 1, children: [] })
         .mockResolvedValueOnce({ id: "f2", depth: 2, userId: "user-1" });
 
-      // Cycle detection: walking up from f2, f2's parent is f1 (the folder being moved)
-      prisma.folder.findUnique.mockResolvedValueOnce({ parentId: "f1" });
+      // fetchAllUserFolders: f2 is a child of f1 — moving f1 into f2 is circular
+      prisma.folder.findMany.mockResolvedValueOnce([
+        { id: "f1", parentId: null, depth: 1 },
+        { id: "f2", parentId: "f1", depth: 2 },
+      ]);
 
       await expect(
         moveFolder("user-1", "f1", "f2")
@@ -265,26 +268,13 @@ describe("folder.service", () => {
         .mockResolvedValueOnce({ id: "f1", name: "Folder", depth: 1, children: [] })
         .mockResolvedValueOnce({ id: "p1", depth: 3, userId: "user-1" });
 
-      // checkIsDescendant: p1's parent is root (no cycle)
-      prisma.folder.findUnique
-        .mockResolvedValueOnce({ parentId: null });
-
-      // getMaxChildDepth initial findMany (OR query) - returns folder list
-      prisma.folder.findMany.mockResolvedValueOnce([]);
-
-      // getMaxChildDepth recursive: findUnique for f1 depth
-      prisma.folder.findUnique.mockResolvedValueOnce({ depth: 1 });
-
-      // getMaxChildDepth recursive: children of f1 → has a child
-      prisma.folder.findMany.mockResolvedValueOnce([{ id: "child1" }]);
-
-      // getMaxChildDepth recursive: findUnique for child1 depth
-      prisma.folder.findUnique.mockResolvedValueOnce({ depth: 2 });
-
-      // getMaxChildDepth recursive: children of child1 → none
-      // defaults to []
-
-      // f1 depth=1, max child depth=2, offset=1. newDepth=4. 4+1=5 > 4
+      // fetchAllUserFolders: f1 has a child at depth 2. Moving f1 under p1 (depth 3)
+      // would put f1 at depth 4 and child1 at depth 5, exceeding max of 4.
+      prisma.folder.findMany.mockResolvedValueOnce([
+        { id: "f1", parentId: null, depth: 1 },
+        { id: "child1", parentId: "f1", depth: 2 },
+        { id: "p1", parentId: null, depth: 3 },
+      ]);
 
       await expect(
         moveFolder("user-1", "f1", "p1")
@@ -297,15 +287,11 @@ describe("folder.service", () => {
         .mockResolvedValueOnce({ id: "p1", depth: 1, userId: "user-1" })
         .mockResolvedValueOnce({ id: "existing", name: "Folder" }); // duplicate at target
 
-      // checkIsDescendant: no cycle
-      prisma.folder.findUnique.mockResolvedValueOnce({ parentId: null });
-
-      // getMaxChildDepth: initial findMany (OR query)
-      prisma.folder.findMany.mockResolvedValueOnce([]);
-
-      // getMaxChildDepth: findUnique for f1 depth, no children
-      prisma.folder.findUnique.mockResolvedValueOnce({ depth: 1 });
-      // findMany for children defaults to []
+      // fetchAllUserFolders: no cycle, f1 has no children
+      prisma.folder.findMany.mockResolvedValueOnce([
+        { id: "f1", parentId: null, depth: 1 },
+        { id: "p1", parentId: null, depth: 1 },
+      ]);
 
       await expect(
         moveFolder("user-1", "f1", "p1")
@@ -316,10 +302,11 @@ describe("folder.service", () => {
   describe("deleteFolder", () => {
     test("deletes folder and unfiles templates in subtree", async () => {
       prisma.folder.findFirst.mockResolvedValueOnce({ id: "f1", userId: "user-1" });
-      // getSubtreeFolderIds: f1 has one child, child has no children
-      prisma.folder.findMany
-        .mockResolvedValueOnce([{ id: "child1" }]) // f1's children
-        .mockResolvedValueOnce([]); // child1 has no children
+      // fetchAllUserFolders: f1 has one child
+      prisma.folder.findMany.mockResolvedValueOnce([
+        { id: "f1", parentId: null, depth: 1 },
+        { id: "child1", parentId: "f1", depth: 2 },
+      ]);
       prisma.template.updateMany.mockResolvedValue({ count: 3 });
 
       await deleteFolder("user-1", "f1");
@@ -341,11 +328,13 @@ describe("folder.service", () => {
 
     test("handles deep subtree deletion", async () => {
       prisma.folder.findFirst.mockResolvedValueOnce({ id: "root", userId: "user-1" });
-      prisma.folder.findMany
-        .mockResolvedValueOnce([{ id: "level2a" }, { id: "level2b" }])
-        .mockResolvedValueOnce([{ id: "level3" }]) // level2a's children
-        .mockResolvedValueOnce([]) // level3 has no children
-        .mockResolvedValueOnce([]); // level2b has no children
+      // fetchAllUserFolders: full tree in one query
+      prisma.folder.findMany.mockResolvedValueOnce([
+        { id: "root", parentId: null, depth: 1 },
+        { id: "level2a", parentId: "root", depth: 2 },
+        { id: "level2b", parentId: "root", depth: 2 },
+        { id: "level3", parentId: "level2a", depth: 3 },
+      ]);
 
       await deleteFolder("user-1", "root");
 

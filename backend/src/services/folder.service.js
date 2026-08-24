@@ -153,9 +153,11 @@ async function moveFolder(userId, folderId, newParentId) {
       throw new Error('Target folder not found');
     }
 
+    // Fetch all user folders once for in-memory traversal
+    const allFolders = await fetchAllUserFolders(userId);
+
     // Check if newParent is a descendant of folder (cycle detection)
-    const isDescendant = await checkIsDescendant(folderId, newParentId);
-    if (isDescendant) {
+    if (checkIsDescendantInMemory(allFolders, folderId, newParentId)) {
       throw new Error('Circular reference: cannot move folder into its own subtree');
     }
 
@@ -163,7 +165,7 @@ async function moveFolder(userId, folderId, newParentId) {
     const newDepth = newParent.depth + 1;
 
     // Check if move would exceed max depth (considering deepest child)
-    const maxChildDepth = await getMaxChildDepth(folderId);
+    const maxChildDepth = getMaxChildDepthInMemory(allFolders, folderId);
     const childrenDepthOffset = maxChildDepth - folder.depth;
 
     if (newDepth + childrenDepthOffset > 4) {
@@ -185,7 +187,7 @@ async function moveFolder(userId, folderId, newParentId) {
     }
 
     // Update folder and recalculate depths for entire subtree
-    await recalculateSubtreeDepths(folderId, newDepth);
+    await recalculateSubtreeDepths(allFolders, folderId, newDepth);
 
     return await prisma.folder.update({
       where: { id: folderId },
@@ -212,8 +214,11 @@ async function moveFolder(userId, folderId, newParentId) {
     throw new Error('A root folder with this name already exists');
   }
 
+  // Fetch all user folders for in-memory traversal (if not already fetched)
+  const allFoldersForRoot = await fetchAllUserFolders(userId);
+
   // Recalculate depths starting from 1
-  await recalculateSubtreeDepths(folderId, 1);
+  await recalculateSubtreeDepths(allFoldersForRoot, folderId, 1);
 
   return await prisma.folder.update({
     where: { id: folderId },
@@ -238,8 +243,9 @@ async function deleteFolder(userId, folderId) {
     throw new Error('Folder not found');
   }
 
-  // Get all folder IDs in subtree
-  const subtreeFolderIds = await getSubtreeFolderIds(folderId);
+  // Fetch all user folders and get subtree IDs in memory
+  const allFoldersForDelete = await fetchAllUserFolders(userId);
+  const subtreeFolderIds = getSubtreeFolderIdsInMemory(allFoldersForDelete, folderId);
 
   // Unfile all templates in subtree (set folderId to null)
   await prisma.template.updateMany({
@@ -289,107 +295,104 @@ async function moveTemplate(userId, templateId, folderId) {
 }
 
 // Helper functions
+// All tree traversal is done in memory after a single bulk fetch,
+// avoiding N+1 DB queries. Max depth is 4, so trees are small.
 
 /**
- * Check if descendantId is a descendant of ancestorId
+ * Fetch all folders for a user in one query
  */
-async function checkIsDescendant(ancestorId, descendantId) {
+async function fetchAllUserFolders(userId) {
+  return prisma.folder.findMany({
+    where: { userId },
+    select: { id: true, parentId: true, depth: true },
+  });
+}
+
+/**
+ * Check if descendantId is a descendant of ancestorId (in-memory)
+ */
+function checkIsDescendantInMemory(folders, ancestorId, descendantId) {
+  const folderMap = new Map(folders.map((f) => [f.id, f]));
   let currentId = descendantId;
 
   while (currentId) {
-    if (currentId === ancestorId) {
-      return true;
-    }
-
-    const folder = await prisma.folder.findUnique({
-      where: { id: currentId },
-      select: { parentId: true },
-    });
-
-    currentId = folder?.parentId;
+    if (currentId === ancestorId) return true;
+    currentId = folderMap.get(currentId)?.parentId || null;
   }
 
   return false;
 }
 
 /**
- * Get maximum depth in folder's subtree
+ * Get maximum depth in folder's subtree (in-memory)
  */
-async function getMaxChildDepth(folderId) {
-  const folders = await prisma.folder.findMany({
-    where: {
-      OR: [
-        { id: folderId },
-        // Get all descendants recursively using a raw query would be more efficient
-        // but for now, we'll fetch all and traverse in memory
-      ],
-    },
-  });
+function getMaxChildDepthInMemory(folders, folderId) {
+  const childrenMap = new Map();
+  for (const f of folders) {
+    const pid = f.parentId || '__root__';
+    if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+    childrenMap.get(pid).push(f);
+  }
 
-  // For simplicity, we'll traverse the tree recursively
-  // In production, consider using a recursive CTE query
-  const getDepthRecursive = async (id) => {
-    const folder = await prisma.folder.findUnique({
-      where: { id },
-      select: { depth: true },
-    });
-
-    const children = await prisma.folder.findMany({
-      where: { parentId: id },
-      select: { id: true },
-    });
-
-    if (children.length === 0) {
-      return folder?.depth || 1;
-    }
-
-    const childDepths = await Promise.all(
-      children.map((child) => getDepthRecursive(child.id))
-    );
-
-    return Math.max(...childDepths);
+  const traverse = (id) => {
+    const folder = folders.find((f) => f.id === id);
+    const children = childrenMap.get(id) || [];
+    if (children.length === 0) return folder?.depth || 1;
+    return Math.max(...children.map((c) => traverse(c.id)));
   };
 
-  return await getDepthRecursive(folderId);
+  return traverse(folderId);
 }
 
 /**
- * Get all folder IDs in subtree (including the folder itself)
+ * Get all folder IDs in subtree, including the folder itself (in-memory)
  */
-async function getSubtreeFolderIds(folderId, acc = []) {
-  acc.push(folderId);
-
-  const children = await prisma.folder.findMany({
-    where: { parentId: folderId },
-    select: { id: true },
-  });
-
-  for (const child of children) {
-    await getSubtreeFolderIds(child.id, acc);
+function getSubtreeFolderIdsInMemory(folders, folderId) {
+  const childrenMap = new Map();
+  for (const f of folders) {
+    const pid = f.parentId || '__root__';
+    if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+    childrenMap.get(pid).push(f);
   }
 
-  return acc;
+  const result = [];
+  const traverse = (id) => {
+    result.push(id);
+    for (const child of childrenMap.get(id) || []) {
+      traverse(child.id);
+    }
+  };
+  traverse(folderId);
+  return result;
 }
 
 /**
- * Recursively update depths for folder and all descendants
+ * Recalculate depths for folder and all descendants (batch update)
  */
-async function recalculateSubtreeDepths(folderId, newDepth) {
-  // Update current folder
-  await prisma.folder.update({
-    where: { id: folderId },
-    data: { depth: newDepth },
-  });
-
-  // Update all children recursively
-  const children = await prisma.folder.findMany({
-    where: { parentId: folderId },
-    select: { id: true },
-  });
-
-  for (const child of children) {
-    await recalculateSubtreeDepths(child.id, newDepth + 1);
+async function recalculateSubtreeDepths(folders, folderId, newDepth) {
+  const childrenMap = new Map();
+  for (const f of folders) {
+    const pid = f.parentId || '__root__';
+    if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+    childrenMap.get(pid).push(f);
   }
+
+  // Collect all updates
+  const updates = [];
+  const traverse = (id, depth) => {
+    updates.push({ id, depth });
+    for (const child of childrenMap.get(id) || []) {
+      traverse(child.id, depth + 1);
+    }
+  };
+  traverse(folderId, newDepth);
+
+  // Batch update all folders
+  await Promise.all(
+    updates.map(({ id, depth }) =>
+      prisma.folder.update({ where: { id }, data: { depth } })
+    )
+  );
 }
 
 module.exports = {
