@@ -210,7 +210,7 @@ router.get(
       // instructs the browser to download, not render inline, and suggest a filename
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="${info.downloadName}"`
+        `attachment; filename*=UTF-8''${encodeURIComponent(info.downloadName)}`
       );
       // prevents MIME sniffing attacks
       res.setHeader("X-Content-Type-Options", "nosniff");
@@ -413,7 +413,7 @@ router.get(
         }
 
         res.setHeader("Content-Type", contentType);
-        res.setHeader("Content-Disposition", `attachment; filename="${filePath.split('/').pop()}"`);
+        res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filePath.split('/').pop())}`);;
         res.setHeader("X-Content-Type-Options", "nosniff");
 
         // Set Content-Length if available (enables progress bars, proxies, resumable downloads)
@@ -673,7 +673,7 @@ router.post(
       // If test mode, return the file directly for download
       if (result.testMode) {
         res.setHeader('Content-Type', result.contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.filename)}`);
         res.setHeader('X-Content-Type-Options', 'nosniff');
         return res.send(result.buffer);
       }
