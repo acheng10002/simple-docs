@@ -266,6 +266,10 @@ async function moveTemplate(userId, templateId, folderId) {
     throw new Error('Template not found');
   }
 
+  if (template.uploadedById !== userId) {
+    throw new Error('Template not found');
+  }
+
   // Verify folder exists and belongs to user (if folderId provided)
   if (folderId) {
     const folder = await prisma.folder.findFirst({

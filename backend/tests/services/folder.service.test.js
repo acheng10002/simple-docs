@@ -358,7 +358,7 @@ describe("folder.service", () => {
 
   describe("moveTemplate", () => {
     test("moves template to folder", async () => {
-      prisma.template.findUnique.mockResolvedValueOnce({ id: "t1" });
+      prisma.template.findUnique.mockResolvedValueOnce({ id: "t1", uploadedById: "user-1" });
       prisma.folder.findFirst.mockResolvedValueOnce({ id: "f1", userId: "user-1" });
       prisma.template.update.mockResolvedValue({
         id: "t1",
@@ -378,7 +378,7 @@ describe("folder.service", () => {
     });
 
     test("unfiles template (moves to root)", async () => {
-      prisma.template.findUnique.mockResolvedValueOnce({ id: "t1", folderId: "f1" });
+      prisma.template.findUnique.mockResolvedValueOnce({ id: "t1", folderId: "f1", uploadedById: "user-1" });
       prisma.template.update.mockResolvedValue({
         id: "t1",
         folderId: null,
@@ -398,7 +398,7 @@ describe("folder.service", () => {
     });
 
     test("throws when target folder not found", async () => {
-      prisma.template.findUnique.mockResolvedValueOnce({ id: "t1" });
+      prisma.template.findUnique.mockResolvedValueOnce({ id: "t1", uploadedById: "user-1" });
       // findFirst returns null (default) — folder not found
 
       await expect(
