@@ -89,6 +89,9 @@ console.log("✅ Environment validation passed");
 // BUILDS AN EXPRESS APP
 const app = express();
 
+// Trust reverse proxy (Render) so req.ip reflects the real client IP for rate limiting
+app.set('trust proxy', 1);
+
 // Request ID middleware - adds req.id to every request
 app.use(addRequestId);
 
@@ -213,6 +216,11 @@ app.use("/api", uploadRouter);
 app.use("/api", mergeRouter);
 // Admin routes - cleanup, health (protected by CLEANUP_SECRET, not Supabase auth)
 app.use("/api/admin", adminRouter);
+
+// 404 catch-all — return JSON instead of Express's default HTML
+app.use((req, res) => {
+  res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
+});
 
 app.use(errorLogger.expressErrorHandler);
 
