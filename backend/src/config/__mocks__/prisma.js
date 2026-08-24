@@ -41,4 +41,5 @@ module.exports = {
     delete: jest.fn(),
   },
   $disconnect: jest.fn(),
+  $transaction: jest.fn((cb) => cb(module.exports)),
 };

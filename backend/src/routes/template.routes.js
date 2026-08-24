@@ -463,51 +463,55 @@ router.post(
       const expiresAt = new Date();
       expiresAt.setFullYear(expiresAt.getFullYear() + 100);
 
-      await prisma.templateVersion.create({
-        data: {
-          templateId: id,
-          versionNumber: nextVersionNumber,
-          storageKey: currentTemplate.storageKey,
-          mimeType: currentTemplate.mimeType,
-          displayName: currentTemplate.displayName,
-          defaultOutputType: currentTemplate.defaultOutputType,
-          outputNameFormat: currentTemplate.outputNameFormat,
-          pageSize: currentTemplate.pageSize,
-          orientation: currentTemplate.orientation,
-          fieldsSnapshot: currentTemplate.fields.map((f) => ({
-            id: f.id,
+      // Atomic: snapshot current state, swap fields, update template
+      const updatedTemplate = await prisma.$transaction(async (tx) => {
+        // Create version of current state before reverting
+        await tx.templateVersion.create({
+          data: {
+            templateId: id,
+            versionNumber: nextVersionNumber,
+            storageKey: currentTemplate.storageKey,
+            mimeType: currentTemplate.mimeType,
+            displayName: currentTemplate.displayName,
+            defaultOutputType: currentTemplate.defaultOutputType,
+            outputNameFormat: currentTemplate.outputNameFormat,
+            pageSize: currentTemplate.pageSize,
+            orientation: currentTemplate.orientation,
+            fieldsSnapshot: currentTemplate.fields.map((f) => ({
+              id: f.id,
+              name: f.name,
+            })),
+            expiresAt,
+          },
+        });
+
+        // Delete current fields
+        await tx.field.deleteMany({
+          where: { templateId: id },
+        });
+
+        // Restore fields from version snapshot
+        await tx.field.createMany({
+          data: version.fieldsSnapshot.map((f) => ({
+            templateId: id,
             name: f.name,
           })),
-          expiresAt,
-        },
-      });
+        });
 
-      // Delete current fields
-      await prisma.field.deleteMany({
-        where: { templateId: id },
-      });
-
-      // Restore fields from version snapshot
-      await prisma.field.createMany({
-        data: version.fieldsSnapshot.map((f) => ({
-          templateId: id,
-          name: f.name,
-        })),
-      });
-
-      // Update template to version state
-      const updatedTemplate = await prisma.template.update({
-        where: { id },
-        data: {
-          storageKey: version.storageKey,
-          mimeType: version.mimeType,
-          displayName: version.displayName,
-          defaultOutputType: version.defaultOutputType,
-          outputNameFormat: version.outputNameFormat,
-          pageSize: version.pageSize,
-          orientation: version.orientation,
-        },
-        include: { fields: true },
+        // Update template to version state
+        return await tx.template.update({
+          where: { id },
+          data: {
+            storageKey: version.storageKey,
+            mimeType: version.mimeType,
+            displayName: version.displayName,
+            defaultOutputType: version.defaultOutputType,
+            outputNameFormat: version.outputNameFormat,
+            pageSize: version.pageSize,
+            orientation: version.orientation,
+          },
+          include: { fields: true },
+        });
       });
 
       req.log.info(

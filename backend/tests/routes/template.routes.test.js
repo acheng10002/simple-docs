@@ -52,6 +52,7 @@ describe("Template Routes", () => {
       req.user = mockUser;
       next();
     });
+
   });
 
   describe("GET /api/templates", () => {
