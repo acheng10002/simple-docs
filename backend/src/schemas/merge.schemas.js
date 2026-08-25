@@ -28,6 +28,10 @@ const batchJobIdParams = z.object({
 
 const batchJobsQuery = pagination;
 
+const webhookQuery = z.object({
+  outputType: z.enum(["pdf", "docx", "html", "jpg", "xlsx", "pptx", "ppsx"]).default("pdf"),
+});
+
 module.exports = {
   templateIdParams,
   mergeBody,
@@ -35,4 +39,5 @@ module.exports = {
   jobIdParams,
   batchJobIdParams,
   batchJobsQuery,
+  webhookQuery,
 };

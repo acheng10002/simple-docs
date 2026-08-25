@@ -15,6 +15,7 @@ const {
   jobIdParams,
   batchJobIdParams,
   batchJobsQuery,
+  webhookQuery,
 } = require("../schemas/merge.schemas");
 // imports Supabase authentication middleware
 const authenticateSupabase = require("../middleware/supabase-auth");
@@ -762,13 +763,13 @@ router.get(
 /* WEBHOOK MERGE (HMAC)
 - SANITIZES INPUTS ON WEBHOOK (EXTERNAL SYSTEMS) ROUTE
 - STILL HARD-BLOCKS EXECUTION ON CRITICAL VIOLATIONS (E.G. FAILED HMAC, SCHEMA MISMATCH, PATH TRAVERSAL LOGS, ETC.) */
-router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, validate({ params: templateIdParams }), async (req, res) => {
+router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, validate({ params: templateIdParams, query: webhookQuery }), async (req, res) => {
   // runs the same merge path with the POST body as data
   /* C5. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): route handler execution
       C5a. templateId from URL (already validated by Zod) */
   const { templateId } = req.params;
-  // C5b. outputType read from query string
-  const outputType = req.query.outputType || "pdf";
+  // C5b. outputType validated by Zod from query string
+  const { outputType } = req.query;
 
   // Fetch template to validate outputType against its format
   let template;
