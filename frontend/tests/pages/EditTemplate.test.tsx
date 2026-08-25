@@ -97,6 +97,7 @@ describe('EditTemplate Page', () => {
     vi.clearAllMocks();
     mockNavigate.mockClear();
     mockConfirm.mockClear();
+    mockDelete.mockReset();
     mockGetVersions.mockResolvedValue([]);
   });
 
