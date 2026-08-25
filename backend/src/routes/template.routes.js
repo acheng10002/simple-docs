@@ -30,6 +30,7 @@ const {
   moveTemplateBody,
 } = require("../schemas/folder.schemas");
 const folderService = require("../services/folder.service");
+const { templateCache } = require("../utils/templateCache");
 
 // shared linter utilities
 const { lintDocxBuffer } = require("../utils/docx-templating");
@@ -523,6 +524,8 @@ router.post(
         "Template reverted to previous version"
       );
 
+      templateCache.invalidate(id);
+
       res.json({
         message: `Reverted to version ${version.versionNumber}`,
         template: updatedTemplate,
@@ -801,6 +804,7 @@ router.put(
           });
         });
 
+        templateCache.invalidate(id);
         req.log.info({ templateId: id }, "Template updated successfully");
         return res.json(updatedTemplate);
       }
