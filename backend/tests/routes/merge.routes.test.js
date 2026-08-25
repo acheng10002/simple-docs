@@ -216,7 +216,7 @@ describe("Merge Routes", () => {
     test("should merge template when user owns it", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -277,7 +277,7 @@ describe("Merge Routes", () => {
     test("should use default outputType of docx", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -302,7 +302,7 @@ describe("Merge Routes", () => {
     test("should return 422 for template parse errors", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -330,7 +330,7 @@ describe("Merge Routes", () => {
     test("should return 400 for other errors", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -359,7 +359,7 @@ describe("Merge Routes", () => {
     test("should merge CSV when user owns template", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -420,7 +420,7 @@ describe("Merge Routes", () => {
     test("should return 400 with invalid outputType", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -439,7 +439,7 @@ describe("Merge Routes", () => {
     test("should return 400 when CSV file is not uploaded", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -455,7 +455,7 @@ describe("Merge Routes", () => {
     test("should return 400 with invalid CSV format", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -474,7 +474,7 @@ describe("Merge Routes", () => {
     test("should return 400 when CSV has no data rows", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -493,7 +493,7 @@ describe("Merge Routes", () => {
     test("should return 422 for template parse errors", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -530,7 +530,7 @@ describe("Merge Routes", () => {
     test("should handle CSV with BOM character", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
@@ -552,7 +552,7 @@ describe("Merge Routes", () => {
     test("should return 400 for empty CSV", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
@@ -568,7 +568,7 @@ describe("Merge Routes", () => {
     test("should return 413 for CSV with more than 1000 rows", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
@@ -588,7 +588,7 @@ describe("Merge Routes", () => {
     test("should queue batch job for large CSV when not inline", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
@@ -612,7 +612,7 @@ describe("Merge Routes", () => {
     test("should return partial success with errors for failed rows", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
-        uploadedById: "user-123",
+        uploadedById: "user-123", isActive: true,
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
@@ -640,6 +640,7 @@ describe("Merge Routes", () => {
     test("should process webhook with valid HMAC and JSON", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -673,6 +674,7 @@ describe("Merge Routes", () => {
     test("should process webhook with valid HMAC and CSV", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -705,6 +707,7 @@ describe("Merge Routes", () => {
     test("should process JSON array", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -762,6 +765,7 @@ describe("Merge Routes", () => {
     test("should return error for unsupported content type", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -782,6 +786,7 @@ describe("Merge Routes", () => {
     test("should return 400 for invalid JSON", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -802,6 +807,7 @@ describe("Merge Routes", () => {
     test("should return 413 for too many rows", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -823,6 +829,7 @@ describe("Merge Routes", () => {
     test("should return warnings when merge produces warnings", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -850,6 +857,7 @@ describe("Merge Routes", () => {
     test("should return 422 for template parse errors", async () => {
       prisma.template.findUnique.mockResolvedValue({
         id: VALID_TEMPLATE_ID,
+        isActive: true,
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });

@@ -471,9 +471,13 @@ router.post(
         where: { id: templateId },
       });
 
-      // Check template exists and belongs to user
+      // Check template exists, belongs to user, and is active
       if (!template || template.uploadedById !== req.user.id) {
         return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
+      }
+
+      if (!template.isActive) {
+        return errorResponse.badRequest(res, "Template is inactive", ErrorCodes.VALIDATION_ERROR);
       }
 
       // Validate outputType is supported for this template's format
@@ -636,9 +640,13 @@ router.post(
         where: { id: templateId },
       });
 
-      // Check template exists and belongs to user
+      // Check template exists, belongs to user, and is active
       if (!template || template.uploadedById !== req.user.id) {
         return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
+      }
+
+      if (!template.isActive) {
+        return errorResponse.badRequest(res, "Template is inactive", ErrorCodes.VALIDATION_ERROR);
       }
 
       // Validate outputType is supported for this template's format
@@ -775,6 +783,10 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, validate
 
   if (!template) {
     return errorResponse.notFound(res, "Template not found", ErrorCodes.TEMPLATE_NOT_FOUND);
+  }
+
+  if (!template.isActive) {
+    return errorResponse.badRequest(res, "Template is inactive", ErrorCodes.VALIDATION_ERROR);
   }
 
   // Validate outputType is supported for this template's format
