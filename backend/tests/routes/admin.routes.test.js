@@ -2,6 +2,7 @@ const request = require("supertest");
 const express = require("express");
 
 jest.mock("../../src/services/cleanup.service");
+jest.mock("../../src/storage/supabase-storage");
 jest.mock("../../src/config/logger", () => ({
   debug: jest.fn(),
   info: jest.fn(),
