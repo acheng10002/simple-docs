@@ -836,46 +836,40 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, validate
   rows = sanitizeCsvRows(rows);
 
   try {
-    // initializes containers for results and warnings
-    const jobs = [];
-    const aggregatedWarnings = [];
-    // tracks row numbers for better warning messages
-    let rowIndex = 0;
-    // iterates through rows
-    for (const row of rows) {
-      rowIndex++;
-      /* mergeTemplate loads the template file, renders placeholders with data, optionally
-        converts, writes the output file, optionally records a merge job, returns
-        { jobId, filePath }
-
-        C7. WEBHOOK DATA INGESTION (SHARED-SECRET HMAC): handoff to merge engine */
-      // Wrap in concurrency limiter to prevent memory exhaustion
-      const job = await concurrencyLimiter.run(async () => {
-        return mergeTemplate({
-          templateId,
-          data: row,
-          outputType,
-          userId: null,
-          // lets the merge layer apply webhook-specific rules (i.e. sanitization)
-          fromWebhook: true,
-        });
+    if (shouldProcessInline(rows.length)) {
+      // Small payloads: process inline with bounded concurrency
+      const results = await processRowsInline({
+        templateId,
+        rows,
+        outputType,
+        userId: null,
+        fromWebhook: true,
       });
-      jobs.push(job);
 
-      // if the merge returned warnings, collect them with the row number
-      if (job.warnings && job.warnings.length) {
-        aggregatedWarnings.push({ row: rowIndex, warnings: job.warnings });
-      }
+      const jobs = results.filter(r => r.success).map(r => r.job);
+      const errors = results.filter(r => !r.success).map(r => ({
+        rowIndex: r.rowIndex,
+        error: r.error,
+      }));
+
+      const response = { count: rows.length, jobs };
+      if (errors.length > 0) response.errors = errors;
+      return res.json(response);
     }
 
-    /* C11. WEBHOOK DATA INGESTION REQUEST LIFECYCLE (SHARED-SECRET HMAC): response 
-      responds with the result in JSON on success */
-    res.json(
-      aggregatedWarnings.length
-        ? { count: rows.length, jobs, warnings: aggregatedWarnings }
-        : { count: rows.length, jobs }
-    );
-    // responds with 422 meaning "Unprocessable" on failure
+    // Large payloads: queue for background processing
+    const batchJob = await createBatchJob({
+      templateId,
+      rows,
+      outputType,
+      userId: null,
+    });
+
+    return res.json({
+      count: rows.length,
+      batchJobId: batchJob.id,
+      message: `Queued ${rows.length} rows for background processing`,
+    });
   } catch (err) {
     if (err.message === "TEMPLATE_PARSE_ERROR" && err.details) {
       return errorResponse.unprocessable(

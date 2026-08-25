@@ -179,6 +179,7 @@ describe("batchJob.service", () => {
         data: { name: "Test", email: "test@example.com" },
         outputType: "docx",
         userId: "user-456",
+        fromWebhook: false,
       });
     });
   });

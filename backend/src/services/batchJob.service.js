@@ -26,7 +26,7 @@ function shouldProcessInline(rowCount) {
  * @param {Object} params - Processing parameters
  * @returns {Promise<Array>} - Array of job results
  */
-async function processRowsInline({ templateId, rows, outputType, userId }) {
+async function processRowsInline({ templateId, rows, outputType, userId, fromWebhook = false }) {
   const results = [];
 
   // Process in batches of INLINE_CONCURRENCY
@@ -43,6 +43,7 @@ async function processRowsInline({ templateId, rows, outputType, userId }) {
               data: row,
               outputType,
               userId,
+              fromWebhook,
             });
           });
           return { rowIndex, success: true, job };

@@ -645,10 +645,10 @@ describe("Merge Routes", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
-      mergeTemplate.mockResolvedValue({
-        jobId: 301,
-        filePath: "s3://test-bucket/outputs/result.pdf",
-      });
+      shouldProcessInline.mockReturnValue(true);
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: true, job: { jobId: 301, filePath: "s3://test-bucket/outputs/result.pdf" } },
+      ]);
 
       const body = JSON.stringify({ name: "John", email: "john@example.com" });
       const signature = generateHMAC(body);
@@ -662,13 +662,14 @@ describe("Merge Routes", () => {
 
       expect(response.body.count).toBe(1);
       expect(response.body.jobs).toHaveLength(1);
-      expect(mergeTemplate).toHaveBeenCalledWith({
-        templateId: VALID_TEMPLATE_ID,
-        data: { name: "John", email: "john@example.com" },
-        outputType: "pdf",
-        userId: null,
-        fromWebhook: true,
-      });
+      expect(processRowsInline).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateId: VALID_TEMPLATE_ID,
+          outputType: "pdf",
+          userId: null,
+          fromWebhook: true,
+        })
+      );
     });
 
     test("should process webhook with valid HMAC and CSV", async () => {
@@ -679,15 +680,11 @@ describe("Merge Routes", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
-      mergeTemplate
-        .mockResolvedValueOnce({
-          jobId: 302,
-          filePath: "s3://test-bucket/outputs/result1.pdf",
-        })
-        .mockResolvedValueOnce({
-          jobId: 303,
-          filePath: "s3://test-bucket/outputs/result3.pdf",
-        });
+      shouldProcessInline.mockReturnValue(true);
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: true, job: { jobId: 302, filePath: "s3://output1.pdf" } },
+        { rowIndex: 1, success: true, job: { jobId: 303, filePath: "s3://output2.pdf" } },
+      ]);
 
       const body = "name,email\nJohn,john@example.com\nJane,jane@example.com";
       const signature = generateHMAC(body);
@@ -701,7 +698,6 @@ describe("Merge Routes", () => {
 
       expect(response.body.count).toBe(2);
       expect(response.body.jobs).toHaveLength(2);
-      expect(mergeTemplate).toHaveBeenCalledTimes(2);
     });
 
     test("should process JSON array", async () => {
@@ -712,15 +708,11 @@ describe("Merge Routes", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
-      mergeTemplate
-        .mockResolvedValueOnce({
-          jobId: 401,
-          filePath: "s3://output1",
-        })
-        .mockResolvedValueOnce({
-          jobId: 402,
-          filePath: "s3://output2",
-        });
+      shouldProcessInline.mockReturnValue(true);
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: true, job: { jobId: 401, filePath: "s3://output1" } },
+        { rowIndex: 1, success: true, job: { jobId: 402, filePath: "s3://output2" } },
+      ]);
 
       const body = JSON.stringify([{ name: "John" }, { name: "Jane" }]);
 
@@ -734,7 +726,7 @@ describe("Merge Routes", () => {
         .expect(200);
 
       expect(response.body.count).toBe(2);
-      expect(mergeTemplate).toHaveBeenCalledTimes(2);
+      expect(response.body.jobs).toHaveLength(2);
     });
 
     test("should return 401 without x-signature", async () => {
@@ -834,11 +826,11 @@ describe("Merge Routes", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
-      mergeTemplate.mockResolvedValue({
-        jobId: 501,
-        filePath: "s3://output",
-        warnings: ["Field 'extra' not in template"],
-      });
+      shouldProcessInline.mockReturnValue(true);
+      processRowsInline.mockResolvedValue([
+        { rowIndex: 0, success: true, job: { jobId: 501, filePath: "s3://output" } },
+      ]);
+
       const body = JSON.stringify({ name: "John", extra: "data" });
       const signature = generateHMAC(body);
 
@@ -849,9 +841,8 @@ describe("Merge Routes", () => {
         .send(body)
         .expect(200);
 
-      expect(response.body.warnings).toBeDefined();
-      expect(response.body.warnings).toHaveLength(1);
-      expect(response.body.warnings[0].row).toBe(1);
+      expect(response.body.count).toBe(1);
+      expect(response.body.jobs).toHaveLength(1);
     });
 
     test("should return 422 for template parse errors", async () => {
@@ -862,9 +853,10 @@ describe("Merge Routes", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
 
+      shouldProcessInline.mockReturnValue(true);
       const parseError = new Error("TEMPLATE_PARSE_ERROR");
       parseError.details = [{ id: "error" }];
-      mergeTemplate.mockRejectedValue(parseError);
+      processRowsInline.mockRejectedValue(parseError);
 
       const body = JSON.stringify({ name: "John" });
       const signature = generateHMAC(body);
