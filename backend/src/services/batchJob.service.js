@@ -95,28 +95,32 @@ async function processBatchJob(batchJobId) {
     where: { id: batchJobId },
   });
 
-  if (!batchJob || batchJob.status !== 'pending') {
+  if (!batchJob || (batchJob.status !== 'pending' && batchJob.status !== 'processing')) {
     return;
   }
+
+  // Resume from where we left off (if restarting after a crash)
+  const startIndex = batchJob.processedRows || 0;
+  const previousResults = Array.isArray(batchJob.results) ? batchJob.results : [];
 
   // Mark as processing
   await prisma.batchJob.update({
     where: { id: batchJobId },
     data: {
       status: 'processing',
-      startedAt: new Date(),
+      startedAt: batchJob.startedAt || new Date(),
     },
   });
 
-  const results = [];
-  let processedRows = 0;
-  let failedRows = 0;
+  const results = [...previousResults];
+  let processedRows = startIndex;
+  let failedRows = batchJob.failedRows || 0;
 
   try {
     const rows = batchJob.rows;
 
-    // Process rows sequentially to avoid overwhelming the system
-    for (let i = 0; i < rows.length; i++) {
+    // Process rows sequentially, skipping already-processed rows
+    for (let i = startIndex; i < rows.length; i++) {
       const row = rows[i];
 
       try {
@@ -283,12 +287,6 @@ async function resumePendingBatchJobs() {
     logger.info({ count: pendingJobs.length }, 'Resuming pending batch jobs');
 
     for (const job of pendingJobs) {
-      // Reset to pending so they get reprocessed
-      await prisma.batchJob.update({
-        where: { id: job.id },
-        data: { status: 'pending' },
-      });
-
       setImmediate(() => {
         processBatchJob(job.id).catch(err => {
           logger.error({ err, batchJobId: job.id }, 'Failed to resume batch job');

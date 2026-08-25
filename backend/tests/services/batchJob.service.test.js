@@ -521,20 +521,14 @@ describe("batchJob.service", () => {
         { id: "batch-1" },
         { id: "batch-2" },
       ]);
-      prisma.batchJob.update.mockResolvedValue({});
       prisma.batchJob.findUnique.mockResolvedValue(null);
 
       await resumePendingBatchJobs();
 
-      // Should reset both jobs to pending
-      expect(prisma.batchJob.update).toHaveBeenCalledWith({
-        where: { id: "batch-1" },
-        data: { status: "pending" },
-      });
-      expect(prisma.batchJob.update).toHaveBeenCalledWith({
-        where: { id: "batch-2" },
-        data: { status: "pending" },
-      });
+      // Should NOT reset status (jobs resume from where they left off)
+      expect(prisma.batchJob.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: "pending" } })
+      );
 
       expect(logger.info).toHaveBeenCalledWith(
         { count: 2 },
