@@ -250,7 +250,7 @@ describe('MoveTemplateDialog', () => {
   it('should render move template dialog', () => {
     render(<MoveTemplateDialog {...defaultProps} />);
 
-    expect(screen.getByText('Move Template')).toBeInTheDocument();
+    expect(screen.getByText('Move Into Folder')).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
@@ -258,7 +258,7 @@ describe('MoveTemplateDialog', () => {
     render(<MoveTemplateDialog {...defaultProps} />);
 
     // Just verify the dialog is rendered
-    expect(screen.getByText('Move Template')).toBeInTheDocument();
+    expect(screen.getByText('Move Into Folder')).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 

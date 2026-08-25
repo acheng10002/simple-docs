@@ -81,7 +81,7 @@ describe('Settings Page', () => {
       renderSettings();
 
       expect(screen.getByText('Account Settings')).toBeInTheDocument();
-      expect(screen.getByText('MergeMyDocs - Settings')).toBeInTheDocument();
+      expect(screen.getByText('MergeMyDocs')).toBeInTheDocument();
     });
 
     it('should render navigation buttons', () => {

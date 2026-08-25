@@ -368,32 +368,42 @@ describe('Templates Page', () => {
     });
   });
 
-  it('should navigate to outputs page when outputs button clicked', async () => {
+  it('should navigate to outputs page via user menu', async () => {
     vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
 
     renderTemplates();
 
+    // Click user avatar to open menu
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /outputs/i })).toBeInTheDocument();
+      expect(screen.getByText('?')).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByText('?'));
 
-    const outputsButton = screen.getByRole('button', { name: /outputs/i });
-    fireEvent.click(outputsButton);
+    // Click Outputs in the menu
+    await waitFor(() => {
+      expect(screen.getByText('Outputs')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Outputs'));
 
     expect(mockNavigate).toHaveBeenCalledWith('/outputs');
   });
 
-  it('should handle logout', async () => {
+  it('should handle logout via user menu', async () => {
     vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
 
     renderTemplates();
 
+    // Click user avatar to open menu
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
+      expect(screen.getByText('?')).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByText('?'));
 
-    const logoutButton = screen.getByRole('button', { name: /log out/i });
-    fireEvent.click(logoutButton);
+    // Click Log Out in the menu
+    await waitFor(() => {
+      expect(screen.getByText('Log Out')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Log Out'));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/login');
@@ -406,8 +416,14 @@ describe('Templates Page', () => {
 
       renderTemplates();
 
-      // Wait for loading to complete and search input to appear
-      const searchInput = await screen.findByPlaceholderText(/search by name or field/i);
+      // Click search icon to open search panel
+      await waitFor(() => {
+        expect(screen.getByTestId('SearchIcon')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('SearchIcon').closest('button')!);
+
+      // Wait for search input to appear
+      const searchInput = await screen.findByPlaceholderText(/search template by name or field/i);
       expect(searchInput).toBeInTheDocument();
 
       // Check radio buttons exist (they're part of a RadioGroup)
@@ -448,7 +464,10 @@ describe('Templates Page', () => {
         expect(screen.getByText('Report Template')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText(/search by name or field/i);
+      // Open search panel
+      fireEvent.click(screen.getByTestId('SearchIcon').closest('button')!);
+
+      const searchInput = screen.getByPlaceholderText(/search template by name or field/i);
       fireEvent.change(searchInput, { target: { value: 'Invoice' } });
 
       await waitFor(() => {
@@ -486,7 +505,10 @@ describe('Templates Page', () => {
         expect(screen.getByText('Report Template')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText(/search by name or field/i);
+      // Open search panel
+      fireEvent.click(screen.getByTestId('SearchIcon').closest('button')!);
+
+      const searchInput = screen.getByPlaceholderText(/search template by name or field/i);
       fireEvent.change(searchInput, { target: { value: 'customer' } });
 
       await waitFor(() => {
@@ -515,7 +537,10 @@ describe('Templates Page', () => {
         expect(screen.getByText('Invoice Template')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText(/search by name or field/i);
+      // Open search panel
+      fireEvent.click(screen.getByTestId('SearchIcon').closest('button')!);
+
+      const searchInput = screen.getByPlaceholderText(/search template by name or field/i);
       fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
 
       await waitFor(() => {
@@ -550,6 +575,9 @@ describe('Templates Page', () => {
       await waitFor(() => {
         expect(screen.getByText('Active Template')).toBeInTheDocument();
       });
+
+      // Open search panel
+      fireEvent.click(screen.getByTestId('SearchIcon').closest('button')!);
 
       const activeRadio = screen.getByRole('radio', { name: /^active$/i });
       fireEvent.click(activeRadio);
@@ -587,6 +615,9 @@ describe('Templates Page', () => {
       await waitFor(() => {
         expect(screen.getByText('Active Template')).toBeInTheDocument();
       });
+
+      // Open search panel
+      fireEvent.click(screen.getByTestId('SearchIcon').closest('button')!);
 
       const inactiveRadio = screen.getByRole('radio', { name: /^inactive$/i });
       fireEvent.click(inactiveRadio);

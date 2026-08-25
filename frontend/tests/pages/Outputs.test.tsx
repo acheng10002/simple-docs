@@ -79,7 +79,7 @@ describe('Outputs Page', () => {
     renderOutputs();
 
     await waitFor(() => {
-      expect(screen.getByText('MergeMyDocs - Merge Outputs')).toBeInTheDocument();
+      expect(screen.getByText('MergeMyDocs')).toBeInTheDocument();
       expect(screen.getByText('Merge Outputs')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /templates/i })).toBeInTheDocument();
     });
