@@ -650,7 +650,7 @@ router.put(
   "/templates/:id",
   authenticateSupabase,
   handleMulterError(uploadTemplate.single("template")),
-  validate({ params: templateIdParams }),
+  validate({ params: templateIdParams, body: updateTemplateBody }),
   async (req, res) => {
     try {
       const { id } = req.params; // Already validated by Zod
