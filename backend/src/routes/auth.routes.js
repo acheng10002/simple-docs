@@ -26,6 +26,20 @@ const authLimiter = createRateLimiter({
   message: "Too many authentication attempts, please try again later",
 }, "auth");
 
+// Stricter limiter for password reset flow (prevent enumeration/brute force)
+const passwordResetLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many password reset attempts, please try again later",
+}, "password-reset");
+
+// More generous limiter for authenticated account changes
+const accountChangeLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many account change attempts, please try again later",
+}, "account-change");
+
 /* POST /api/auth/register
 - creates new user in Supabase Auth and database
 - validates email uniqueness */
@@ -149,7 +163,7 @@ router.post("/login", authLimiter, validate({ body: loginBody }), async (req, re
 /* POST /api/auth/forgot-password
 - sends password reset email via Supabase Auth
 - always returns success to prevent email enumeration */
-router.post("/forgot-password", validate({ body: forgotPasswordBody }), async (req, res) => {
+router.post("/forgot-password", passwordResetLimiter, validate({ body: forgotPasswordBody }), async (req, res) => {
   try {
     const { email } = req.body; // Already validated by Zod
 
@@ -179,7 +193,7 @@ router.post("/forgot-password", validate({ body: forgotPasswordBody }), async (r
 /* POST /api/auth/reset-password
 - updates user password after reset email verification
 - requires valid Supabase session from reset link */
-router.post("/reset-password", validate({ body: resetPasswordBody }), async (req, res) => {
+router.post("/reset-password", passwordResetLimiter, validate({ body: resetPasswordBody }), async (req, res) => {
   try {
     const { password } = req.body; // Already validated by Zod
 
@@ -221,7 +235,7 @@ router.post("/reset-password", validate({ body: resetPasswordBody }), async (req
 /* PUT /api/auth/update-email
 - updates user email in Supabase Auth and database
 - requires valid Supabase session */
-router.put("/update-email", validate({ body: updateEmailBody }), async (req, res) => {
+router.put("/update-email", accountChangeLimiter, validate({ body: updateEmailBody }), async (req, res) => {
   try {
     const { email } = req.body; // Already validated by Zod
 
@@ -279,7 +293,7 @@ router.put("/update-email", validate({ body: updateEmailBody }), async (req, res
 /* PUT /api/auth/update-password
 - updates user password in Supabase Auth
 - requires valid current password verification */
-router.put("/update-password", validate({ body: updatePasswordBody }), async (req, res) => {
+router.put("/update-password", accountChangeLimiter, validate({ body: updatePasswordBody }), async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body; // Already validated by Zod
 
@@ -330,7 +344,7 @@ router.put("/update-password", validate({ body: updatePasswordBody }), async (re
 
 /* POST /api/auth/logout
 - signs out user from Supabase Auth */
-router.post("/logout", async (req, res) => {
+router.post("/logout", accountChangeLimiter, async (req, res) => {
   try {
     const authHeader = req.get("Authorization");
 
