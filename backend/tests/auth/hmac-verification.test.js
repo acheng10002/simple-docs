@@ -2,56 +2,53 @@ const crypto = require("crypto");
 const express = require("express");
 const request = require("supertest");
 
-// tests the verifyHmac middleware in isolation
+// Mock dependencies that merge.routes.js imports
+jest.mock("../../src/config/prisma");
+jest.mock("../../src/middleware/supabase-auth", () => jest.fn((req, res, next) => next()));
+jest.mock("../../src/middleware/rate-limiter", () => ({
+  createRateLimiter: () => (req, res, next) => next(),
+  createUserRateLimiter: () => (req, res, next) => next(),
+  createWeightedLimiter: () => () => (req, res, next) => next(),
+}));
+jest.mock("../../src/storage/supabase-storage");
+jest.mock("../../src/services/merge.service", () => ({ mergeTemplate: jest.fn() }));
+jest.mock("../../src/services/batchJob.service", () => ({
+  shouldProcessInline: jest.fn(),
+  processRowsInline: jest.fn(),
+  createBatchJob: jest.fn(),
+  getBatchJobStatus: jest.fn(),
+  listBatchJobs: jest.fn(),
+}));
+jest.mock("../../src/services/template.service", () => ({
+  extractFieldsFromTemplate: jest.fn(),
+  storeTemplateAndFields: jest.fn(),
+}));
+
+// Import the actual verifyHmac from merge.routes.js
+const { verifyHmac } = require("../../src/routes/merge.routes");
+
 describe("HMAC verification middleware", () => {
   let app;
-  let verifyHmac;
 
   beforeAll(() => {
     process.env.WEBHOOK_SECRET = "test-webhook-secret";
   });
 
   beforeEach(() => {
-    // creates fresh app for each test
     app = express();
 
-    // applies raw body parser (same as App.js)
+    // Raw body parser (same as app.js)
     app.use(
       express.raw({
-        type: ["application/json", "application/**json", "text/csv"],
+        type: ["application/json", "application/*+json", "text/csv"],
       })
     );
 
-    verifyHmac = (req, res, next) => {
-      const sigHex = (req.get("x-signature") || "").trim();
-      if (!sigHex) return res.status(401).json({ error: "Unauthorized" });
-
-      const raw = req.body;
-      if (!Buffer.isBuffer(raw)) {
-        return res.status(400).json({ error: "Webhook requires raw body" });
-      }
-
-      const expectedSignature = crypto
-        .createHmac("sha256", process.env.WEBHOOK_SECRET)
-        .update(raw)
-        .digest();
-
-      let provided;
-      try {
-        provided = Buffer.from(sigHex, "hex");
-      } catch {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      if (
-        !provided ||
-        provided.length !== expectedSignature.length ||
-        !crypto.timingSafeEqual(provided, expectedSignature)
-      ) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+    // Add mock logger
+    app.use((req, res, next) => {
+      req.log = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
       next();
-    };
+    });
 
     app.post("/test", verifyHmac, (req, res) => {
       res.json({ success: true });
@@ -90,7 +87,7 @@ describe("HMAC verification middleware", () => {
       .send(body)
       .expect(401);
 
-    expect(response.body.error).toBe("Unauthorized");
+    expect(response.body.error.message).toBe("Unauthorized");
   });
 
   test("should reject request with empty x-signature header", async () => {
@@ -103,7 +100,7 @@ describe("HMAC verification middleware", () => {
       .send(body)
       .expect(401);
 
-    expect(response.body.error).toBe("Unauthorized");
+    expect(response.body.error.message).toBe("Unauthorized");
   });
 
   test("should reject request with invalid hex signature", async () => {
@@ -116,13 +113,11 @@ describe("HMAC verification middleware", () => {
       .send(body)
       .expect(401);
 
-    expect(response.body.error).toBe("Unauthorized");
+    expect(response.body.error.message).toBe("Unauthorized");
   });
 
   test("should reject request with wrong signature", async () => {
     const body = JSON.stringify({ data: "test" });
-
-    // generates HMAC for different body
     const wrongSignature = generateHMAC(JSON.stringify({ data: "wrong" }));
 
     const response = await request(app)
@@ -132,22 +127,22 @@ describe("HMAC verification middleware", () => {
       .send(body)
       .expect(401);
 
-    expect(response.body.error).toBe("Unauthorized");
+    expect(response.body.error.message).toBe("Unauthorized");
   });
 
   test("should reject request when body is tampered after signing", async () => {
     const originalBody = JSON.stringify({ data: "original" });
-    const wrongSignature = generateHMAC(originalBody);
+    const signature = generateHMAC(originalBody);
     const tamperedBody = JSON.stringify({ data: "tampered" });
 
     const response = await request(app)
       .post("/test")
       .set("Content-Type", "application/json")
-      .set("x-signature", wrongSignature)
+      .set("x-signature", signature)
       .send(tamperedBody)
       .expect(401);
 
-    expect(response.body.error).toBe("Unauthorized");
+    expect(response.body.error.message).toBe("Unauthorized");
   });
 
   test("should accept request with CSV content type", async () => {

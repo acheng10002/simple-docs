@@ -886,5 +886,6 @@ router.post("/webhooks/templates/:templateId", verifyHmac, memoryGuard, validate
 });
 
 module.exports = router;
+module.exports.verifyHmac = verifyHmac;
 
 // KEY LIBS: EXPRESS, PASSPORT, CSV-PARSE/SYNC, CRYPTO, FS, MY MERGE.SERVICE
