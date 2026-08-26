@@ -16,9 +16,6 @@ const password = z.string({ error: "Password is required" })
   .regex(/[0-9]/, "Password must contain at least one number")
   .regex(/[!@#$%^&*(),.?":{}|<>]/, "Password must contain at least one special character");
 
-// Simple password (for login - just requires non-empty)
-const simplePassword = z.string().min(1, "Password is required");
-
 // Non-empty trimmed string
 const requiredString = (fieldName = "Field") => z.string()
   .min(1, `${fieldName} is required`)
@@ -41,7 +38,6 @@ module.exports = {
   cuid,
   email,
   password,
-  simplePassword,
   requiredString,
   outputType,
   pagination,

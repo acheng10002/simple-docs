@@ -1,5 +1,5 @@
 const { z } = require("zod");
-const { email, password, simplePassword } = require("./common");
+const { email, password } = require("./common");
 
 const registerBody = z.object({
   email: email,
