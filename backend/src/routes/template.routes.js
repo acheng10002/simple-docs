@@ -203,12 +203,16 @@ router.post("/upload", authenticateSupabase, handleMulterError(uploadTemplate.si
     const safeName = sanitize(file.originalname);
     const stamped = `${Date.now()}-${randomUUID()}-${safeName}`;
 
-    // Handle duplicate display names with auto-increment (per user)
+    // Handle duplicate display names with auto-increment (per user, max 100 attempts)
     let displayName = originalName;
     let counter = 1;
+    const MAX_DEDUP_ATTEMPTS = 100;
     while (await prisma.template.findFirst({
       where: { displayName, isActive: true, uploadedById: req.user.id }
     })) {
+      if (counter > MAX_DEDUP_ATTEMPTS) {
+        return errorResponse.badRequest(res, "Too many templates with this name", ErrorCodes.VALIDATION_ERROR);
+      }
       const ext = path.extname(originalName);
       const base = path.basename(originalName, ext);
       displayName = `${base} (${counter})${ext}`;
