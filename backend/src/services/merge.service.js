@@ -70,13 +70,6 @@ function flattenKeys(obj, prefix = '') {
 }
 
 /**
- * Get file extension for output type
- */
-function getExtension(outputType) {
-  return outputType;
-}
-
-/**
  * Get Content-Type for output type
  */
 function getContentType(outputType) {
@@ -512,7 +505,7 @@ async function mergeTemplate({
     .replace(/\.+$/, '') // Remove trailing dots to prevent double-dot issues
     .substring(0, 100); // Limit field value length
   const baseFilename = `${safeBase}-${fieldValue}`;
-  const ext = getExtension(outputType);
+  const ext = outputType;
 
   // Include UUID to guarantee unique filenames and prevent race condition overwrites
   // This eliminates the TOCTOU vulnerability where concurrent requests could collide
