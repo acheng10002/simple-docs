@@ -1,7 +1,7 @@
 /* CLEANUP SERVICE - Scheduled cleanup for old merge outputs */
 
 const prisma = require("../config/prisma");
-const { s3, DeleteObjectCommand, withPrefix } = require("../storage/supabase-storage");
+const { s3, DeleteObjectCommand } = require("../storage/supabase-storage");
 const logger = require("../config/logger");
 
 // Default retention period for merge outputs (90 days)
@@ -37,9 +37,9 @@ async function cleanupOldOutputs(retentionDays = OUTPUT_RETENTION_DAYS) {
       try {
         // Delete S3 file first
         if (job.filePath) {
-          // Handle both s3:// prefix and raw paths
-          const rawPath = job.filePath.replace(/^s3:\/\/[^/]+\//, "");
-          const s3Key = withPrefix(rawPath);
+          // Strip s3://bucket/ prefix to get the S3 key
+          // The key already includes STORAGE_PREFIX from when it was created
+          const s3Key = job.filePath.replace(/^s3:\/\/[^/]+\//, "");
 
           try {
             await s3.send(

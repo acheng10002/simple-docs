@@ -42,7 +42,7 @@ const {
   getBatchJobStatus,
   listBatchJobs,
 } = require("../services/batchJob.service");
-const { s3, GetObjectCommand, DeleteObjectCommand, withPrefix } = require("../storage/supabase-storage");
+const { s3, GetObjectCommand, DeleteObjectCommand } = require("../storage/supabase-storage");
 const prisma = require("../config/prisma");
 const { ALLOWED_OUTPUTS } = require("../constants/outputs");
 
@@ -325,7 +325,7 @@ router.delete(
       // Delete from S3 if file exists
       if (job.filePath) {
         try {
-          const s3Key = withPrefix(job.filePath.replace(/^s3:\/\/[^/]+\//, ''));
+          const s3Key = job.filePath.replace(/^s3:\/\/[^/]+\//, '');
           await s3.send(
             new DeleteObjectCommand({
               Bucket: process.env.S3_BUCKET,

@@ -48,14 +48,20 @@ describe("cleanupOldOutputs", () => {
     expect(diffMs).toBeLessThan(1000);
   });
 
-  test("strips s3:// prefix from file path", async () => {
+  test("strips s3:// prefix from file path and uses it as S3 key directly", async () => {
     prisma.mergeJob.findMany.mockResolvedValue([
       { id: "job-1", filePath: "s3://my-bucket/outputs/file.pdf" },
     ]);
 
     await cleanupOldOutputs();
 
-    expect(withPrefix).toHaveBeenCalledWith("outputs/file.pdf");
+    expect(s3.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          Key: "outputs/file.pdf",
+        }),
+      })
+    );
   });
 
   test("handles jobs with no filePath", async () => {
