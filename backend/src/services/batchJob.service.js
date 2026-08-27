@@ -48,7 +48,7 @@ async function processRowsInline({ templateId, rows, outputType, userId, fromWeb
           });
           return { rowIndex, success: true, job };
         } catch (err) {
-          console.error('Row merge failed:', { rowIndex, error: err.message, data: Object.keys(row) });
+          logger.error({ rowIndex, error: err.message }, 'Row merge failed');
           return { rowIndex, success: false, error: err.message };
         }
       })
