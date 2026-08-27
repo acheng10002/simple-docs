@@ -511,6 +511,10 @@ describe('EditTemplate Page', () => {
 
   describe('Deactivate Error Handling', () => {
     it('should show error message when deactivate fails', async () => {
+      // Reset navigate to isolate from any prior async leakage
+      mockNavigate.mockReset();
+      mockDelete.mockReset();
+
       mockGetById.mockResolvedValue(mockTemplate);
       mockDelete.mockRejectedValue({
         response: { data: { error: 'Cannot deactivate template with pending jobs' } },
@@ -535,12 +539,11 @@ describe('EditTemplate Page', () => {
       const confirmButton = deactivateButtons[deactivateButtons.length - 1];
       fireEvent.click(confirmButton);
 
+      // Wait for error to appear AND verify no navigation happened
       await waitFor(() => {
         expect(screen.getByText('Cannot deactivate template with pending jobs')).toBeInTheDocument();
+        expect(mockNavigate).not.toHaveBeenCalled();
       });
-
-      // Should NOT have navigated
-      expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
 
