@@ -636,6 +636,13 @@ export default function Templates() {
               </IconButton>
             </Tooltip>
             <Button
+              variant="outlined"
+              startIcon={<OutputsIcon />}
+              onClick={() => navigate('/outputs')}
+            >
+              Outputs
+            </Button>
+            <Button
               variant="contained"
               startIcon={<UploadIcon />}
               onClick={() => setUploadDialogOpen(true)}
