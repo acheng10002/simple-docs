@@ -591,9 +591,18 @@ export default function Templates() {
             >
               {(user?.email || '?')[0].toUpperCase()}
             </Avatar>
-            <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.primary' }}>
+            <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.primary', flex: 1 }}>
               {user?.email}
             </Typography>
+            <ExpandMoreIcon
+              fontSize="small"
+              sx={{
+                transition: 'transform 0.2s',
+                transform: userMenuAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
+                color: 'text.secondary',
+                flexShrink: 0,
+              }}
+            />
           </Box>
         </Paper>
           <Box
