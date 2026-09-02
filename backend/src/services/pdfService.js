@@ -1,4 +1,4 @@
-const { PDFDocument, StandardFonts, PDFName } = require('pdf-lib');
+const { PDFDocument, StandardFonts, PDFName, PDFDict } = require('pdf-lib');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -46,6 +46,8 @@ async function fillPdfForm(pdfBuffer, data) {
         // Handle different field types
         if (fieldType === 'PDFTextField') {
           field.setText(String(value));
+          // Set default appearance to black text
+          field.acroField.dict.set(PDFName.of('DA'), pdfDoc.context.obj('/Helv 0 Tf 0 0 0 rg'));
         } else if (fieldType === 'PDFCheckBox') {
           if (value === 'true' || value === true || value === 'Yes') {
             field.check();
@@ -63,9 +65,15 @@ async function fillPdfForm(pdfBuffer, data) {
       }
     }
 
-    // Update field appearances and attempt to flatten
+    // Update field appearances and disable NeedAppearances so renderers
+    // use the written AP streams instead of trying to regenerate them
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     form.updateFieldAppearances(font);
+    const acroForm = pdfDoc.catalog.lookup(PDFName.of('AcroForm'));
+    if (acroForm instanceof PDFDict) {
+      acroForm.set(PDFName.of('NeedAppearances'), pdfDoc.context.obj(false));
+    }
+
     try {
       form.flatten();
     } catch (flattenError) {

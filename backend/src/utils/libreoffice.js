@@ -135,10 +135,48 @@ async function convertPptxToPdf(pptxBuffer) {
   return convertToPdf(pptxBuffer, 'pptx');
 }
 
+/**
+ * Convert PDF to JPG using LibreOffice
+ * @param {Buffer} pdfBuffer - PDF file buffer
+ * @returns {Promise<Buffer>} - JPG buffer
+ */
+async function convertPdfToJpgLibreOffice(pdfBuffer) {
+  const soffice = await resolveSoffice();
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdf2jpg-'));
+  const inputFile = path.join(tmpDir, 'input.pdf');
+
+  await fs.writeFile(inputFile, pdfBuffer);
+
+  try {
+    await runSoffice(
+      soffice,
+      [
+        '--headless',
+        `-env:UserInstallation=file://${tmpDir}`,
+        '--convert-to',
+        'jpg',
+        '--outdir',
+        tmpDir,
+        inputFile,
+      ],
+      tmpDir
+    );
+
+    const outputFile = path.join(tmpDir, 'input.jpg');
+    await fs.access(outputFile);
+    return await fs.readFile(outputFile);
+  } finally {
+    try {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 module.exports = {
   resolveSoffice,
   runSoffice,
   convertToPdf,
   convertXlsxToPdf,
   convertPptxToPdf,
+  convertPdfToJpgLibreOffice,
 };

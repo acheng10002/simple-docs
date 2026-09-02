@@ -129,10 +129,19 @@ async function convertHtmlToJpgInProcess(htmlContent) {
 
 /**
  * Convert PDF buffer to JPG
- * Uses isolated worker in production
+ * Uses LibreOffice for reliable form field rendering,
+ * falls back to Puppeteer/PDF.js in-process conversion
  */
 async function convertPdfToJpg(pdfBuffer) {
-  // Try isolated worker first
+  // Use LibreOffice for PDF→JPG as it properly renders form field values
+  try {
+    const { convertPdfToJpgLibreOffice } = require('../utils/libreoffice');
+    return await convertPdfToJpgLibreOffice(pdfBuffer);
+  } catch (err) {
+    logger.warn({ err }, 'LibreOffice PDF→JPG failed, falling back to Puppeteer');
+  }
+
+  // Fallback to worker or in-process Puppeteer
   const wm = getWorkerManager();
   if (wm) {
     try {
@@ -142,7 +151,6 @@ async function convertPdfToJpg(pdfBuffer) {
     }
   }
 
-  // Fallback to in-process
   return convertPdfToJpgInProcess(pdfBuffer);
 }
 
