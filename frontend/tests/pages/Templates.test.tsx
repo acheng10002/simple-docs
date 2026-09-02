@@ -368,6 +368,19 @@ describe('Templates Page', () => {
     });
   });
 
+  it('should navigate to outputs page via header button', async () => {
+    vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
+
+    renderTemplates();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /outputs/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /outputs/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/outputs');
+  });
+
   it('should navigate to outputs page via user menu', async () => {
     vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue([]);
 
