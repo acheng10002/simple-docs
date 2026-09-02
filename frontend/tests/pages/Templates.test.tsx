@@ -381,9 +381,9 @@ describe('Templates Page', () => {
 
     // Click Outputs in the menu
     await waitFor(() => {
-      expect(screen.getByText('Outputs')).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /outputs/i })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Outputs'));
+    fireEvent.click(screen.getByRole('menuitem', { name: /outputs/i }));
 
     expect(mockNavigate).toHaveBeenCalledWith('/outputs');
   });
