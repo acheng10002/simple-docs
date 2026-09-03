@@ -45,6 +45,7 @@ import { useAuth } from '../context/SupabaseAuthContext';
 import { templatesApi, mergeApi, foldersApi, batchJobsApi, getErrorMessage } from '../api/client';
 import type { Template, Folder } from '../types/api';
 import UploadTemplateDialog from '../components/UploadTemplateDialog';
+import CsvMergeDialog from '../components/CsvMergeDialog';
 import FolderTree from '../components/FolderTree';
 import {
   CreateFolderDialog,
@@ -69,7 +70,7 @@ interface TemplateRowProps {
   onDownload: (id: string, displayName: string) => void;
   onMerge: (id: string) => void;
   onMove: (id: string, folderId: string | null) => void;
-  onCsvMerge: (id: string, event: React.ChangeEvent<HTMLInputElement>) => void;
+  onCsvMerge: (id: string) => void;
   csvMergingTemplateId: string | null;
   draggable?: boolean;
   onDragStart?: () => void;
@@ -148,16 +149,10 @@ function TemplateRow({
             <Tooltip title="Bulk Merge CSV">
               <IconButton
                 size="small"
-                component="label"
+                onClick={() => onCsvMerge(template.id)}
                 sx={{ color: '#9c27b0', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
               >
                 <CsvIcon />
-                <input
-                  type="file"
-                  hidden
-                  accept=".csv"
-                  onChange={(e) => onCsvMerge(template.id, e)}
-                />
               </IconButton>
             </Tooltip>
           </Box>
@@ -187,6 +182,7 @@ export default function Templates() {
   const [error, setError] = useState('');
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [csvMergingTemplateId, setCsvMergingTemplateId] = useState<string | null>(null);
+  const [csvDialogTemplateId, setCsvDialogTemplateId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -264,19 +260,12 @@ export default function Templates() {
     navigate(`/templates/${templateId}/merge`);
   };
 
-  const handleCsvMerge = async (templateId: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.name.endsWith('.csv')) {
-      setError('Only CSV files are supported for bulk merge');
-      return;
-    }
+  const handleCsvMerge = async (file: File) => {
+    const templateId = csvDialogTemplateId;
+    if (!templateId) return;
 
     try {
       setError('');
-
       setCsvMergingTemplateId(templateId);
 
       // Find the template to get its defaultOutputType
@@ -289,6 +278,7 @@ export default function Templates() {
       if (!result.batchJobId && result.jobs?.length === 0) {
         setError('CSV merge failed — no rows were merged. Check that CSV columns match the template fields.');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        setCsvDialogTemplateId(null);
         return;
       }
 
@@ -304,6 +294,7 @@ export default function Templates() {
 
         if (status.status === 'failed') {
           setError(status.error || 'Batch merge failed');
+          setCsvDialogTemplateId(null);
           return;
         }
       }
@@ -314,11 +305,10 @@ export default function Templates() {
         ? { warning: `${failedCount} of ${result.count} rows failed to merge.` }
         : undefined;
 
+      setCsvDialogTemplateId(null);
+
       // Navigate to outputs page to see all generated files
       navigate('/outputs', { state: navState });
-
-      // Reset file input
-      event.target.value = '';
     } catch (err: any) {
       const status = err.response?.status;
       if (status === 429) {
@@ -327,8 +317,8 @@ export default function Templates() {
         setError(getErrorMessage(err, 'CSV merge failed'));
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      setCsvDialogTemplateId(null);
     } finally {
-
       setCsvMergingTemplateId(null);
     }
   };
@@ -552,7 +542,7 @@ export default function Templates() {
               onTemplateDragEnd={handleDragEnd}
               onMerge={handleMerge}
               onDownload={handleDownload}
-              onCsvMerge={handleCsvMerge}
+              onCsvMerge={(templateId) => setCsvDialogTemplateId(templateId)}
               onEdit={(templateId) => navigate(`/templates/${templateId}/edit`)}
               onMoveTemplate={(id, folderId) => setMoveTemplateDialog({ templateId: id, folderId })}
             />
@@ -758,7 +748,7 @@ export default function Templates() {
                             onDownload={handleDownload}
                             onMerge={handleMerge}
                             onMove={(id, folderId) => setMoveTemplateDialog({ templateId: id, folderId })}
-                            onCsvMerge={handleCsvMerge}
+                            onCsvMerge={(id) => setCsvDialogTemplateId(id)}
                             csvMergingTemplateId={csvMergingTemplateId}
                             rowSx={{
                               bgcolor: selectedTemplateId === template.id ? 'action.selected' : 'white',
@@ -890,6 +880,15 @@ export default function Templates() {
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         existingTemplateNames={templates.filter(t => t.isActive).map(t => t.displayName)}
+      />
+
+      {/* CSV Merge Dialog */}
+      <CsvMergeDialog
+        open={Boolean(csvDialogTemplateId)}
+        template={templates.find(t => t.id === csvDialogTemplateId) || null}
+        onClose={() => setCsvDialogTemplateId(null)}
+        onSubmit={handleCsvMerge}
+        loading={Boolean(csvMergingTemplateId)}
       />
 
       {/* Folder Dialogs */}

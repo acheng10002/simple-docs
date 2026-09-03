@@ -198,6 +198,41 @@ describe('Templates Page', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/templates/template1/merge');
   });
 
+  it('should open CSV merge dialog with template field names', async () => {
+    const mockTemplates = [
+      {
+        id: 'template1',
+        displayName: 'Test Template',
+        fields: [{ name: 'firstName' }, { name: 'lastName' }, { name: 'email' }],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        isActive: true,
+        folderId: null,
+      },
+    ];
+
+    vi.mocked(apiClient.templatesApi.getAll).mockResolvedValue(mockTemplates);
+
+    renderTemplates();
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Template')).toBeInTheDocument();
+    });
+
+    const csvIcon = screen.getByTestId('TableRowsIcon');
+    const csvButton = csvIcon.closest('button') as HTMLButtonElement;
+    fireEvent.click(csvButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Bulk Merge CSV')).toBeInTheDocument();
+    });
+
+    // Field names should be displayed as chips
+    expect(screen.getByText('firstName')).toBeInTheDocument();
+    expect(screen.getByText('lastName')).toBeInTheDocument();
+    expect(screen.getByText('email')).toBeInTheDocument();
+    expect(screen.getByText(/CSV columns should match/)).toBeInTheDocument();
+  });
+
   it('should handle CSV merge and navigate to outputs', async () => {
     const mockTemplates = [
       {
@@ -222,14 +257,23 @@ describe('Templates Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    // Find CSV button by its icon's data-testid
+    // Click CSV button to open dialog
     const csvIcon = screen.getByTestId('TableRowsIcon');
-    const csvButton = csvIcon.closest('label') as HTMLLabelElement;
-    const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
+    const csvButton = csvIcon.closest('button') as HTMLButtonElement;
+    fireEvent.click(csvButton);
 
+    // Dialog should open with drop zone
+    await waitFor(() => {
+      expect(screen.getByText('Bulk Merge CSV')).toBeInTheDocument();
+    });
+
+    // Select a file via the hidden input in the dialog
+    const fileInput = document.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
     const csvFile = new File(['col1,col2\nval1,val2'], 'test.csv', { type: 'text/csv' });
-
     fireEvent.change(fileInput, { target: { files: [csvFile] } });
+
+    // Click Merge button
+    fireEvent.click(screen.getByRole('button', { name: /^merge$/i }));
 
     await waitFor(() => {
       expect(apiClient.mergeApi.mergeCsv).toHaveBeenCalledWith('template1', csvFile, 'pdf');
@@ -257,17 +301,22 @@ describe('Templates Page', () => {
       expect(screen.getByText('Test Template')).toBeInTheDocument();
     });
 
-    // Find CSV button by its icon's data-testid
+    // Click CSV button to open dialog
     const csvIcon = screen.getByTestId('TableRowsIcon');
-    const csvButton = csvIcon.closest('label') as HTMLLabelElement;
-    const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
+    const csvButton = csvIcon.closest('button') as HTMLButtonElement;
+    fireEvent.click(csvButton);
 
+    await waitFor(() => {
+      expect(screen.getByText('Bulk Merge CSV')).toBeInTheDocument();
+    });
+
+    // Select a non-CSV file
+    const fileInput = document.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
     const txtFile = new File(['content'], 'test.txt', { type: 'text/plain' });
-
     fireEvent.change(fileInput, { target: { files: [txtFile] } });
 
     await waitFor(() => {
-      expect(screen.getByText(/only csv files are supported for bulk merge/i)).toBeInTheDocument();
+      expect(screen.getByText(/only csv files are supported/i)).toBeInTheDocument();
     });
 
     expect(apiClient.mergeApi.mergeCsv).not.toHaveBeenCalled();
@@ -852,12 +901,20 @@ describe('Templates Page', () => {
         expect(screen.getByText('Test Template')).toBeInTheDocument();
       });
 
+      // Click CSV button to open dialog
       const csvIcon = screen.getByTestId('TableRowsIcon');
-      const csvButton = csvIcon.closest('label') as HTMLLabelElement;
-      const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
+      const csvButton = csvIcon.closest('button') as HTMLButtonElement;
+      fireEvent.click(csvButton);
 
+      await waitFor(() => {
+        expect(screen.getByText('Bulk Merge CSV')).toBeInTheDocument();
+      });
+
+      const fileInput = document.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
       const csvFile = new File(['col1\nval1'], 'test.csv', { type: 'text/csv' });
       fireEvent.change(fileInput, { target: { files: [csvFile] } });
+
+      fireEvent.click(screen.getByRole('button', { name: /^merge$/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/CSV merge failed/)).toBeInTheDocument();
@@ -887,12 +944,20 @@ describe('Templates Page', () => {
         expect(screen.getByText('Test Template')).toBeInTheDocument();
       });
 
+      // Click CSV button to open dialog
       const csvIcon = screen.getByTestId('TableRowsIcon');
-      const csvButton = csvIcon.closest('label') as HTMLLabelElement;
-      const fileInput = csvButton.querySelector('input[type="file"]') as HTMLInputElement;
+      const csvButton = csvIcon.closest('button') as HTMLButtonElement;
+      fireEvent.click(csvButton);
 
+      await waitFor(() => {
+        expect(screen.getByText('Bulk Merge CSV')).toBeInTheDocument();
+      });
+
+      const fileInput = document.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
       const csvFile = new File(['col1\nval1'], 'test.csv', { type: 'text/csv' });
       fireEvent.change(fileInput, { target: { files: [csvFile] } });
+
+      fireEvent.click(screen.getByRole('button', { name: /^merge$/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/Too many CSV merges/)).toBeInTheDocument();

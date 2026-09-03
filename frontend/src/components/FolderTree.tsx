@@ -52,7 +52,7 @@ interface FolderTreeProps {
   onTemplateDragEnd: () => void;
   onMerge: (templateId: string) => void;
   onDownload: (templateId: string, displayName: string) => void;
-  onCsvMerge: (templateId: string, event: React.ChangeEvent<HTMLInputElement>) => void;
+  onCsvMerge: (templateId: string) => void;
   onEdit: (templateId: string) => void;
   onMoveTemplate: (templateId: string, folderId: string | null) => void;
 }
@@ -403,24 +403,17 @@ export default function FolderTree({
             <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Merge</ListItemText>
           </MenuItem>
           <MenuItem
-            component="label"
-            onClick={() => {}}
+            onClick={() => {
+              if (templateMenuAnchor) {
+                onCsvMerge(templateMenuAnchor.template.id);
+              }
+              setTemplateMenuAnchor(null);
+            }}
           >
             <ListItemIcon>
               <CsvIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: '0.85rem' }}>Bulk Merge CSV</ListItemText>
-            <input
-              type="file"
-              hidden
-              accept=".csv"
-              onChange={(e) => {
-                if (templateMenuAnchor) {
-                  onCsvMerge(templateMenuAnchor.template.id, e);
-                }
-                setTemplateMenuAnchor(null);
-              }}
-            />
           </MenuItem>
         </Menu>
       )}
