@@ -480,7 +480,10 @@ export default function Templates() {
           }}
         >
           {/* Branding */}
-          <Box sx={{ pt: 3, pb: 1.5, px: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box
+            onClick={() => navigate('/templates')}
+            sx={{ pt: 3, pb: 1.5, px: 2, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }}
+          >
             <Box
               sx={{
                 width: 32,

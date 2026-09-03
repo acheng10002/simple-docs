@@ -119,7 +119,12 @@ export default function Outputs() {
       {/* App Bar */}
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography
+            variant="h6"
+            component="div"
+            onClick={() => navigate('/templates')}
+            sx={{ flexGrow: 1, cursor: 'pointer' }}
+          >
             MergeMyDocs
           </Typography>
           <Button
