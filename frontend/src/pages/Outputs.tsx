@@ -221,27 +221,29 @@ export default function Outputs() {
                           : 'Unknown'}
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Download">
-                          <span>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                          <Tooltip title="Download">
+                            <span>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDownload(job.filePath)}
+                                disabled={job.status === 'failed'}
+                                sx={{ color: '#2e7d32', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
+                              >
+                                <DownloadIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <Tooltip title="Delete">
                             <IconButton
                               size="small"
-                              onClick={() => handleDownload(job.filePath)}
-                              disabled={job.status === 'failed'}
-                              sx={{ color: '#2e7d32', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
+                              onClick={() => setDeleteDialog({ jobId: job.id!, templateName: job.template?.displayName || 'Unknown' })}
+                              sx={{ color: '#d32f2f', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
                             >
-                              <DownloadIcon />
+                              <DeleteIcon />
                             </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
-                            onClick={() => setDeleteDialog({ jobId: job.id!, templateName: job.template?.displayName || 'Unknown' })}
-                            sx={{ color: '#d32f2f', '&:hover': { bgcolor: 'transparent', filter: 'brightness(0.7)' } }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}
