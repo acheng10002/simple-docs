@@ -14,7 +14,6 @@ import {
   CircularProgress,
 } from '@mui/material';
 import {
-  ArrowBack as ArrowBackIcon,
   Folder as TemplatesIcon,
   Folder as OutputsIcon,
 } from '@mui/icons-material';
@@ -160,13 +159,6 @@ export default function Settings() {
       {/* Main Content */}
       <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
         <Paper sx={{ p: 3 }}>
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/templates')}
-            sx={{ mb: 2, px: 1 }}
-          >
-            Back
-          </Button>
           <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
             Account Settings
           </Typography>
