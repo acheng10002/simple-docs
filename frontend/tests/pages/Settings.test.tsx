@@ -89,7 +89,6 @@ describe('Settings Page', () => {
 
       expect(screen.getByRole('button', { name: /templates/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /outputs/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
     });
 
@@ -140,15 +139,6 @@ describe('Settings Page', () => {
       fireEvent.click(outputsButton);
 
       expect(mockNavigate).toHaveBeenCalledWith('/outputs');
-    });
-
-    it('should navigate back to templates when Back button is clicked', () => {
-      renderSettings();
-
-      const backButton = screen.getByRole('button', { name: /back/i });
-      fireEvent.click(backButton);
-
-      expect(mockNavigate).toHaveBeenCalledWith('/templates');
     });
 
     it('should navigate to login when Log Out is clicked', async () => {
