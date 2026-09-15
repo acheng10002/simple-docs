@@ -511,7 +511,6 @@ describe('EditTemplate Page', () => {
 
   describe('Deactivate Error Handling', () => {
     it('should show error message when deactivate fails', async () => {
-      // Reset navigate to isolate from any prior async leakage
       mockNavigate.mockReset();
       mockDelete.mockReset();
 
@@ -525,6 +524,10 @@ describe('EditTemplate Page', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /deactivate template/i })).toBeInTheDocument();
       });
+
+      // Flush any leaked timers from prior tests (e.g. post-save navigation setTimeout)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      mockNavigate.mockClear();
 
       // Click deactivate button
       const deactivateButton = screen.getByRole('button', { name: /deactivate template/i });
