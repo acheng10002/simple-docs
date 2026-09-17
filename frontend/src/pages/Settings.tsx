@@ -165,7 +165,7 @@ export default function Settings() {
 
           {/* Email Update Section */}
           <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2.5 }}>
               Update Email
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
@@ -192,7 +192,7 @@ export default function Settings() {
                 type="email"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                sx={{ mb: 2 }}
+                sx={{ mb: 3 }}
                 disabled={emailLoading}
               />
               <Button
@@ -209,7 +209,7 @@ export default function Settings() {
 
           {/* Password Update Section */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ mb: 3 }}>
               Update Password
             </Typography>
 
@@ -251,7 +251,7 @@ export default function Settings() {
                 label="Confirm New Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                sx={{ mt: 2, mb: 2 }}
+                sx={{ mt: 2, mb: 3 }}
                 disabled={passwordLoading}
               />
               <Button
