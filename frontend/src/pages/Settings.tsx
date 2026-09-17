@@ -187,6 +187,7 @@ export default function Settings() {
             <form onSubmit={handleUpdateEmail}>
               <TextField
                 fullWidth
+                size="small"
                 label="New Email"
                 type="email"
                 value={newEmail}
@@ -227,6 +228,7 @@ export default function Settings() {
             <form onSubmit={handleUpdatePassword}>
               <PasswordField
                 fullWidth
+                size="small"
                 label="Current Password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -235,24 +237,28 @@ export default function Settings() {
               />
               <PasswordField
                 fullWidth
+                size="small"
                 label="New Password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                sx={{ mb: 2 }}
                 disabled={passwordLoading}
               />
               <PasswordCriteria password={newPassword} />
               <PasswordField
                 fullWidth
+                size="small"
                 label="Confirm New Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                sx={{ mb: 2 }}
+                sx={{ mt: 2, mb: 2 }}
                 disabled={passwordLoading}
               />
               <Button
                 type="submit"
                 variant="contained"
                 disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                sx={{ mb: 2 }}
               >
                 {passwordLoading ? <CircularProgress size={24} /> : 'Update Password'}
               </Button>
